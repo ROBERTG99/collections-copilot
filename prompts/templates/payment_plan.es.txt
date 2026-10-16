@@ -1,0 +1,1 @@
+Hola {account_name}, podemos acordar un plan de pagos para su saldo pendiente de {total_open}. Responda a este mensaje para coordinarlo o pague en {pay_link}.

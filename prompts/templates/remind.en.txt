@@ -1,0 +1,1 @@
+Hi {account_name}, this is a reminder that invoice {invoice_number} for {invoice_amount} is past due. Open balance: {total_open}. You can pay at {pay_link}.

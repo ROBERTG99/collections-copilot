@@ -38,7 +38,7 @@ chore: configure commit attribution
 | T-16 | M2 | LLM gateway, FakeLLM, cassettes, step records | done | `pytest tests/unit/llm/test_gateway.py tests/unit/llm/test_fake.py` → collection error before gateway, now 22 passed (retries only 408/409/429/5xx, refusal/max_tokens, breaker, cost); import-linter: provider SDKs only in llm |
 | T-17 | M2 | Bedrock Mantle, Anthropic, ChatBedrock adapters | done | `pytest tests/unit/llm/test_providers_recorded.py tests/unit/llm/test_chatbedrock_conformance.py` → 13 passed offline (Appendix B request shape for Claude API and Bedrock Mantle; ChatBedrock 7/9 checks → Mantle); docs/adr/0002-chatbedrock-vs-sdk.md |
 | T-18 | M2 | PII redaction | todo | |
-| T-19 | M2 | Prompts v1 and schemas | todo | |
+| T-19 | M2 | Prompts v1 and schemas | done | `pytest tests/unit/agent/test_prompts.py` → collection error before module, now 5 passed (untrusted notes fenced and escaped after instructions); `cc prompts list` prints 5 SHA-256 hashes |
 | T-20 | M2 | Next-best-action node | todo | |
 | T-21 | M2 | Rationale and draft nodes | todo | |
 | T-22 | M2 | Case graph, checkpointer, interrupt | todo | |

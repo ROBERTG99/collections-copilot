@@ -1,0 +1,1 @@
+Hola {account_name}, le recordamos que la factura {invoice_number} por {invoice_amount} está vencida. Saldo pendiente: {total_open}. Puede pagar en {pay_link}.

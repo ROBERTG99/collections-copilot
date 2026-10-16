@@ -1,0 +1,1 @@
+Hi {account_name}, we can arrange a payment plan for your open balance of {total_open}. Reply to this message to set it up, or pay at {pay_link}.

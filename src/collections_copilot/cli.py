@@ -12,6 +12,18 @@ from collections_copilot.config import get_settings
 app = typer.Typer(add_completion=False, help="collections-copilot operations CLI")
 audit_app = typer.Typer(help="Audit log commands")
 app.add_typer(audit_app, name="audit")
+prompts_app = typer.Typer(help="Versioned prompts")
+app.add_typer(prompts_app, name="prompts")
+
+
+@prompts_app.command("list")
+def prompts_list() -> None:
+    """Print every prompt with its version, route, schema and SHA-256 (logged on each call)."""
+    from collections_copilot.agent.prompts import load_prompt, prompt_names
+
+    for name in prompt_names():
+        p = load_prompt(name)
+        typer.echo(f"{p.id:32} route={p.route:22} schema={p.schema_name:20} sha256={p.sha256}")
 
 
 @audit_app.command("verify")
