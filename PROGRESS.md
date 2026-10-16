@@ -33,7 +33,7 @@ chore: configure commit attribution
 | T-11 | M1 | Synthetic generator gen.v1 | done | `pytest tests/unit/generator` → 4 passed (digest stable for seed 4242); `make seed` (docker compose run --rm seed) → acme-distribution 400 accounts digest 874543310ca9ffbe, tenant-b-supplies 40 digest 37383436757dd895; rerun unchanged |
 | T-12 | M1 | Ingest via JSON and presigned S3 upload | done | `pytest tests/integration/test_ingest.py` → 5 passed (duplicate 400-row file returns original batch; negative amount rejected at row 4; 413 over 10 MB); `pytest tests/contract/test_s3_contract.py` → 2 passed (MinIO, moto) |
 | T-13 | M1 | Priority score | done | `pytest tests/unit/scoring/test_priority.py` → collection error before module, now 5 passed (incl. Hypothesis monotonicity); formula in docs/architecture.md |
-| T-14 | M1 | Compliance engine | todo | |
+| T-14 | M1 | Compliance engine | done | `pytest tests/unit/compliance` → collection errors before engine, now 33 passed (Hypothesis: never outside window/over cap/after opt-out); compliance/ coverage 100% |
 | T-15 | M1 | Ledger MCP server | todo | |
 | T-16 | M2 | LLM gateway, FakeLLM, cassettes, step records | todo | |
 | T-17 | M2 | Bedrock Mantle, Anthropic, ChatBedrock adapters | todo | |
