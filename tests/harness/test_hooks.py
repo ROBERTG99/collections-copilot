@@ -16,6 +16,7 @@ HOOKS = ROOT / ".claude" / "hooks"
 # Built by concatenation so the strings below never trip the guard while editing this file.
 ATTR = "Co-Authored" + "-By: Someone <x@example.com>"
 REAL_PHONE = "+44" + "7911123456"
+AWS = "aw" + "s"
 
 
 def run_hook(
@@ -80,6 +81,15 @@ def test_blocks_attribution_trailer() -> None:
     assert bash('git commit -m "feat: plain message"').returncode == 0
 
 
+def test_blocks_attribution_in_message_file(tmp_path: Path) -> None:
+    msg = tmp_path / "msg.txt"
+    msg.write_text("feat: x\n\n" + ATTR + "\n")
+    assert bash(f"git commit -F {msg}").returncode == 2
+    clean = tmp_path / "clean.txt"
+    clean.write_text("feat: x\n")
+    assert bash(f"git commit -F {clean}").returncode == 0
+
+
 @pytest.mark.parametrize(
     "command",
     [
@@ -91,6 +101,14 @@ def test_blocks_attribution_trailer() -> None:
         "git push origin v0.1.0",
         "gh repo create foo --public",
         "aws s3 ls",
+        "echo hi\n" + AWS + " s3 ls",
+        "  sudo " + AWS + " sts get-caller-identity",
+        "AWS_PROFILE=x " + AWS + " s3 ls",
+        "git -c " + "user.name=X commit -m y",
+        "git commit --" + "author='X <x@example.com>' -m y",
+        "git push -" + "fu origin main",
+        "git push --" + "follow-tags origin main",
+        "curl -X POST https://api." + "twilio.com/2010-04-01/Accounts/AC1/Messages.json",
     ],
 )
 def test_blocks_identity_and_unsafe_git(command: str) -> None:
@@ -118,6 +136,10 @@ def test_blocks_test_partition_edit(tmp_path: Path) -> None:
 
 def test_blocks_non_synthetic_phone(tmp_path: Path) -> None:
     assert write(tmp_path / "a.py", f'PHONE = "{REAL_PHONE}"').returncode == 2
+    formatted_us = "+1 415 " + "555 0100"
+    formatted_es = "+34 612 " + "345 678"
+    assert write(tmp_path / "d.py", f'P = "{formatted_us}"').returncode == 2
+    assert write(tmp_path / "e.py", f'P = "{formatted_es}"').returncode == 2
     assert write(tmp_path / "b.py", 'PHONE = "+15550001234"').returncode == 0
     assert write(tmp_path / "c.py", 'PHONE = "+34555123456"').returncode == 0
 
@@ -144,7 +166,9 @@ def test_stop_hook_reports_failure_once() -> None:
 
 
 def test_post_edit_format_formats_python(tmp_path: Path) -> None:
-    target = tmp_path / "ugly.py"
+    scratch = ROOT / ".pytest-hooks"
+    scratch.mkdir(exist_ok=True)
+    target = scratch / "ugly.py"
     target.write_text("x   =   1\n")
     result = run_hook(
         "post_edit_format.py",
@@ -152,6 +176,15 @@ def test_post_edit_format_formats_python(tmp_path: Path) -> None:
     )
     assert result.returncode == 0
     assert target.read_text() == "x = 1\n"
+    target.unlink()
+    scratch.rmdir()
+
+
+def test_post_edit_format_ignores_files_outside_project(tmp_path: Path) -> None:
+    target = tmp_path / "outside.py"
+    target.write_text("x   =   1\n")
+    run_hook("post_edit_format.py", {"tool_input": {"file_path": str(target)}, "cwd": str(ROOT)})
+    assert target.read_text() == "x   =   1\n"
 
 
 def test_post_edit_format_is_noop_for_unknown_files(tmp_path: Path) -> None:

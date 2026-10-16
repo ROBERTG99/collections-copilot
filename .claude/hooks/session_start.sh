@@ -33,7 +33,7 @@ fi
 
 # 4. Python and Node dependencies.
 uv sync --frozen >&2
-pnpm install --frozen-lockfile >&2 || pnpm install >&2
+pnpm install --frozen-lockfile >&2
 
 # 5. Local env file and PATH for the session.
 [ -f .env ] || cp .env.example .env

@@ -46,10 +46,19 @@ class Config:
         default_factory=lambda: int(os.environ.get("MCPGW_APPROVAL_TTL_SECONDS", "900"))
     )
     dev_issuer: bool = field(
-        default_factory=lambda: os.environ.get("MCPGW_DEV_ISSUER", "true").lower() == "true"
+        default_factory=lambda: os.environ.get("MCPGW_DEV_ISSUER", "false").lower() == "true"
     )
     issuer: str = field(
         default_factory=lambda: os.environ.get("MCPGW_DEV_ISSUER_NAME", "mcp-gateway dev-issuer")
+    )
+    trusted_issuers: tuple[str, ...] = field(
+        default_factory=lambda: tuple(
+            i.strip()
+            for i in os.environ.get(
+                "MCPGW_TRUSTED_ISSUERS", "mcp-gateway dev-issuer,collections-copilot"
+            ).split(",")
+            if i.strip()
+        )
     )
     host: str = field(default_factory=lambda: os.environ.get("MCPGW_HOST", "0.0.0.0"))  # noqa: S104
     port: int = field(default_factory=lambda: int(os.environ.get("MCPGW_PORT", "8344")))

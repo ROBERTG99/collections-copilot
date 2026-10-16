@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import time
 import uuid
@@ -79,14 +80,27 @@ class DevIssuer:
 
 
 class Verifier:
-    def __init__(self, jwks_urls: tuple[str, ...], local: DevIssuer | None = None) -> None:
+    def __init__(
+        self,
+        jwks_urls: tuple[str, ...],
+        local: DevIssuer | None = None,
+        issuers: tuple[str, ...] = ("mcp-gateway dev-issuer", "collections-copilot"),
+    ) -> None:
         self.jwks_urls = jwks_urls
         self.local = local
+        self.issuers = list(issuers)
         self._keys: dict[str, Any] = {}
         self._fetched_at = 0.0
+        self._lock = asyncio.Lock()
 
     async def _refresh(self) -> None:
-        keys: dict[str, Any] = {}
+        async with self._lock:
+            if time.monotonic() - self._fetched_at < 5:  # rate-limit refreshes (stampede guard)
+                return
+            await self._refresh_locked()
+
+    async def _refresh_locked(self) -> None:
+        keys: dict[str, Any] = dict(self._keys)  # keep the last good keys if a fetch fails
         if self.local:
             keys[self.local.kid] = self.local.key.public_key()
         async with httpx.AsyncClient(timeout=5) as client:
@@ -123,12 +137,13 @@ class Verifier:
                 key,
                 algorithms=["RS256"],
                 audience=AUDIENCE,
+                issuer=self.issuers,
                 leeway=LEEWAY_S,
-                options={"require": ["exp", "iss", "sub", "aud"]},
+                options={"require": ["exp", "iat", "iss", "sub", "aud"]},
             )
         except jwt.PyJWTError as exc:
             raise AuthError(str(exc)) from exc
-        if claims["exp"] - claims.get("iat", claims["exp"] - 1) > MAX_LIFETIME_S:
+        if int(claims["exp"]) - int(claims["iat"]) > MAX_LIFETIME_S:
             raise AuthError("token lifetime exceeds 1 h")
         tenant = claims.get("tenant")
         if not tenant:

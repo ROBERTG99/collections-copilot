@@ -26,7 +26,7 @@ def main() -> int:
     cwd = payload.get("cwd") or os.environ.get("CLAUDE_PROJECT_DIR") or "."
     try:
         proc = subprocess.run(  # noqa: S603
-            shlex.split(cmd), cwd=cwd, capture_output=True, text=True, timeout=300, check=False
+            shlex.split(cmd), cwd=cwd, capture_output=True, text=True, timeout=270, check=False
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
         print(f"stop check could not run ({exc}); skipping", file=sys.stderr)

@@ -96,6 +96,7 @@ class MetricResult(BaseModel):
     direction: Literal["higher", "lower"]
     passed: bool
     gate: bool = True
+    n: int | None = None
     ci_low: float | None = None
     ci_high: float | None = None
 

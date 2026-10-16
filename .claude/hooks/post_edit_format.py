@@ -20,7 +20,7 @@ def commands_for(path: Path, root: Path) -> list[list[str]]:
     if suffix == ".py":
         if shutil.which("uv"):
             return [
-                ["uv", "run", "--frozen", "ruff", "check", "--fix", "--quiet", str(path)],
+                ["uv", "run", "--frozen", "ruff", "check", "--fix", "--unfixable", "F401", "--quiet", str(path)],
                 ["uv", "run", "--frozen", "ruff", "format", "--quiet", str(path)],
             ]
         if shutil.which("ruff"):
@@ -45,8 +45,10 @@ def main() -> int:
         return 0
     path = Path(file_path)
     root = Path(payload.get("cwd") or ".").resolve()
-    if not path.exists():
-        return 0
+    if not path.is_absolute():
+        path = root / path
+    if not path.exists() or not path.resolve().is_relative_to(root):
+        return 0  # only format files inside the project
     for cmd in commands_for(path, root):
         try:
             subprocess.run(cmd, cwd=root, capture_output=True, timeout=60, check=False)  # noqa: S603

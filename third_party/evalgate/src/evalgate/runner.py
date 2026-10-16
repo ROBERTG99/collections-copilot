@@ -148,6 +148,7 @@ def build_report(
         if spec.kind == "custom" and m.is_corpus(name):
             fn: Any = m.registered(name)
             value = float(fn([(r, res) for r, res, _ in results], spec.params))
+            n_values = len(results)
         else:
             values: list[float] = []
             for row, res, err in results:
@@ -157,12 +158,15 @@ def build_report(
                 per_case[row.id][spec.name] = float(v)
                 values.append(float(v))
             value = m.aggregate(values, spec.aggregate)
+            n_values = len(values)
         metric_results[spec.name] = MetricResult(
             value=round(value, 6),
             threshold=spec.threshold,
             direction=spec.direction,
-            passed=m.passes(value, spec),
+            # A metric with no applicable cases has no evidence: it never passes a gate.
+            passed=m.passes(value, spec) and n_values > 0,
             gate=spec.gate,
+            n=n_values,
         )
     latencies = [res.latency_ms for _, res, _ in results]
     cost = sum(res.cost_usd for _, res, _ in results)

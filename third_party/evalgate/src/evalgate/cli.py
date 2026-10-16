@@ -52,8 +52,15 @@ def check(
 ) -> None:
     """Gate a report on thresholds, budgets and regression against a baseline."""
     rep = _load_report(report)
-    base = _load_report(baseline) if baseline and baseline.exists() else None
-    s = load_suite(suite) if suite else None
+    if baseline and not baseline.exists():
+        typer.echo(f"baseline {baseline} not found", err=True)
+        raise typer.Exit(2)
+    base = _load_report(baseline) if baseline else None
+    try:
+        s = load_suite(suite) if suite else None
+    except InvalidInputError as exc:
+        typer.echo(f"invalid input: {exc}", err=True)
+        raise typer.Exit(2) from exc
     result = run_check(
         rep,
         sha256_file(report),

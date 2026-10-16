@@ -64,9 +64,15 @@ async def run(settings: Settings) -> None:
                 health_app(), host=BIND_ALL, port=settings.metrics_port, log_level="warning"
             )
         )
+        server.install_signal_handlers = lambda: None  # type: ignore[method-assign]
+
+        def shutdown() -> None:
+            consumer.stop()
+            server.should_exit = True
+
         loop = asyncio.get_running_loop()
         for sig in (signal.SIGTERM, signal.SIGINT):
-            loop.add_signal_handler(sig, consumer.stop)
+            loop.add_signal_handler(sig, shutdown)
         await asyncio.gather(consumer.run(), server.serve())
 
 

@@ -49,6 +49,7 @@ KEY_RE = re.compile(r"^[A-Za-z0-9._:-]{8,128}$")
 PHONE_RE = re.compile(r"\+?\d[\d\s().-]{7,}\d")
 EMAIL_RE = re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+")
 UNTRUSTED_PREFIX = "<<untrusted tool output>>"
+IN_PROGRESS_STALE_S = 60.0
 
 _claims: ContextVar[Claims | None] = ContextVar("mcpgw_claims", default=None)
 
@@ -230,7 +231,7 @@ class Gateway:
             raise MCPError(E_IDEMPOTENCY_KEY_REQUIRED, "idempotency_key_required")
         existing = await self.store.idem_get(claims.tenant, key)
         if existing is not None:
-            if existing["args_sha256"] != sha:
+            if existing["args_sha256"] != sha or existing["tool"] != tool:
                 await self._audit(
                     claims,
                     tool,
@@ -250,16 +251,27 @@ class Gateway:
                     status="ok",
                 )
                 return self._untrusted(existing["result"], True, seq)
-            raise MCPError(E_IDEMPOTENCY_IN_PROGRESS, "idempotency_in_progress")
+            age_s = (datetime.now(UTC) - existing["created_at"]).total_seconds()
+            if age_s < IN_PROGRESS_STALE_S:
+                raise MCPError(E_IDEMPOTENCY_IN_PROGRESS, "idempotency_in_progress")
+            # Stale in-flight row (crash or cancellation): take it over. The upstream dedups on the
+            # same key, so a call that did complete upstream is replayed there, not repeated.
+            await self.store.idem_abort(claims.tenant, key)
 
         approval_id = meta.get("approval_id")
+        validated_approval: str | None = None
         if decision.effect == "require_approval":
             if approval_id:
                 appr = await self.store.approval_get(str(approval_id))
                 reason = None
                 if appr is None or appr["tenant"] != claims.tenant:
                     reason = "approval_not_found"
-                elif appr["args_sha256"] != sha or appr["idempotency_key"] != key:
+                elif (
+                    appr["args_sha256"] != sha
+                    or appr["idempotency_key"] != key
+                    or appr["tool"] != tool
+                    or appr["agent"] != claims.sub
+                ):
                     reason = "approval_mismatch"
                 elif appr["status"] == "rejected":
                     reason = "approval_rejected"
@@ -279,6 +291,7 @@ class Gateway:
                         status=reason,
                     )
                     raise MCPError(E_APPROVAL_INVALID, "approval_invalid", {"reason": reason})
+                validated_approval = str(approval_id)
             else:
                 appr = await self.store.approval_pending_for_key(claims.tenant, key)
                 if appr is None or appr["args_sha256"] != sha:
@@ -328,7 +341,7 @@ class Gateway:
                     },
                 },
             )
-        except MCPError:
+        except BaseException:
             await self.store.idem_abort(claims.tenant, key)
             await self._audit(
                 claims, tool, args_sha256=sha, decision="allow", idempotency_key=key, status="error"
@@ -338,14 +351,14 @@ class Gateway:
             await self.store.idem_abort(claims.tenant, key)
         else:
             await self.store.idem_complete(claims.tenant, key, payload)
-            if approval_id:
-                await self.store.approval_consume(str(approval_id))
+            if validated_approval:
+                await self.store.approval_consume(validated_approval)
         seq = await self._audit(
             claims,
             tool,
             args_sha256=sha,
             decision="allow",
-            approval_id=approval_id,
+            approval_id=validated_approval,
             idempotency_key=key,
             status="error" if payload.get("isError") else "ok",
             latency_ms=(time.perf_counter() - t0) * 1000,
@@ -563,7 +576,12 @@ async def running(cfg: Config) -> AsyncIterator[tuple[Gateway, Any, FastAPI, Fas
     issuer = DevIssuer(cfg.issuer) if cfg.dev_issuer else None
     store = Store(cfg.database_url)
     await store.open()
-    gw = Gateway(cfg, store, Policy.load(cfg.policy_file), Verifier(cfg.jwks_urls, issuer))
+    gw = Gateway(
+        cfg,
+        store,
+        Policy.load(cfg.policy_file),
+        Verifier(cfg.jwks_urls, issuer, cfg.trusted_issuers),
+    )
     server = build_mcp_server(gw)
     mcp_app = AuthMiddleware(
         server.streamable_http_app(json_response=True, stateless_http=True, host=cfg.host), gw
@@ -576,6 +594,8 @@ async def running(cfg: Config) -> AsyncIterator[tuple[Gateway, Any, FastAPI, Fas
 
 async def serve(cfg: Config | None = None) -> None:
     cfg = cfg or Config()
+    if cfg.webhook_url and not cfg.webhook_secret:
+        raise SystemExit("MCPGW_APPROVAL_WEBHOOK_SECRET is required when a webhook URL is set")
     async with running(cfg) as (_, mcp_app, admin_app, issuer_app):
         servers = [
             uvicorn.Server(

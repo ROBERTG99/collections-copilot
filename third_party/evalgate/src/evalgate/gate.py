@@ -50,6 +50,10 @@ def check(
             failures.append(
                 Failure(metric=name, reason="threshold", value=mr.value, threshold=mr.threshold)
             )
+    if suite is not None:
+        for spec in suite.metrics:
+            if spec.gate and spec.name not in report.metrics:
+                failures.append(Failure(metric=spec.name, reason="error", value=None))
     errored = [c.id for c in report.cases if c.error]
     if errored:
         failures.append(Failure(metric="cases", reason="error", value=float(len(errored))))
@@ -75,6 +79,9 @@ def check(
             )
     if baseline is not None:
         base_cases = {c.id: c for c in baseline.cases}
+        for name, bm in baseline.metrics.items():
+            if bm.gate and name not in report.metrics:
+                failures.append(Failure(metric=name, reason="error", value=None))
         for name, mr in report.metrics.items():
             if name not in baseline.metrics:
                 continue

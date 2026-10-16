@@ -98,11 +98,19 @@ class SqsQueueClient:
             attrs = {
                 k: v.get("StringValue", "") for k, v in (m.get("MessageAttributes") or {}).items()
             }
+            try:
+                body = json.loads(m["Body"])
+                if not isinstance(body, dict):
+                    raise ValueError("body is not an object")
+            except ValueError:
+                # Poison message: the handler rejects it and it reaches the DLQ on its own,
+                # without failing the rest of the batch.
+                body = {"__invalid__": True}
             out.append(
                 QueueMessage(
                     message_id=m["MessageId"],
                     receipt_handle=m["ReceiptHandle"],
-                    body=json.loads(m["Body"]),
+                    body=body,
                     receive_count=int(m.get("Attributes", {}).get("ApproximateReceiveCount", "1")),
                     attributes=attrs,
                 )

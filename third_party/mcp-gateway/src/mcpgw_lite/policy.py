@@ -57,10 +57,14 @@ class Policy:
         for rule in self.approval_rules.get(tool, []):
             value = args.get(rule["field"])
             if value is None:
-                continue
+                return Decision("deny", [f"missing_field:{rule['field']}"])  # fail closed
             op, limit = rule["op"], rule["value"]
-            if op == "gt" and float(value) > float(limit):
-                reasons.append(rule["reason"])
+            if op == "gt":
+                try:
+                    if float(value) > float(limit):
+                        reasons.append(rule["reason"])
+                except (TypeError, ValueError):
+                    return Decision("deny", [f"invalid_number:{rule['field']}"])
             elif op == "days_from_today_gt":
                 try:
                     days = (date.fromisoformat(str(value)) - today).days

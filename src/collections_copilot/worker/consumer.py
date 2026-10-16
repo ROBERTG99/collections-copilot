@@ -29,7 +29,8 @@ class Consumer:
         self.queue_client = queue_client
         self.queue = queue
         self.handler = handler
-        self.sem = asyncio.Semaphore(concurrency)
+        self.concurrency = concurrency
+        self.in_flight = 0
         self.wait_seconds = wait_seconds
         self.extend_every = visibility_extend_every_s
         self.visibility_timeout = visibility_timeout_s
@@ -58,18 +59,23 @@ class Consumer:
                 "handler failed", extra={"queue": self.queue, "message_id": msg.message_id}
             )
         else:
-            await self.queue_client.delete(self.queue, msg.receipt_handle)
+            try:
+                await self.queue_client.delete(self.queue, msg.receipt_handle)
+            except Exception:
+                log.warning(
+                    "delete failed; message will be redelivered", extra={"queue": self.queue}
+                )
         finally:
             keepalive.cancel()
-            self.sem.release()
+            self.in_flight -= 1
 
     async def run(self) -> None:
         while not self._stop.is_set():
             if self.paused is not None and await self.paused():
                 await asyncio.sleep(1)
                 continue
-            free = self.sem._value  # number of free slots
-            if free == 0:
+            free = self.concurrency - self.in_flight
+            if free <= 0:
                 await asyncio.sleep(0.05)
                 continue
             try:
@@ -81,7 +87,7 @@ class Consumer:
                 await asyncio.sleep(1)
                 continue
             for msg in messages:
-                await self.sem.acquire()
+                self.in_flight += 1
                 task = asyncio.create_task(self._process(msg))
                 self._tasks.add(task)
                 task.add_done_callback(self._tasks.discard)
