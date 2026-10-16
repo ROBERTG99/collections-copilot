@@ -29,3 +29,18 @@ test-results/
 .DS_Store
 .idea/
 .vscode/
+.env.*
+!.env.example
+# build artifacts
+.evalgate/
+evals/reports/*.json
+!evals/reports/baseline.json
+deploy/data/
+*.egg-info/
+.hypothesis/
+.import_linter_cache/
+coverage.xml
+junit*.xml
+.terraform.d/
+web/next-env.d.ts
+web/tsconfig.tsbuildinfo

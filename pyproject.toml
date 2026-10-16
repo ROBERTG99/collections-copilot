@@ -1,0 +1,164 @@
+[project]
+name = "collections-copilot"
+version = "0.1.0"
+description = "B2B collections agent: prioritized queue, compliant SMS drafts with human approval, promise-to-pay write-back."
+readme = "README.md"
+license = "MIT"
+authors = [{ name = "ROBERTG99" }]
+requires-python = ">=3.12"
+dependencies = [
+  "fastapi>=0.143",
+  "uvicorn[standard]>=0.54",
+  "pydantic>=2.14",
+  "pydantic-settings>=2.16",
+  "sqlalchemy[asyncio]>=2.1",
+  "psycopg[binary,pool]>=3.3",
+  "alembic>=1.20",
+  "langgraph>=1.2",
+  "langgraph-checkpoint-postgres>=3.2",
+  "anthropic[bedrock]>=1.15",
+  "langchain-aws>=1.9",
+  "aiobotocore>=3.9",
+  "boto3>=1.40",
+  "redis>=8.1",
+  "httpx>=0.28",
+  "twilio>=9.12",
+  "mcp>=2.3",
+  "presidio-analyzer>=2.2.364",
+  "opentelemetry-sdk>=1.45",
+  "opentelemetry-exporter-otlp-proto-http>=1.45",
+  "prometheus-client>=0.26",
+  "pyjwt[crypto]>=2.15",
+  "cryptography>=50",
+  "typer>=0.27",
+  "pyyaml>=6.0",
+  "python-multipart>=0.0.32",
+  "tzdata>=2026.5",
+  "holidays>=0.106",
+  "evalgate",
+]
+
+[project.scripts]
+cc = "collections_copilot.cli:app"
+
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/collections_copilot"]
+
+[tool.uv.workspace]
+members = ["apps/*", "third_party/*"]
+
+[tool.uv.sources]
+evalgate = { workspace = true }
+dev-oidc = { workspace = true }
+ledger-mcp = { workspace = true }
+debtor-sim = { workspace = true }
+mcp-gateway-lite = { workspace = true }
+
+[dependency-groups]
+dev = [
+  "dev-oidc",
+  "ledger-mcp",
+  "debtor-sim",
+  "mcp-gateway-lite",
+  "pytest>=9.1",
+  "pytest-asyncio>=1.4",
+  "pytest-cov>=7.1",
+  "pytest-timeout>=2.4",
+  "hypothesis>=6.170",
+  "respx>=0.23",
+  "moto[server,s3,sqs,kms]>=5.2",
+  "time-machine>=3.5",
+  "schemathesis>=4.31",
+  "mypy>=2.4",
+  "ruff>=0.17",
+  "import-linter>=2.15",
+  "bandit>=1.9",
+  "pip-audit>=2.10",
+  "types-pyyaml",
+  "boto3-stubs[s3,sqs,kms]",
+  "asgi-lifespan>=2.1",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+extend-exclude = ["web", "infra", "evals/datasets"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "S", "ASYNC", "RUF", "SIM", "PT", "TID"]
+ignore = ["S101", "RUF001", "RUF002", "RUF003"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S", "B011", "ASYNC"]
+"scripts/**" = ["S603", "S607"]
+"data/generator/**" = ["S311"]
+"migrations/**" = ["E501"]
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"sqlalchemy.text".msg = "Raw SQL lives only in collections_copilot.db (repositories, audit, session); see .claude/rules/python.md"
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+plugins = ["pydantic.mypy"]
+mypy_path = "src"
+explicit_package_bases = true
+warn_unused_ignores = false
+
+[[tool.mypy.overrides]]
+module = ["presidio_analyzer.*", "twilio.*", "aioboto3.*", "aiobotocore.*", "langchain_aws.*", "holidays.*", "moto.*", "sse_starlette.*", "langgraph.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"
+addopts = "-q --strict-markers -p no:cacheprovider"
+markers = [
+  "integration: needs Postgres, Redis, ElasticMQ, MinIO or WireMock",
+  "contract: contract tests against doubles",
+  "perf: performance budgets",
+  "docker: needs the full compose stack",
+]
+timeout = 120
+
+[tool.coverage.run]
+source = ["src/collections_copilot"]
+branch = false
+omit = ["*/__main__.py"]
+
+[tool.coverage.report]
+skip_empty = true
+show_missing = false
+
+[tool.importlinter]
+root_packages = ["collections_copilot"]
+
+[[tool.importlinter.contracts]]
+name = "Provider SDKs are imported only by collections_copilot.llm"
+type = "forbidden"
+source_modules = [
+  "collections_copilot.api",
+  "collections_copilot.agent",
+  "collections_copilot.compliance",
+  "collections_copilot.scoring",
+  "collections_copilot.db",
+  "collections_copilot.ingest",
+  "collections_copilot.integrations",
+  "collections_copilot.observability",
+  "collections_copilot.evals",
+  "collections_copilot.worker",
+]
+forbidden_modules = ["anthropic", "langchain_aws", "langchain_anthropic"]
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+name = "Deterministic core does not depend on the LLM layer"
+type = "forbidden"
+source_modules = ["collections_copilot.compliance", "collections_copilot.scoring"]
+forbidden_modules = ["collections_copilot.llm", "collections_copilot.agent"]

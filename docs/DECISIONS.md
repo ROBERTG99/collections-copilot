@@ -1,0 +1,12 @@
+# Decisions
+
+Autonomous build decisions, newest last. Architectural decisions also have an ADR in `docs/adr/`.
+
+| Date | Decision | Alternatives | Reason |
+|---|---|---|---|
+| 2026-10-16 | `.claude/` was not pre-seeded, so §1.1 steps 1–2 created `.claude/settings.json` and `.claude/rules/git-commits.md` in their own commit. | Treat the repository as pre-seeded. | The files did not exist in the initial commit. |
+| 2026-10-16 | evalgate fallback: build the subset this repo uses in `third_party/evalgate/` (uv workspace member, import name `evalgate`). | Depend on `git+https://github.com/ROBERTG99/evalgate@v0.1.0`. | `git ls-remote --tags … refs/tags/v0.1.0` returned nothing; the upstream repository only holds its build spec. The subset follows the upstream §4.4 contracts (suite v1, dataset row, report v1, check v1, exit codes). |
+| 2026-10-16 | mcp-gateway fallback: contract subset in `third_party/mcp-gateway/` written in Python (FastAPI + MCP Streamable HTTP proxy) with a YAML policy instead of OPA. | `ghcr.io/robertg99/mcp-gateway:v0.1.0`; `docker build …#v0.1.0`. | The image pull returned `denied` and the tag does not exist. The subset keeps the upstream contract: JWT (RS256, `aud=mcp-gateway`), `-32040`/`-32041`/`-32044`/`-32045`/`-32046` errors, the `approval_required` result shape, the signed approval webhook and `POST /admin/approvals/{id}:approve`. |
+| 2026-10-16 | MinIO image: `chainguard/minio` pinned by digest. | `minio/minio`, `quay.io/minio/minio`, `bitnami/minio`. | The others could not be pulled through the container mirror (Appendix A). The bucket is created by the application (`cc storage init`) instead of `mc`. |
+| 2026-10-16 | WireMock image `wiremock/wiremock:3.13.2`. | `3.13.1`. | `3.13.1` failed to pull through the mirror; `3.13.2` is the newer patch release. |
+| 2026-10-16 | Use `aiobotocore` directly for the async SQS and S3 adapters. | `aioboto3` (named in §7.4). | `aioboto3` 15.5 pins `boto3<1.40.62`, which conflicts with `langchain-aws` 1.9 (`boto3>=1.43.64`); `aiobotocore` 3.9 is the library `aioboto3` wraps and supports the newer botocore. |
