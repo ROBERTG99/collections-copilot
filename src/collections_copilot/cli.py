@@ -48,16 +48,19 @@ def seed(
     database_url: str | None = typer.Option(None, "--database-url", envvar="CC_DATABASE_URL"),
 ) -> None:
     """Load the synthetic dataset (gen.v1, seed 4242): 2 tenants with 400 and 40 accounts."""
+    from collections_copilot.agent.checkpointer import libpq_url
     from collections_copilot.db.session import make_engine, make_sessionmaker
     from data.generator.gen import standard_tenants
-    from data.generator.load import load_tenant
+    from data.generator.load import load_ledger, load_tenant
 
     async def run() -> None:
-        engine = make_engine(database_url or get_settings().database_url, pool_size=2)
+        url = database_url or get_settings().database_url
+        engine = make_engine(url, pool_size=2)
         try:
             sm = make_sessionmaker(engine)
             for spec in standard_tenants():
                 loaded = await load_tenant(sm, spec)
+                await load_ledger(libpq_url(url), spec)
                 state = "loaded" if loaded else "unchanged"
                 typer.echo(
                     f"{spec.name} tenant_id={spec.tenant_id} accounts={len(spec.accounts)} "

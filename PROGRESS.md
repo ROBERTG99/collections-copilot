@@ -34,7 +34,7 @@ chore: configure commit attribution
 | T-12 | M1 | Ingest via JSON and presigned S3 upload | done | `pytest tests/integration/test_ingest.py` → 5 passed (duplicate 400-row file returns original batch; negative amount rejected at row 4; 413 over 10 MB); `pytest tests/contract/test_s3_contract.py` → 2 passed (MinIO, moto) |
 | T-13 | M1 | Priority score | done | `pytest tests/unit/scoring/test_priority.py` → collection error before module, now 5 passed (incl. Hypothesis monotonicity); formula in docs/architecture.md |
 | T-14 | M1 | Compliance engine | done | `pytest tests/unit/compliance` → collection errors before engine, now 33 passed (Hypothesis: never outside window/over cap/after opt-out); compliance/ coverage 100% |
-| T-15 | M1 | Ledger MCP server | todo | |
+| T-15 | M1 | Ledger MCP server | done | `pytest tests/integration/test_ledger_mcp.py` → collection error before server, now 3 passed (schemas match §4.4; same key → same ledger_ref, 1 row); docker smoke: ledger.get_balance through mcp-gateway with dev-issuer JWT → untrusted=true |
 | T-16 | M2 | LLM gateway, FakeLLM, cassettes, step records | todo | |
 | T-17 | M2 | Bedrock Mantle, Anthropic, ChatBedrock adapters | todo | |
 | T-18 | M2 | PII redaction | todo | |

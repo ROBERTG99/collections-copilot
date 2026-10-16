@@ -101,3 +101,28 @@ async def load_tenant(
             payload={"version": GEN_VERSION, "digest": digest, "accounts": len(spec.accounts)},
         )
     return True
+
+
+async def load_ledger(libpq_url: str, spec: TenantSpec, as_of: date | None = None) -> None:
+    """Mirror accounts and invoices into the synthetic ledger (schema `ledger`)."""
+    from ledger_mcp.store import LedgerStore
+
+    as_of = as_of or datetime.now(UTC).date()
+    store = LedgerStore(libpq_url)
+    await store.open()
+    try:
+        tenant = str(spec.tenant_id)
+        for acc in spec.accounts:
+            await store.upsert_account(tenant, acc.external_ref, acc.name, acc.currency)
+            for inv in acc.invoices:
+                await store.upsert_invoice(
+                    tenant,
+                    acc.external_ref,
+                    inv.number,
+                    inv.amount_cents,
+                    acc.currency,
+                    as_of - timedelta(days=inv.days_past_due),
+                    inv.status,
+                )
+    finally:
+        await store.close()

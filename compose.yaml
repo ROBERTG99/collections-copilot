@@ -130,6 +130,32 @@ services:
       migrate: { condition: service_completed_successfully }
     restart: "no"
 
+  ledger-mcp:
+    build: { <<: *python-build, target: ledger-mcp }
+    image: collections-copilot/ledger-mcp:dev
+    environment:
+      LEDGER_DATABASE_URL: postgresql://cc:cc@postgres:5432/cc
+    ports: ["127.0.0.1:8343:8343"]
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  mcp-gateway:
+    # Fallback for ghcr.io/robertg99/mcp-gateway:v0.1.0 (see docs/DECISIONS.md).
+    build: { <<: *python-build, target: mcp-gateway }
+    image: collections-copilot/mcp-gateway:dev
+    environment:
+      MCPGW_DATABASE_URL: postgresql://cc:cc@postgres:5432/cc
+      MCPGW_UPSTREAMS: ledger=http://ledger-mcp:8343/mcp
+      MCPGW_POLICY_FILE: /app/deploy/mcpgw/policy/collections.yaml
+      MCPGW_APPROVAL_WEBHOOK_URL: http://api:8310/api/v1/webhooks/mcpgw/approvals
+      MCPGW_APPROVAL_WEBHOOK_SECRET: dev-mcpgw-webhook-secret
+      MCPGW_DEV_ISSUER: "true"
+      MCPGW_JWKS_URL: http://api:8310/.well-known/agent-jwks.json
+    ports: ["127.0.0.1:8344:8344", "127.0.0.1:8348:8348", "127.0.0.1:8349:8349"]
+    depends_on:
+      postgres: { condition: service_healthy }
+      ledger-mcp: { condition: service_healthy }
+
   api:
     build: { <<: *python-build, target: api }
     image: collections-copilot/api:dev

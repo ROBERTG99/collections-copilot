@@ -37,3 +37,7 @@ make seed && make demo
 make check-fast     # lint + unit tests
 make test           # unit + integration + contract (needs Docker deps)
 ```
+
+## Disk budget in cloud sessions
+
+The session has a fixed disk allowance (about 40 GB). Docker build cache grows by roughly 1–2 GB per rebuild of the Python images; when `docker compose build` fails with "no space left on device", run `docker builder prune -af` and `docker image prune -f`.
