@@ -70,6 +70,8 @@ class AnthropicSdkProvider:
                 status=exc.status_code,
                 retryable=is_retryable_status(exc.status_code),
             ) from exc
+        except anthropic.APIError as exc:  # e.g. a response that fails SDK validation
+            raise ProviderError(f"api error: {type(exc).__name__}", retryable=False) from exc
         text = "".join(getattr(b, "text", "") for b in message.content if b.type == "text")
         usage = message.usage
         details = getattr(message, "stop_details", None)

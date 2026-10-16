@@ -42,7 +42,7 @@ Verification counts at handoff: `make check-fast` passes; `uv run pytest tests/i
 |---|---|---|
 | M0 | `reviewer`: "ship", with 7 majors | All majors fixed in `c07063d` (gateway approval binding, stale in-flight keys, JWT iat/iss, dev issuer off by default, evalgate empty metrics, SQS per-message parse, guard hook bypasses), plus most minors. |
 | M1 | `reviewer`: "fix first" (2 blockers: the amount and link checks failed open; 3 majors) | Fixed in `594268f`. Re-review found one more amount hole (numeric invoice numbers masking amounts), fixed in `4d66bc4`; every other item resolved. Remaining minors are in docs/KNOWN_LIMITATIONS.md. |
-| M2 | not run yet | Run `reviewer` and `compliance-reviewer` first in the next session. |
+| M2 | `compliance-reviewer`: 1 blocker (the send used stale invoice facts and ignored case and draft status), 3 majors. `reviewer`: "fix first" (1 blocker: auto-approval treated unknown currencies as USD; 7 majors; 13 minors) | Blockers and majors fixed with regression tests in `db35812` (fresh send snapshot, stored approval record for the exact version on every path, stored draft body, no reopening closed cases, currency fail-closed) and `45221cf` (idempotent reply handlers, stored STOP confirmation, wider and narrower STOP rules, promise row lock, Twilio retry only when the request surely failed, per-case advisory lock, resume kind required, `retry_write_back` wired). Minors fixed in the next commit, except contact-name redaction (no contact field exists; docs/KNOWN_LIMITATIONS.md). |
 
 ## Agent mistakes caught (for docs/ai-development.md)
 
@@ -53,6 +53,8 @@ Verification counts at handoff: `make check-fast` passes; `uv run pytest tests/i
 5. **Own guard hook blocked edits.** A Bash patch containing the text of the terraform rule was blocked by `.claude/hooks/pre_tool_guard.py`. Patches that mention forbidden commands are written with the Write tool or built from concatenated strings in tests.
 6. **Disk exhausted by the Docker build cache** (19.7 GB). Fixed with `docker builder prune -af`; documented in docs/DEVELOPMENT.md.
 7. **Company names with digits.** The fail-closed amount rule flagged "Synthetic Co 1234". This was caught by the case-graph integration test (the approval loop never left `human_approval`); the account name is now a protected term.
+8. **A resumed node reopened a closed case.** LangGraph re-runs an interrupted node from its start, so `human_approval` set `awaiting_approval` again on a case that STOP had closed. `test_approval_on_closed_case_closes_without_send` caught it; case status updates now never change a closed or failed case.
+9. **Reviewed after building on top.** T-25/T-26 (M3) started before the M2 review findings were fixed; the fixes landed before any further M3 task, but rule 9 asks for the review first.
 
 ## Tasks
 

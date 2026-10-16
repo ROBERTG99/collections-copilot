@@ -88,6 +88,9 @@ def _engine() -> AnalyzerEngine:
                 patterns=[
                     Pattern("e164", r"\+\d[\d\s().-]{7,18}\d", 0.7),
                     Pattern("nanp", r"(?<!\w)\(?\d{3}\)?[\s.-]\d{3}[\s.-]\d{4}(?!\w)", 0.6),
+                    # Spanish local format without +34: "555 12 34 56", "555 123 456"
+                    Pattern("es_local_3222", r"(?<![\w.,])\d{3} \d{2} \d{2} \d{2}(?![\w.,])", 0.6),
+                    Pattern("es_local_333", r"(?<![\w.,])\d{3} \d{3} \d{3}(?![\w.,])", 0.5),
                 ],
             )
         )

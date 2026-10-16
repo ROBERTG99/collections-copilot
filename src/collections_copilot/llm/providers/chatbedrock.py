@@ -20,7 +20,35 @@ from collections_copilot.llm.providers.base import (
     ProviderRequest,
     ProviderResponse,
     Usage,
+    is_retryable_status,
 )
+
+
+def _chain(exc: BaseException) -> list[BaseException]:
+    seen: list[BaseException] = []
+    current: BaseException | None = exc
+    while current is not None and current not in seen:
+        seen.append(current)
+        current = current.__cause__ or current.__context__
+    return seen
+
+
+def _status_of(exc: BaseException) -> int | None:
+    """HTTP status from a botocore ClientError anywhere in the cause chain."""
+    for e in _chain(exc):
+        response = getattr(e, "response", None)
+        if isinstance(response, dict):
+            status = (response.get("ResponseMetadata") or {}).get("HTTPStatusCode")
+            if isinstance(status, int):
+                return status
+    return None
+
+
+def _is_connection_error(exc: BaseException) -> bool:
+    """Retry only transport failures (connection refused, timeouts), like the Claude adapter."""
+    names = {type(e).__name__ for e in _chain(exc)}
+    return any("Connect" in n or "Timeout" in n for n in names)
+
 
 PROBE_MODEL = "anthropic.claude-opus-5-5"
 
@@ -148,8 +176,11 @@ class ChatBedrockProvider:
                 }
             ).ainvoke([("system", request.system), ("human", request.user)])
         except Exception as exc:
+            status = _status_of(exc)
             raise ProviderError(
-                f"bedrock converse error: {type(exc).__name__}", retryable=True
+                f"bedrock converse error: {type(exc).__name__}",
+                status=status,
+                retryable=is_retryable_status(status) if status else _is_connection_error(exc),
             ) from exc
         usage: dict[str, Any] = dict(message.usage_metadata or {})
         return ProviderResponse(

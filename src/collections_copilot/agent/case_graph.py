@@ -23,6 +23,7 @@ from datetime import datetime, timedelta
 from typing import Any, TypedDict
 
 from langgraph.checkpoint.base import BaseCheckpointSaver
+from langgraph.errors import GraphBubbleUp
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import interrupt
 
@@ -120,6 +121,9 @@ def build_case_graph(services: Services, checkpointer: BaseCheckpointSaver[Any] 
                 )
                 try:
                     return await fn(state)
+                except GraphBubbleUp:  # interrupt(): the node paused, it did not fail
+                    status = "interrupted"
+                    raise
                 except Exception:
                     status = "error"
                     raise
@@ -633,7 +637,7 @@ def build_case_graph(services: Services, checkpointer: BaseCheckpointSaver[Any] 
         ("await_reply", await_reply),
         ("close", close),
     ]:
-        g.add_node(name, node(name, fn))  # type: ignore[call-overload]
+        g.add_node(name, node(name, fn))  # type: ignore[call-overload,arg-type]
     g.add_edge(START, "load_account")
     g.add_edge("load_account", "prioritize")
     g.add_edge("prioritize", "compliance_precheck")

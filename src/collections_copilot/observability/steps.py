@@ -12,7 +12,9 @@ from typing import Literal, Protocol
 from pydantic import BaseModel, Field
 
 StepKind = Literal["llm", "tool", "node", "rule"]
-StepStatus = Literal["ok", "error", "fallback", "refusal", "invalid", "max_tokens", "circuit_open"]
+StepStatus = Literal[
+    "ok", "error", "fallback", "refusal", "invalid", "max_tokens", "circuit_open", "interrupted"
+]
 
 
 class StepRecord(BaseModel):

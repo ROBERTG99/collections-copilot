@@ -67,3 +67,19 @@ def test_long_invoice_numbers_and_dates_survive() -> None:
     assert "INV-2026-000123" in redacted
     assert "2026-03-15" in redacted
     assert "010-2030" not in redacted
+
+
+def test_spanish_local_numbers_are_redacted() -> None:
+    """M2 review: Spanish numbers written without +34 never reach a provider."""
+    for number in ("555 12 34 56", "555 123 456"):
+        redacted, mapping = Redactor().redact(
+            f"Llamar a Marta al {number} por la tarde", language="es"
+        )
+        assert number not in redacted
+        assert number in mapping.values()
+
+
+def test_amounts_and_invoice_numbers_survive_es_patterns() -> None:
+    text = "Factura INV-2026-000123 de EUR 1.234,56 vence el 2026-03-15"
+    redacted, _ = Redactor().redact(text, language="es")
+    assert redacted == text
