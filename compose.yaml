@@ -1,0 +1,138 @@
+# collections-copilot local stack. Host ports 8300–8399. Every service has a healthcheck.
+name: collections-copilot
+
+x-python-build: &python-build
+  context: .
+  dockerfile: docker/python.Dockerfile
+  network: host
+  args:
+    HTTPS_PROXY: "${HTTPS_PROXY:-}"
+
+x-app-env: &app-env
+  CC_ENV: dev
+  CC_LOG_LEVEL: INFO
+  CC_DATABASE_URL: postgresql+psycopg://cc:cc@postgres:5432/cc
+  CC_REDIS_URL: redis://redis:6379/0
+  CC_SQS_ENDPOINT_URL: http://elasticmq:9324
+  CC_S3_ENDPOINT_URL: http://minio:9000
+  CC_S3_PUBLIC_ENDPOINT_URL: http://localhost:8341
+  CC_S3_BUCKET: cc-uploads
+  CC_OIDC_ISSUER: http://localhost:8345
+  CC_OIDC_JWKS_URL: http://dev-oidc:8345/.well-known/jwks.json
+  CC_LLM_PROVIDER: "${CC_LLM_PROVIDER:-fake}"
+  CC_TWILIO_BASE_URL: http://wiremock-twilio:8080
+  CC_PUBLIC_BASE_URL: http://api:8310
+  CC_MCPGW_URL: http://mcp-gateway:8344/mcp
+  CC_MCPGW_ADMIN_URL: http://mcp-gateway:8348
+  CC_MCPGW_ISSUER_URL: http://mcp-gateway:8349
+  CC_SMTP_HOST: mailpit
+  CC_SMTP_PORT: "1025"
+  CC_OTEL_EXPORTER_OTLP_ENDPOINT: "${CC_OTEL_EXPORTER_OTLP_ENDPOINT:-}"
+  AWS_ACCESS_KEY_ID: cclocal
+  AWS_SECRET_ACCESS_KEY: cclocalsecret
+  AWS_DEFAULT_REGION: us-east-1
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: cc
+      POSTGRES_PASSWORD: cc
+      POSTGRES_DB: cc
+    ports: ["8320:5432"]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./deploy/postgres/init.sql:/docker-entrypoint-initdb.d/10-init.sql:ro
+    command: ["postgres", "-c", "max_connections=300", "-c", "shared_buffers=256MB"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cc -d cc"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  redis:
+    image: redis:7-alpine
+    ports: ["8330:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  elasticmq:
+    image: softwaremill/elasticmq-native:1.6.14
+    ports: ["8340:9324"]
+    volumes:
+      - ./deploy/elasticmq.conf:/opt/elasticmq.conf:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - 'http://127.0.0.1:9324/?Action=ListQueues' | grep -q cc-tasks"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  minio:
+    # chainguard/minio: minio/minio cannot be pulled through the container mirror (docs/DECISIONS.md).
+    image: chainguard/minio@sha256:2136d593beacf4461187035eca949fe49abd589d5079735025c711ca58fee0c8
+    entrypoint: ["/usr/bin/minio"]
+    command: ["server", "/data", "--address", ":9000", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: cclocal
+      MINIO_ROOT_PASSWORD: cclocalsecret
+    ports: ["8341:9000", "8347:9001"]
+    volumes:
+      - miniodata:/data
+    healthcheck:
+      test:
+        - CMD
+        - bash
+        - -c
+        - "exec 3<>/dev/tcp/127.0.0.1/9000 && printf 'GET /minio/health/live HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && read -r status <&3 && [[ $$status == *' 200 '* ]]"
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  wiremock-twilio:
+    image: wiremock/wiremock:3.13.2
+    command: ["--port", "8080", "--global-response-templating", "--disable-banner", "--max-request-journal-entries", "20000"]
+    ports: ["8342:8080"]
+    volumes:
+      - ./deploy/wiremock/mappings:/home/wiremock/mappings:ro
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/__admin/health"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  mailpit:
+    image: axllent/mailpit:v1.27
+    ports: ["8346:1025", "8351:8025"]
+    healthcheck:
+      test: ["CMD", "/mailpit", "readyz"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  migrate:
+    build: { <<: *python-build, target: tools }
+    image: collections-copilot/tools:dev
+    environment: *app-env
+    command: ["alembic", "upgrade", "head"]
+    depends_on:
+      postgres: { condition: service_healthy }
+    restart: "no"
+
+  api:
+    build: { <<: *python-build, target: api }
+    image: collections-copilot/api:dev
+    environment: *app-env
+    ports: ["8310:8310"]
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      elasticmq: { condition: service_healthy }
+      minio: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
+
+volumes:
+  pgdata:
+  miniodata:

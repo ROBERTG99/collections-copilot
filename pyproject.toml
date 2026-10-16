@@ -99,7 +99,8 @@ extend-immutable-calls = ["fastapi.Depends", "fastapi.Query", "fastapi.Header", 
 "tests/**" = ["S", "B011", "ASYNC"]
 "scripts/**" = ["S603", "S607"]
 "data/generator/**" = ["S311"]
-"migrations/**" = ["E501"]
+"migrations/**" = ["E501", "TID251"]
+"src/collections_copilot/db/**" = ["TID251"]
 
 [tool.ruff.lint.flake8-tidy-imports.banned-api]
 "sqlalchemy.text".msg = "Raw SQL lives only in collections_copilot.db (repositories, audit, session); see .claude/rules/python.md"
