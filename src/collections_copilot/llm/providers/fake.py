@@ -271,7 +271,7 @@ def _draft(ctx: dict[str, Any], notes: list[tuple[str, str]]) -> dict[str, Any]:
     invoices = ctx.get("invoices") or []
     total = ctx.get("total_open") or ""
     link = ctx.get("pay_link") or ""
-    name = ctx.get("account_placeholder", "")
+    name = ctx.get("account_name", "")
     first = invoices[0] if invoices else {}
     if ctx.get("action") == "payment_plan":
         body = (

@@ -29,6 +29,7 @@ from collections_copilot.llm.providers.base import (
     ProviderResponse,
     Usage,
 )
+from collections_copilot.llm.redaction import AccountPII, Redactor
 from collections_copilot.observability.steps import (
     NullStepSink,
     StepRecord,
@@ -90,6 +91,7 @@ class LLMResult[R: BaseModel]:
     error: str | None = None
     refusal_category: str | None = None
     raw_text: str | None = field(default=None, repr=False)
+    redactions: dict[str, str] = field(default_factory=dict, repr=False)
 
     @property
     def ok(self) -> bool:
@@ -155,6 +157,7 @@ class LLMGateway:
         breaker_reset_s: float = 60.0,
         clock: Callable[[], float] = time.monotonic,
         sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
+        redactor: Redactor | None = None,
     ) -> None:
         self.provider = provider
         self.sink = sink or NullStepSink()
@@ -162,6 +165,7 @@ class LLMGateway:
         self.max_retries = max_retries
         self.breaker = CircuitBreaker(breaker_failures, breaker_reset_s, clock)
         self.sleep = sleep
+        self.redactor = redactor or Redactor()
 
     @classmethod
     def from_settings(
@@ -209,6 +213,8 @@ class LLMGateway:
         prompt_version: str,
         prompt_hash: str,
         validator: Callable[[T], str | None] | None = None,
+        pii: AccountPII | None = None,
+        language: str = "en",
     ) -> LLMResult[T]:
         """One structured call. `validator` adds domain checks (return an error string to reject)."""
         started = time.perf_counter()
@@ -218,6 +224,8 @@ class LLMGateway:
             await self._record(route, prompt_version, prompt_hash, result, started)
             return result
         json_schema = strict_json_schema(schema)
+        # NFR-10: the provider only ever sees the redacted user turn (the system prompt is static).
+        user, redactions = self.redactor.redact(user, pii, language)
         usage_in = usage_out = 0
         total_cost = 0.0
         attempts = 0
@@ -288,6 +296,7 @@ class LLMGateway:
             attempts=attempts,
             error=error,
             refusal_category=refusal_category,
+            redactions=redactions,
             raw_text=raw_text,
         )
         await self._record(route, prompt_version, prompt_hash, result, started)
