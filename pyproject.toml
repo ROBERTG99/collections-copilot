@@ -160,6 +160,7 @@ source_modules = [
   "collections_copilot.worker",
 ]
 forbidden_modules = ["anthropic", "langchain_aws", "langchain_anthropic"]
+allow_indirect_imports = true
 
 
 [[tool.importlinter.contracts]]

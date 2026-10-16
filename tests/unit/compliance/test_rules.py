@@ -288,3 +288,10 @@ def test_numeric_invoice_number_as_reference_is_not_an_amount() -> None:
     invoices = [InvoiceFacts("100234", 10_000, "USD", "open")]
     body = "Invoice 100234 for USD 100.00 is past due."
     assert amounts.find_unknown(body, amounts.allowed_amounts(invoices), invoices) == []
+
+
+def test_account_name_digits_are_not_amounts() -> None:
+    body = "Hi Studio 1234 LLC, invoice INV-1 for USD 1,200.00 is past due. Reply STOP to opt out."
+    result = engine.postcheck(ctx(body=body, account_name="Studio 1234 LLC"))
+    assert result.ok, result.violations
+    assert "amount_not_in_ledger" in codes(engine.postcheck(ctx(body=body)))

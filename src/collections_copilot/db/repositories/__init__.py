@@ -7,6 +7,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from collections_copilot.db.repositories.accounts import AccountsRepo, InvoicesRepo, NotesRepo
 from collections_copilot.db.repositories.cases import ApprovalsRepo, CasesRepo, DraftsRepo
 from collections_copilot.db.repositories.ingest import IngestRepo
+from collections_copilot.db.repositories.ops import (
+    ContactsRepo,
+    FollowUpsRepo,
+    MessagesRepo,
+    OptOutsRepo,
+    PromisesRepo,
+    StepsRepo,
+)
 from collections_copilot.db.repositories.settings import SettingsRepo
 from collections_copilot.db.repositories.tenants import TenantsRepo
 
@@ -25,6 +33,12 @@ class Repos:
         self.approvals = ApprovalsRepo(session)
         self.settings = SettingsRepo(session)
         self.ingest = IngestRepo(session)
+        self.promises = PromisesRepo(session)
+        self.messages = MessagesRepo(session)
+        self.contacts = ContactsRepo(session)
+        self.opt_outs = OptOutsRepo(session)
+        self.follow_ups = FollowUpsRepo(session)
+        self.steps = StepsRepo(session)
 
 
 __all__ = ["Repos"]

@@ -43,6 +43,7 @@ class ComplianceContext:
     action: str | None = None
     body: str | None = None
     extra_allowed_cents: tuple[int, ...] = ()
+    account_name: str = ""
 
 
 @dataclass(frozen=True)
@@ -114,7 +115,7 @@ def text_violations(ctx: ComplianceContext) -> list[Violation]:
             Violation("missing_footer", f"must end with: {footer.footer_for(ctx.account.language)}")
         )
     allowed = amounts.allowed_amounts(ctx.invoices, ctx.extra_allowed_cents)
-    unknown = amounts.find_unknown(body, allowed, ctx.invoices)
+    unknown = amounts.find_unknown(body, allowed, ctx.invoices, (ctx.account_name,))
     if unknown:
         out.append(
             Violation("amount_not_in_ledger", f"amounts not in the ledger: {', '.join(unknown)}")
@@ -128,7 +129,7 @@ def text_violations(ctx: ComplianceContext) -> list[Violation]:
             Violation("link_not_allowed", f"links not on the allowlist: {', '.join(bad_hosts)}")
         )
     if ctx.action in TEXT_ACTIONS or ctx.action is None:
-        mentioned = {cents for _, cents, _ in amounts.extract(body)}
+        mentioned = {cents for _, cents, _ in amounts.extract(body, protected=(ctx.account_name,))}
         for inv in ctx.invoices:
             if inv.status != "disputed":
                 continue

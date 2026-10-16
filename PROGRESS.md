@@ -41,7 +41,7 @@ chore: configure commit attribution
 | T-19 | M2 | Prompts v1 and schemas | done | `pytest tests/unit/agent/test_prompts.py` → collection error before module, now 5 passed (untrusted notes fenced and escaped after instructions); `cc prompts list` prints 5 SHA-256 hashes |
 | T-20 | M2 | Next-best-action node | done | `pytest tests/unit/agent/test_nba.py` → collection error before node, now 6 passed (dispute note → pause citing it; invalid output twice → analyst nba_invalid_output; outage → rules labelled fallback) |
 | T-21 | M2 | Rationale and draft nodes | done | `pytest tests/unit/agent/test_draft.py` → collection error before nodes, now 5 passed (Spanish payment_plan draft ends with ES footer, ledger amounts only, passes post-check; refusal → template; rationale null on outage) |
-| T-22 | M2 | Case graph, checkpointer, interrupt | todo | |
+| T-22 | M2 | Case graph, checkpointer, interrupt | done | `pytest tests/integration/test_case_graph.py tests/integration/test_llm_outage.py` → collection errors before graph, now 7 passed (resume after worker crash without recomputing NBA; approval interrupt; auto-approval; outage → fallback, no send) |
 | T-23 | M2 | Reply graph and STOP rule | todo | |
 | T-24 | M2 | MCP client and promise write-back | todo | |
 | T-25 | M3 | OIDC, dev-oidc, RBAC | todo | |

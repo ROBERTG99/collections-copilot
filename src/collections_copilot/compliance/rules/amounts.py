@@ -91,9 +91,15 @@ def _blank(text: str, pattern: re.Pattern[str] | str) -> str:
     return regex.sub(lambda m: " " * len(m.group(0)), text)
 
 
-def extract(text: str, invoice_numbers: Iterable[str] = ()) -> list[tuple[str, int, str | None]]:
-    """Potential money mentions as (token, cents, currency or None)."""
+def extract(
+    text: str, invoice_numbers: Iterable[str] = (), protected: Iterable[str] = ()
+) -> list[tuple[str, int, str | None]]:
+    """Potential money mentions as (token, cents, currency or None). `protected` terms (the account
+    name) are removed first, so a company called "Studio 1234" is not read as an amount."""
     scrubbed = _blank(text, URL)
+    for term in protected:
+        if term and term.strip():
+            scrubbed = _blank(scrubbed, re.compile(re.escape(term.strip()), re.I))
     numeric_refs: set[str] = set()
     for number in sorted(invoice_numbers, key=len, reverse=True):
         if not number:
@@ -154,11 +160,14 @@ def allowed_amounts(
 
 
 def find_unknown(
-    text: str, allowed: set[tuple[str | None, int]], invoices: Iterable[_Invoice] = ()
+    text: str,
+    allowed: set[tuple[str | None, int]],
+    invoices: Iterable[_Invoice] = (),
+    protected: Iterable[str] = (),
 ) -> list[str]:
     cents_any = {c for _, c in allowed}
     unknown = []
-    for token, cents, currency in extract(text, [i.number for i in invoices]):
+    for token, cents, currency in extract(text, [i.number for i in invoices], protected):
         ok = (currency, cents) in allowed if currency else cents in cents_any
         if not ok:
             unknown.append(token)
