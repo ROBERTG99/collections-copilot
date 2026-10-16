@@ -178,6 +178,7 @@ async def live_precheck(
         ],
         contacts_7d=await repos.contacts.recent(tenant, account.id, now),
         account_name=account.name,
+        contact_flag=account.contact_flag,
     )
     result = engine.precheck(ctx)
     return ComplianceOut(

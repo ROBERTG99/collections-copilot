@@ -60,6 +60,22 @@ class CasesRepo(Repo):
             update(Case).where(Case.tenant_id == tenant_id, Case.id == case_id).values(**fields)
         )
 
+    async def set_unless_closed(
+        self, tenant_id: TenantId, case_id: uuid.UUID, **fields: Any
+    ) -> bool:
+        """Update a case that is still open. A closed or failed case is final: a graph node
+        re-running after a resume must not reopen a case that STOP or a dispute closed."""
+        result = await self.s.execute(
+            update(Case)
+            .where(
+                Case.tenant_id == tenant_id,
+                Case.id == case_id,
+                Case.status.not_in(("closed", "failed")),
+            )
+            .values(**fields)
+        )
+        return bool(result.rowcount)  # type: ignore[attr-defined]
+
 
 class DraftsRepo(Repo):
     async def add(self, tenant_id: TenantId, case_id: uuid.UUID, **fields: Any) -> Draft:

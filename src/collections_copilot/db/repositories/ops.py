@@ -205,6 +205,20 @@ class ContactsRepo(Repo):
         )
         await self.s.flush()
 
+    async def add_once(
+        self, tenant_id: TenantId, account_id: uuid.UUID, message_id: uuid.UUID, sent_at: datetime
+    ) -> bool:
+        """One contact-log row per message, so a re-run after a crash never double-counts."""
+        exists = await self.s.execute(
+            select(ContactLog.id).where(
+                ContactLog.tenant_id == tenant_id, ContactLog.message_id == message_id
+            )
+        )
+        if exists.first() is not None:
+            return False
+        await self.add(tenant_id, account_id, message_id, sent_at)
+        return True
+
 
 class OptOutsRepo(Repo):
     async def is_opted_out(self, tenant_id: TenantId, phone_e164: str) -> bool:

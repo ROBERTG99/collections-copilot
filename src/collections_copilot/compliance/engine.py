@@ -44,6 +44,7 @@ class ComplianceContext:
     body: str | None = None
     extra_allowed_cents: tuple[int, ...] = ()
     account_name: str = ""
+    contact_flag: str | None = None  # e.g. "wrong_number" from a reply; blocks every send
 
 
 @dataclass(frozen=True)
@@ -69,6 +70,8 @@ def _account_rules(ctx: ComplianceContext) -> list[Violation]:
     out: list[Violation] = []
     if ctx.account.opted_out:
         out.append(Violation("opted_out", "the debtor opted out of SMS"))
+    if ctx.contact_flag:
+        out.append(Violation("contact_flagged", f"the contact is flagged: {ctx.contact_flag}"))
     recent = [t for t in ctx.contacts_7d if ctx.now - CAP_WINDOW < t <= ctx.now]
     if len(recent) >= CONTACT_CAP:
         out.append(

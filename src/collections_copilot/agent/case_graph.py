@@ -42,6 +42,7 @@ from collections_copilot.observability.steps import StepRecord, current_context,
 from collections_copilot.scoring.priority import inputs_from, score
 
 SEND_RETRIES = 3
+APPROVED = ("approve", "edit", "auto_approve")
 
 
 class CaseState(TypedDict, total=False):
@@ -74,7 +75,6 @@ def _compliance_ctx(
     now: datetime,
     action: str | None,
     body: str | None,
-    opted_out: bool | None = None,
     contacts: list[datetime] | None = None,
 ) -> ComplianceContext:
     return ComplianceContext(
@@ -83,7 +83,7 @@ def _compliance_ctx(
             facts.timezone,
             facts.language,
             facts.currency,
-            facts.opted_out if opted_out is None else opted_out,
+            facts.opted_out,
         ),
         invoices=[
             InvoiceFacts(i.number, i.amount_cents, i.currency, i.status) for i in facts.invoices
@@ -94,6 +94,7 @@ def _compliance_ctx(
         action=action,
         body=body,
         account_name=facts.name,
+        contact_flag=facts.contact_flag,
     )
 
 
@@ -260,6 +261,21 @@ def build_case_graph(services: Services, checkpointer: BaseCheckpointSaver[Any] 
             if version > 1
             else []
         )
+        stored = await store.draft_version(dict(state), version)
+        if stored is not None and stored.get("status") != "cancelled":
+            # A re-run after a crash keeps the row already written for this version, so the
+            # text approved and sent is always the stored text (LLMs are not deterministic).
+            d = {
+                "version": version,
+                "body": stored["body"],
+                "author": stored["author"],
+                "model": stored.get("model"),
+                "prompt_version": stored.get("prompt_version"),
+            }
+            return {
+                "draft": d,
+                "fallback": state.get("fallback", False) or stored["author"] == "fallback",
+            }
         result = await make_draft(
             services.gateway,
             services.routes,
@@ -328,14 +344,16 @@ def build_case_graph(services: Services, checkpointer: BaseCheckpointSaver[Any] 
         effective = auto_policy.effective(
             f.auto_policy, settings.auto_approve_max_usd, settings.auto_approve_min_confidence
         )
+        open_inv = [i for i in f.invoices if i.status == "open"]
         ok, reason = auto_policy.qualifies(
             effective,
             action=state["nba"]["action"],
-            open_balance_cents=sum(i.amount_cents for i in f.invoices if i.status == "open"),
+            open_balance_cents=sum(i.amount_cents for i in open_inv),
             currency=f.currency,
             confidence=float(state["nba"]["confidence"]),
             postcheck_ok=bool(post.get("ok")),
             requires_edit=bool(state.get("requires_edit")),
+            invoice_currencies=[i.currency for i in open_inv],
         )
         if ok and state["nba"].get("source") == "llm":
             send_at = datetime.fromisoformat(post["send_at"])
@@ -388,11 +406,18 @@ def build_case_graph(services: Services, checkpointer: BaseCheckpointSaver[Any] 
         latest = await store.latest_draft(dict(state))
         if latest is None:
             return {"approval": {"decision": "invalid"}}
-        approval = await store.approval_for(dict(state), int(latest["version"]))
-        if approval is None:
+        # Re-read everything: the case may have been closed (STOP, dispute) and the debtor's
+        # invoices or opt-out may have changed while the draft waited for a human.
+        snap = await store.send_snapshot(dict(state), int(latest["version"]), now_of(state))
+        if snap.case_closed:
+            return {"approval": {"decision": "cancelled"}, "closed_reason": "case_closed"}
+        approval = snap.approval
+        if snap.draft_cancelled or approval is None or approval["decision"] not in APPROVED:
             return {"approval": {"decision": "invalid"}}
+        assert snap.draft is not None
+        latest = snap.draft
         final = engine.postcheck(
-            _compliance_ctx(f, now_of(state), state["nba"]["action"], latest["body"])
+            _compliance_ctx(snap.facts, now_of(state), state["nba"]["action"], latest["body"])
         )
         if not final.ok:
             return {
@@ -427,23 +452,29 @@ def build_case_graph(services: Services, checkpointer: BaseCheckpointSaver[Any] 
         return {}
 
     async def send_sms(state: CaseState) -> dict[str, Any]:
-        f = facts_of(state)
-        d = state["draft"]
-        version = int(d["version"])
+        version = int(state["draft"]["version"])
         now = now_of(state)
-        approval = await store.approval_for(dict(state), version)
-        if approval is None and state["approval"].get("decision") != "auto_approve":
-            await store.audit(
-                state, "sms.blocked", "case", state["case_id"], {"reason": "no_approval_record"}
-            )
-            return {
-                "send": {"status": "blocked", "reason": "no_approval_record"},
-                "closed_reason": "blocked",
-            }
-        opted_out, contacts = await store.recheck(dict(state), now)
-        result = engine.postcheck(
-            _compliance_ctx(f, now, state["nba"]["action"], d["body"], opted_out, contacts)
+        # Never trust the checkpoint at send time: re-read the case, the draft row, its
+        # approval record and the debtor's facts (disputes, opt-out, cap, contact flag).
+        snap = await store.send_snapshot(dict(state), version, now)
+        f = snap.facts
+        approval = snap.approval
+        blocked = (
+            "case_closed"
+            if snap.case_closed
+            else "draft_cancelled"
+            if snap.draft_cancelled
+            else "no_approval_record"
+            if approval is None or approval["decision"] not in APPROVED
+            else None
         )
+        if blocked:
+            await store.audit(state, "sms.blocked", "case", state["case_id"], {"reason": blocked})
+            return {"send": {"status": "blocked", "reason": blocked}, "closed_reason": blocked}
+        assert snap.draft is not None
+        assert approval is not None
+        body = str(snap.draft["body"])
+        result = engine.postcheck(_compliance_ctx(f, now, state["nba"]["action"], body))
         if not result.ok:
             codes = [v.code for v in result.violations if v.blocking]
             await store.audit(state, "sms.blocked", "case", state["case_id"], {"violations": codes})
@@ -457,9 +488,11 @@ def build_case_graph(services: Services, checkpointer: BaseCheckpointSaver[Any] 
                 "send": {"status": "deferred"},
             }
         key = f"sms:{state['case_id']}:{version}"
-        claim = await store.claim_message(dict(state), key, f.phone_e164, d["body"], version)
+        claim = await store.claim_message(dict(state), key, f.phone_e164, body, version)
         if not claim["created"]:
             if claim["provider_sid"]:
+                # Crash after the provider accepted it: make sure the 7-day cap counts it.
+                await store.add_contact(state, claim["id"], now)
                 return {
                     "send": {
                         "status": "sent",
@@ -482,7 +515,7 @@ def build_case_graph(services: Services, checkpointer: BaseCheckpointSaver[Any] 
         last_error = ""
         for attempt in range(SEND_RETRIES):
             try:
-                sms = await services.sms.send(f.phone_e164, d["body"], idempotency_key=key)
+                sms = await services.sms.send(f.phone_e164, body, idempotency_key=key)
             except SmsError as exc:
                 last_error = str(exc)
                 if not exc.retryable or attempt == SEND_RETRIES - 1:
@@ -503,7 +536,7 @@ def build_case_graph(services: Services, checkpointer: BaseCheckpointSaver[Any] 
                 "sms.sent",
                 "message",
                 claim["id"],
-                {"draft_version": version, "approval": state["approval"].get("decision")},
+                {"draft_version": version, "approval": approval["decision"]},
             )
             await set_status(state, "sent")
             return {
@@ -572,7 +605,7 @@ def build_case_graph(services: Services, checkpointer: BaseCheckpointSaver[Any] 
 
     def after_approval(state: CaseState) -> str:
         decision = state["approval"].get("decision")
-        if decision == "reject":
+        if decision in ("reject", "cancelled"):
             return "close"
         if decision == "invalid":
             return "human_approval"

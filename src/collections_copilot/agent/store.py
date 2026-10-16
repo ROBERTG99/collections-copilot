@@ -16,6 +16,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from collections_copilot.db import audit as audit_log
+from collections_copilot.db.models import Approval
 from collections_copilot.db.models import Draft as DraftRow
 from collections_copilot.db.repositories import Repos
 
@@ -73,12 +74,37 @@ class CaseFacts:
         )
 
 
+CLOSED_CASE_STATUSES = ("closed", "failed")
+
+
+@dataclass(frozen=True)
+class SendSnapshot:
+    """Everything a send or a final approval check must read fresh from the database."""
+
+    facts: CaseFacts
+    case_status: str
+    draft: dict[str, Any] | None  # {version, body, author, status, ...} for the version asked
+    approval: dict[str, Any] | None  # the approval record for that exact version, if any
+
+    @property
+    def case_closed(self) -> bool:
+        return self.case_status in CLOSED_CASE_STATUSES
+
+    @property
+    def draft_cancelled(self) -> bool:
+        return self.draft is None or self.draft.get("status") == "cancelled"
+
+
 class CaseStore(Protocol):
     async def load(self, state: Mapping[str, Any], now: datetime) -> CaseFacts: ...
 
-    async def recheck(
-        self, state: Mapping[str, Any], now: datetime
-    ) -> tuple[bool, list[datetime]]: ...
+    async def send_snapshot(
+        self, state: Mapping[str, Any], version: int, now: datetime
+    ) -> SendSnapshot: ...
+
+    async def draft_version(
+        self, state: Mapping[str, Any], version: int
+    ) -> dict[str, Any] | None: ...
 
     async def set_case(self, state: Mapping[str, Any], **fields: Any) -> None: ...
 
@@ -130,6 +156,26 @@ def _uuid(value: Any) -> uuid.UUID:
     return value if isinstance(value, uuid.UUID) else uuid.UUID(str(value))
 
 
+def _draft_dict(d: DraftRow) -> dict[str, Any]:
+    return {
+        "version": d.version,
+        "body": d.body,
+        "author": d.author,
+        "model": d.model,
+        "prompt_version": d.prompt_version,
+        "status": d.status,
+        "postcheck": d.postcheck,
+    }
+
+
+def _approval_dict(a: Approval) -> dict[str, Any]:
+    return {
+        "decision": a.decision,
+        "decided_by": a.decided_by,
+        "send_at": a.send_at.isoformat() if a.send_at else None,
+    }
+
+
 class DbCaseStore:
     def __init__(self, sessionmaker: async_sessionmaker[AsyncSession]) -> None:
         self.sm = sessionmaker
@@ -141,61 +187,81 @@ class DbCaseStore:
             case = await repos.cases.get(tenant, case_id)
             if case is None:
                 raise LookupError(f"case {case_id} not found for tenant")
-            account = await repos.accounts.get(tenant, case.account_id)
-            assert account is not None
-            today = now.date()
-            invoices = [
-                InvoiceRow(
-                    i.number, i.amount_cents, i.currency, i.status, max(0, (today - i.due_on).days)
-                )
-                for i in await repos.invoices.for_account(tenant, account.id)
-            ]
-            notes = [
-                NoteFact(str(n.id), n.source, n.body, n.created_at.isoformat())
-                for n in reversed(await repos.notes.for_account(tenant, account.id, limit=20))
-            ]
-            broken = await repos.promises.broken_since(
-                tenant, account.id, today - timedelta(days=90)
-            )
-            contacts = await repos.contacts.recent(tenant, account.id, now)
-            opted = account.opted_out_at is not None or await repos.opt_outs.is_opted_out(
-                tenant, account.phone_e164
-            )
-            policy = await repos.settings.get(tenant, "auto_approval") or {}
-            return CaseFacts(
-                tenant_id=str(tenant),
-                case_id=str(case_id),
-                account_id=str(account.id),
-                external_ref=account.external_ref,
-                name=account.name,
-                phone_e164=account.phone_e164,
-                timezone=account.timezone,
-                segment=account.segment,
-                language=account.language,
-                currency=account.currency,
-                opted_out=opted,
-                contact_flag=account.contact_flag,
-                invoices=invoices,
-                notes=notes,
-                broken_promises_90d=broken,
-                contacts_7d=[c.isoformat() for c in contacts],
-                auto_policy={**DEFAULT_POLICY, **policy},
-            )
+            return await self._facts(repos, tenant, case_id, case.account_id, now)
 
-    async def recheck(self, state: Mapping[str, Any], now: datetime) -> tuple[bool, list[datetime]]:
-        tenant = _uuid(state["tenant_id"])
-        facts = state["facts"]
+    @staticmethod
+    async def _facts(
+        repos: Repos, tenant: uuid.UUID, case_id: uuid.UUID, account_id: uuid.UUID, now: datetime
+    ) -> CaseFacts:
+        account = await repos.accounts.get(tenant, account_id)
+        assert account is not None
+        today = now.date()
+        invoices = [
+            InvoiceRow(
+                i.number, i.amount_cents, i.currency, i.status, max(0, (today - i.due_on).days)
+            )
+            for i in await repos.invoices.for_account(tenant, account.id)
+        ]
+        notes = [
+            NoteFact(str(n.id), n.source, n.body, n.created_at.isoformat())
+            for n in reversed(await repos.notes.for_account(tenant, account.id, limit=20))
+        ]
+        broken = await repos.promises.broken_since(tenant, account.id, today - timedelta(days=90))
+        contacts = await repos.contacts.recent(tenant, account.id, now)
+        opted = account.opted_out_at is not None or await repos.opt_outs.is_opted_out(
+            tenant, account.phone_e164
+        )
+        policy = await repos.settings.get(tenant, "auto_approval") or {}
+        return CaseFacts(
+            tenant_id=str(tenant),
+            case_id=str(case_id),
+            account_id=str(account.id),
+            external_ref=account.external_ref,
+            name=account.name,
+            phone_e164=account.phone_e164,
+            timezone=account.timezone,
+            segment=account.segment,
+            language=account.language,
+            currency=account.currency,
+            opted_out=opted,
+            contact_flag=account.contact_flag,
+            invoices=invoices,
+            notes=notes,
+            broken_promises_90d=broken,
+            contacts_7d=[c.isoformat() for c in contacts],
+            auto_policy={**DEFAULT_POLICY, **policy},
+        )
+
+    async def send_snapshot(
+        self, state: Mapping[str, Any], version: int, now: datetime
+    ) -> SendSnapshot:
+        tenant, case_id = _uuid(state["tenant_id"]), _uuid(state["case_id"])
         async with self.sm() as s:
             repos = Repos(s)
-            account = await repos.accounts.get(tenant, facts["account_id"])
-            opted = account is None or account.opted_out_at is not None
-            opted = opted or await repos.opt_outs.is_opted_out(tenant, facts["phone_e164"])
-            contacts = await repos.contacts.recent(tenant, _uuid(facts["account_id"]), now)
-            return opted, contacts
+            case = await repos.cases.get(tenant, case_id)
+            if case is None:
+                raise LookupError(f"case {case_id} not found for tenant")
+            facts = await self._facts(repos, tenant, case_id, case.account_id, now)
+            row = await repos.drafts.get_version(tenant, case_id, version)
+            approval = await repos.approvals.for_draft(tenant, row.id) if row else None
+            return SendSnapshot(
+                facts=facts,
+                case_status=case.status,
+                draft=_draft_dict(row) if row else None,
+                approval=_approval_dict(approval) if approval else None,
+            )
+
+    async def draft_version(self, state: Mapping[str, Any], version: int) -> dict[str, Any] | None:
+        tenant, case_id = _uuid(state["tenant_id"]), _uuid(state["case_id"])
+        async with self.sm() as s:
+            row = await Repos(s).drafts.get_version(tenant, case_id, version)
+            return _draft_dict(row) if row else None
 
     async def set_case(self, state: Mapping[str, Any], **fields: Any) -> None:
         async with self.sm() as s, s.begin():
-            await Repos(s).cases.set(_uuid(state["tenant_id"]), _uuid(state["case_id"]), **fields)
+            await Repos(s).cases.set_unless_closed(
+                _uuid(state["tenant_id"]), _uuid(state["case_id"]), **fields
+            )
 
     async def save_draft(self, state: Mapping[str, Any], **fields: Any) -> None:
         tenant, case_id = _uuid(state["tenant_id"]), _uuid(state["case_id"])
@@ -214,28 +280,17 @@ class DbCaseStore:
             d = await Repos(s).drafts.latest(_uuid(state["tenant_id"]), _uuid(state["case_id"]))
             if d is None:
                 return None
-            return {
-                "version": d.version,
-                "body": d.body,
-                "author": d.author,
-                "postcheck": d.postcheck,
-            }
+            return _draft_dict(d)
 
     async def approval_for(self, state: Mapping[str, Any], version: int) -> dict[str, Any] | None:
         tenant, case_id = _uuid(state["tenant_id"]), _uuid(state["case_id"])
         async with self.sm() as s:
             repos = Repos(s)
             draft = await repos.drafts.get_version(tenant, case_id, version)
-            if draft is None:
+            if draft is None or draft.status == "cancelled":
                 return None
             approval = await repos.approvals.for_draft(tenant, draft.id)
-            if approval is None:
-                return None
-            return {
-                "decision": approval.decision,
-                "decided_by": approval.decided_by,
-                "send_at": approval.send_at.isoformat() if approval.send_at else None,
-            }
+            return _approval_dict(approval) if approval else None
 
     async def record_auto_approval(
         self, state: Mapping[str, Any], version: int, policy: dict[str, Any], send_at: datetime
@@ -300,7 +355,7 @@ class DbCaseStore:
         self, state: Mapping[str, Any], message_id: str, sent_at: datetime
     ) -> None:
         async with self.sm() as s, s.begin():
-            await Repos(s).contacts.add(
+            await Repos(s).contacts.add_once(
                 _uuid(state["tenant_id"]),
                 _uuid(state["facts"]["account_id"]),
                 _uuid(message_id),
@@ -352,35 +407,85 @@ class DbCaseStore:
 
 
 class MemoryCaseStore:
-    """Eval store: facts come from the graph input (`input_facts`); writes are recorded only."""
+    """Eval store: facts come from the graph input (`input_facts`); writes are kept in memory.
+
+    Approvals are stored per (case, version) exactly like the database, so the send path needs
+    the same approval record in evals as in production.
+    """
 
     def __init__(self) -> None:
         self.writes: list[tuple[str, dict[str, Any]]] = []
         self.drafts: dict[tuple[str, int], dict[str, Any]] = {}
+        self.approvals: dict[tuple[str, int], dict[str, Any]] = {}
+        self.case_status: dict[str, str] = {}
 
     async def load(self, state: Mapping[str, Any], now: datetime) -> CaseFacts:
         return CaseFacts.from_state(state["input_facts"])
 
-    async def recheck(self, state: Mapping[str, Any], now: datetime) -> tuple[bool, list[datetime]]:
-        facts = state["facts"]
-        return bool(facts["opted_out"]), [datetime.fromisoformat(c) for c in facts["contacts_7d"]]
+    async def send_snapshot(
+        self, state: Mapping[str, Any], version: int, now: datetime
+    ) -> SendSnapshot:
+        case_id = state["case_id"]
+        draft = self.drafts.get((case_id, version))
+        return SendSnapshot(
+            facts=CaseFacts.from_state(state["facts"]),
+            case_status=self.case_status.get(case_id, "processing"),
+            draft={**draft, "status": draft.get("status", "pending")} if draft else None,
+            approval=await self.approval_for(state, version),
+        )
+
+    async def draft_version(self, state: Mapping[str, Any], version: int) -> dict[str, Any] | None:
+        draft = self.drafts.get((state["case_id"], version))
+        return dict(draft) if draft else None
 
     async def set_case(self, state: Mapping[str, Any], **fields: Any) -> None:
+        if self.case_status.get(state["case_id"]) in CLOSED_CASE_STATUSES:
+            return
+        if "status" in fields:
+            self.case_status[state["case_id"]] = fields["status"]
         self.writes.append(("case", fields))
 
     async def save_draft(self, state: Mapping[str, Any], **fields: Any) -> None:
-        self.drafts[(state["case_id"], int(fields["version"]))] = fields
+        key = (state["case_id"], int(fields["version"]))
+        existing = self.drafts.get(key)
+        if existing is None:
+            self.drafts[key] = {**fields, "status": "pending"}
+        else:  # like the database upsert: only the checks change
+            existing.update(precheck=fields.get("precheck"), postcheck=fields.get("postcheck"))
 
     async def latest_draft(self, state: Mapping[str, Any]) -> dict[str, Any] | None:
         versions = [v for (c, v) in self.drafts if c == state["case_id"]]
-        return self.drafts[(state["case_id"], max(versions))] if versions else None
+        return dict(self.drafts[(state["case_id"], max(versions))]) if versions else None
 
     async def approval_for(self, state: Mapping[str, Any], version: int) -> dict[str, Any] | None:
-        return None
+        draft = self.drafts.get((state["case_id"], version))
+        if draft is None or draft.get("status") == "cancelled":
+            return None
+        approval = self.approvals.get((state["case_id"], version))
+        return dict(approval) if approval else None
+
+    def approve(
+        self, case_id: str, version: int, decision: str = "approve", actor: str = "eval"
+    ) -> None:
+        """What the approval API does, for evals and tests that resume a human approval."""
+        self.approvals[(case_id, version)] = {
+            "decision": decision,
+            "decided_by": actor,
+            "send_at": None,
+        }
 
     async def record_auto_approval(
         self, state: Mapping[str, Any], version: int, policy: dict[str, Any], send_at: datetime
     ) -> None:
+        key = (state["case_id"], version)
+        self.approvals.setdefault(
+            key,
+            {
+                "decision": "auto_approve",
+                "decided_by": "system:auto-approval",
+                "send_at": send_at.isoformat(),
+            },
+        )
         self.writes.append(("auto_approval", {"version": version}))
 
     async def claim_message(
@@ -400,7 +505,8 @@ class MemoryCaseStore:
     async def add_contact(
         self, state: Mapping[str, Any], message_id: str, sent_at: datetime
     ) -> None:
-        self.writes.append(("contact", {"message_id": message_id}))
+        if ("contact", {"message_id": message_id}) not in self.writes:
+            self.writes.append(("contact", {"message_id": message_id}))
 
     async def follow_up(
         self,
