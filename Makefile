@@ -42,10 +42,11 @@ demo: ## Run the scripted demo scenario against the running stack, offline
 logs: ## Follow the logs of every service
 	$(COMPOSE) logs -f --tail=100
 
-check-fast: ## Lint and unit tests (< 60 s)
+check-fast: ## Lint, types and unit tests (< 60 s)
 	$(RUN) ruff check $(PY_SRC)
 	$(RUN) ruff format --check $(PY_SRC)
 	$(RUN) lint-imports
+	$(RUN) mypy src apps/dev-oidc/src apps/ledger-mcp/src apps/debtor-sim/src
 	$(RUN) pytest tests/unit tests/harness -m "not integration and not docker" -q -x
 
 deps-up: ## Start only the infrastructure dependencies used by host tests

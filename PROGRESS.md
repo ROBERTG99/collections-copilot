@@ -31,7 +31,7 @@ chore: configure commit attribution
 | T-09 | M1 | Tenant-scoped repositories | done | `pytest tests/integration/db/test_tenant_scoping.py` → collection error before repositories, now 2 passed; ruff TID251 bans sqlalchemy.text outside db/ |
 | T-10 | M1 | Audit chain and `cc audit verify` | done | `pytest tests/unit/db/test_audit_chain.py` → 4 passed incl. Hypothesis single-byte property; `pytest tests/integration/db/test_audit_cli.py` → exit 0 intact, exit 1 first_bad_seq after tamper |
 | T-11 | M1 | Synthetic generator gen.v1 | done | `pytest tests/unit/generator` → 4 passed (digest stable for seed 4242); `make seed` (docker compose run --rm seed) → acme-distribution 400 accounts digest 874543310ca9ffbe, tenant-b-supplies 40 digest 37383436757dd895; rerun unchanged |
-| T-12 | M1 | Ingest via JSON and presigned S3 upload | todo | |
+| T-12 | M1 | Ingest via JSON and presigned S3 upload | done | `pytest tests/integration/test_ingest.py` → 5 passed (duplicate 400-row file returns original batch; negative amount rejected at row 4; 413 over 10 MB); `pytest tests/contract/test_s3_contract.py` → 2 passed (MinIO, moto) |
 | T-13 | M1 | Priority score | todo | |
 | T-14 | M1 | Compliance engine | todo | |
 | T-15 | M1 | Ledger MCP server | todo | |

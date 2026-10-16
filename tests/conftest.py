@@ -13,6 +13,13 @@ from alembic import command
 from alembic.config import Config
 
 ROOT = Path(__file__).resolve().parents[1]
+
+# Local doubles only (ElasticMQ, MinIO, moto): never let tests pick up real AWS credentials.
+os.environ["AWS_ACCESS_KEY_ID"] = "cclocal"
+os.environ["AWS_SECRET_ACCESS_KEY"] = "cclocalsecret"
+os.environ["AWS_DEFAULT_REGION"] = "us-east-1"
+os.environ.pop("AWS_SESSION_TOKEN", None)
+os.environ.pop("AWS_PROFILE", None)
 PG_ADMIN_URL = os.environ.get("CC_TEST_PG_ADMIN_URL", "postgresql://cc:cc@localhost:8320/cc")
 
 

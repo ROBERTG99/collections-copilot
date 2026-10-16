@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import signal
+from collections.abc import Iterator
 from contextlib import AsyncExitStack
 from typing import Any
 
@@ -23,6 +25,14 @@ from collections_copilot.worker.consumer import Consumer
 
 log = logging.getLogger("collections_copilot.worker")
 BIND_ALL = "0.0.0.0"  # noqa: S104 - container port, published only on localhost by compose
+
+
+class _NoSignalServer(uvicorn.Server):
+    """uvicorn server that leaves SIGTERM/SIGINT to the worker's shared shutdown handler."""
+
+    @contextlib.contextmanager
+    def capture_signals(self) -> Iterator[None]:
+        yield
 
 
 def health_app() -> Starlette:
@@ -59,12 +69,11 @@ async def run(settings: Settings) -> None:
         consumer = Consumer(
             queues, settings.sqs_tasks_queue, handle_task, concurrency=settings.worker_concurrency
         )
-        server = uvicorn.Server(
+        server = _NoSignalServer(
             uvicorn.Config(
                 health_app(), host=BIND_ALL, port=settings.metrics_port, log_level="warning"
             )
         )
-        server.install_signal_handlers = lambda: None  # type: ignore[method-assign]
 
         def shutdown() -> None:
             consumer.stop()
