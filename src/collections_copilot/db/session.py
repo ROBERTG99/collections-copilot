@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import (
+    AsyncConnection,
     AsyncEngine,
     AsyncSession,
     async_sessionmaker,
@@ -49,3 +50,58 @@ async def advisory_lock(sm: async_sessionmaker[AsyncSession], key: str) -> Async
             text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))"), {"key": key}
         )
         yield
+
+
+class LeaderLock:
+    """A session-level advisory lock held on one dedicated connection: exactly one holder across
+    all workers. If the holder dies, Postgres drops the connection and the lock with it."""
+
+    def __init__(self, engine: AsyncEngine, key: str) -> None:
+        self.engine = engine
+        self.key = key
+        self._conn: AsyncConnection | None = None
+
+    @property
+    def held(self) -> bool:
+        return self._conn is not None
+
+    async def try_acquire(self) -> bool:
+        if self._conn is not None:
+            try:  # still alive? A dropped connection means the lock is gone.
+                await self._conn.execute(text("SELECT 1"))
+                return True
+            except Exception:
+                await self._close()
+        conn = await self.engine.connect()
+        try:
+            got = (
+                await conn.execute(
+                    text("SELECT pg_try_advisory_lock(hashtextextended(:key, 0))"),
+                    {"key": self.key},
+                )
+            ).scalar_one()
+            await conn.commit()
+        except Exception:
+            await conn.close()
+            raise
+        if got:
+            self._conn = conn
+            return True
+        await conn.close()
+        return False
+
+    async def release(self) -> None:
+        if self._conn is None:
+            return
+        try:
+            await self._conn.execute(
+                text("SELECT pg_advisory_unlock(hashtextextended(:key, 0))"), {"key": self.key}
+            )
+            await self._conn.commit()
+        finally:
+            await self._close()
+
+    async def _close(self) -> None:
+        conn, self._conn = self._conn, None
+        if conn is not None:
+            await conn.close()

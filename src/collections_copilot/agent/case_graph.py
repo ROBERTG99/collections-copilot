@@ -44,6 +44,7 @@ from collections_copilot.scoring.priority import inputs_from, score
 
 SEND_RETRIES = 3
 APPROVED = ("approve", "edit", "auto_approve")
+APPROVAL_REMINDER_H = 24
 
 
 class CaseState(TypedDict, total=False):
@@ -410,6 +411,9 @@ def build_case_graph(services: Services, checkpointer: BaseCheckpointSaver[Any] 
                 }
             }
         await set_status(state, "awaiting_approval")
+        await store.follow_up(
+            state, "approval_reminder", now_of(state) + timedelta(hours=APPROVAL_REMINDER_H)
+        )
         await services.events.publish(
             state["tenant_id"],
             state["case_id"],

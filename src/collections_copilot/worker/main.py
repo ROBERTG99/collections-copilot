@@ -1,5 +1,5 @@
 """Worker entry point: consumes cc-tasks (case graph) and cc-replies (reply graph), and serves
-/healthz and /metrics on 8311. The follow-up scheduler joins in T-30."""
+/healthz and /metrics on 8311. One worker at a time also leads the follow-up scheduler."""
 
 from __future__ import annotations
 
@@ -21,10 +21,16 @@ from collections_copilot.agent.case_graph import build_case_graph
 from collections_copilot.agent.checkpointer import open_checkpointer
 from collections_copilot.agent.nodes.record_promise import retry_write_back
 from collections_copilot.agent.reply_graph import build_reply_graph
+from collections_copilot.agent.scheduler import Scheduler
 from collections_copilot.agent.services import DbStepSink, Services
 from collections_copilot.agent.store import DbCaseStore
 from collections_copilot.config import Settings, get_settings
-from collections_copilot.db.session import advisory_lock, make_engine, make_sessionmaker
+from collections_copilot.db.session import (
+    LeaderLock,
+    advisory_lock,
+    make_engine,
+    make_sessionmaker,
+)
 from collections_copilot.integrations.email.smtp import SmtpNotifier
 from collections_copilot.integrations.mcp import build_ledger
 from collections_copilot.integrations.queue.messages import ReplyMessage, TaskMessage
@@ -131,6 +137,10 @@ async def run(settings: Settings) -> None:
                 concurrency=settings.worker_concurrency,
             ),
         ]
+        stop = asyncio.Event()
+        scheduler = Scheduler(
+            sessionmaker, LeaderLock(engine, "cc-scheduler"), enqueue, services.notifier
+        )
         server = _NoSignalServer(
             uvicorn.Config(
                 health_app(), host=BIND_ALL, port=settings.metrics_port, log_level="warning"
@@ -138,6 +148,7 @@ async def run(settings: Settings) -> None:
         )
 
         def shutdown() -> None:
+            stop.set()
             for consumer in consumers:
                 consumer.stop()
             server.should_exit = True
@@ -145,7 +156,11 @@ async def run(settings: Settings) -> None:
         loop = asyncio.get_running_loop()
         for sig in (signal.SIGTERM, signal.SIGINT):
             loop.add_signal_handler(sig, shutdown)
-        await asyncio.gather(*(c.run() for c in consumers), server.serve())
+        await asyncio.gather(
+            *(c.run() for c in consumers),
+            scheduler.run(settings.scheduler_interval_s, stop),
+            server.serve(),
+        )
 
 
 def main() -> None:
