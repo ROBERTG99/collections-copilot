@@ -12,7 +12,17 @@ from fastapi.responses import JSONResponse
 
 from collections_copilot.api import errors
 from collections_copilot.api.deps.auth import JwksTokenVerifier, TokenVerifier
-from collections_copilot.api.routers import accounts, cases, ingest, me, queue
+from collections_copilot.api.routers import (
+    accounts,
+    approvals,
+    cases,
+    ingest,
+    me,
+    queue,
+)
+from collections_copilot.api.routers import (
+    settings as settings_router,
+)
 from collections_copilot.config import Settings, get_settings
 from collections_copilot.db.session import make_engine, make_sessionmaker, ping
 from collections_copilot.integrations.queue.sqs import QueueClient, SqsQueueClient
@@ -69,6 +79,8 @@ def create_app(
     app.include_router(queue.router)
     app.include_router(accounts.router)
     app.include_router(cases.router)
+    app.include_router(approvals.router)
+    app.include_router(settings_router.router)
 
     @app.get("/healthz", tags=["health"])
     async def healthz() -> dict[str, str]:

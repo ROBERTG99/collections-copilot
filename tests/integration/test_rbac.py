@@ -30,6 +30,10 @@ MATRIX: dict[tuple[str, str], set[str]] = {
     ("GET", "/api/v1/accounts/{account_id}"): ALL,
     ("POST", "/api/v1/cases"): {A, S},
     ("GET", "/api/v1/cases/{case_id}"): ALL,
+    ("POST", "/api/v1/cases/{case_id}/approval"): {A, S},
+    ("POST", "/api/v1/approvals:batch"): {A, S},
+    ("GET", "/api/v1/settings/auto-approval"): ALL,
+    ("PUT", "/api/v1/settings/auto-approval"): {S, D},
 }
 UNAUTHENTICATED_PREFIXES = ("/api/v1/webhooks/",)
 
@@ -38,7 +42,9 @@ BODIES: dict[tuple[str, str], Any] = {
     ("POST", "/api/v1/ingest/aging"): {"rows": []},
     ("POST", "/api/v1/cases"): {"account_ids": [ZERO]},
     ("POST", "/api/v1/cases/{case_id}/approval"): {"decision": "approve", "draft_version": 1},
-    ("POST", "/api/v1/approvals:batch"): {"items": []},
+    ("POST", "/api/v1/approvals:batch"): {
+        "items": [{"case_id": ZERO, "decision": "approve", "draft_version": 1}]
+    },
     ("PUT", "/api/v1/settings/auto-approval"): {
         "enabled": True,
         "max_usd": 100,
