@@ -90,7 +90,10 @@ extend-exclude = ["web", "infra", "evals/datasets"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP", "S", "ASYNC", "RUF", "SIM", "PT", "TID"]
-ignore = ["S101", "RUF001", "RUF002", "RUF003"]
+ignore = ["S101", "RUF001", "RUF002", "RUF003", "E501"]
+
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = ["fastapi.Depends", "fastapi.Query", "fastapi.Header", "fastapi.Body", "fastapi.Path", "fastapi.File", "fastapi.Form", "fastapi.Security", "typer.Option", "typer.Argument"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S", "B011", "ASYNC"]
@@ -137,6 +140,7 @@ skip_empty = true
 show_missing = false
 
 [tool.importlinter]
+include_external_packages = true
 root_packages = ["collections_copilot"]
 
 [[tool.importlinter.contracts]]
@@ -155,7 +159,7 @@ source_modules = [
   "collections_copilot.worker",
 ]
 forbidden_modules = ["anthropic", "langchain_aws", "langchain_anthropic"]
-include_external_packages = true
+
 
 [[tool.importlinter.contracts]]
 name = "Deterministic core does not depend on the LLM layer"
