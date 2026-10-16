@@ -23,7 +23,7 @@ chore: configure commit attribution
 | T-01 | M0 | Bootstrap, attribution evidence, progress files | done | `uv run pytest tests/harness/test_repo_layout.py` → 4 passed; §1.1 evidence above |
 | T-02 | M0 | Resolve evalgate and mcp-gateway | done | `uv run python -c "import evalgate"` → 0.1.0; `pytest tests/harness/test_dependencies.py` → 1 passed (fallbacks in third_party/, see DECISIONS) |
 | T-03 | M0 | uv workspace, tool config, Makefile | done | `make bootstrap && make check-fast` → ruff clean, import-linter 2 kept, 9 passed |
-| T-04 | M0 | Claude harness files | todo | |
+| T-04 | M0 | Claude harness files | done | `uv run pytest tests/harness` → 13 passed (CLAUDE.md 54 lines, 10 rules, 8 subagents, 13 skills, .mcp.json) |
 | T-05 | M0 | Hooks | todo | |
 | T-06 | M0 | Compose dependencies and api health | todo | |
 | T-07 | M0 | Walking skeleton | todo | |

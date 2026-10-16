@@ -1,5 +1,9 @@
 {
-  "attribution": { "commit": "", "pr": "", "sessionUrl": false },
+  "attribution": {
+    "commit": "",
+    "pr": "",
+    "sessionUrl": false
+  },
   "permissions": {
     "allow": [
       "Bash(make:*)",
@@ -11,12 +15,21 @@
       "Bash(docker compose:*)",
       "Bash(terraform fmt:*)",
       "Bash(terraform validate:*)",
-      "Bash(terraform test:*)"
+      "Bash(terraform test:*)",
+      "Bash(tflint:*)",
+      "Bash(checkov:*)",
+      "Bash(k6:*)",
+      "Bash(./scripts/*)"
     ],
     "deny": [
       "Read(./.env)",
       "Bash(terraform apply:*)",
-      "Bash(terraform destroy:*)"
+      "Bash(terraform destroy:*)",
+      "Read(./.env.production)",
+      "Read(./.env.development)",
+      "Bash(rm -rf /:*)",
+      "Bash(rm -rf ~:*)",
+      "Bash(aws:*)"
     ]
   }
 }
