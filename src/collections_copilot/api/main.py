@@ -13,6 +13,11 @@ from redis.asyncio import Redis
 
 from collections_copilot.api import errors
 from collections_copilot.api.deps.auth import JwksTokenVerifier, TokenVerifier
+from collections_copilot.api.middleware.limits import (
+    BodyLimitMiddleware,
+    IdempotencyMiddleware,
+    RateLimitMiddleware,
+)
 from collections_copilot.api.routers import (
     accounts,
     approvals,
@@ -96,6 +101,10 @@ def create_app(
 
     app = FastAPI(title="collections-copilot API", version="0.1.0", lifespan=lifespan)
     errors.install(app)
+    # Added last runs first: body size → rate limit → idempotency → routes.
+    app.add_middleware(IdempotencyMiddleware)
+    app.add_middleware(RateLimitMiddleware)
+    app.add_middleware(BodyLimitMiddleware, max_bytes=settings.max_json_bytes)
     app.include_router(me.router)
     app.include_router(ingest.router)
     app.include_router(queue.router)

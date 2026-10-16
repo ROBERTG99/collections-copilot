@@ -61,6 +61,7 @@ def test_settings(database_url: str) -> Settings:
         oidc_issuer=ISSUER,
         oidc_audience=AUDIENCE,
         s3_bucket="cc-uploads-test",
+        rate_limit_per_minute=1_000_000,  # test_limits.py lowers it for its own requests
     )
 
 
