@@ -39,7 +39,7 @@ chore: configure commit attribution
 | T-17 | M2 | Bedrock Mantle, Anthropic, ChatBedrock adapters | done | `pytest tests/unit/llm/test_providers_recorded.py tests/unit/llm/test_chatbedrock_conformance.py` → 13 passed offline (Appendix B request shape for Claude API and Bedrock Mantle; ChatBedrock 7/9 checks → Mantle); docs/adr/0002-chatbedrock-vs-sdk.md |
 | T-18 | M2 | PII redaction | done | `pytest tests/unit/llm/test_pii_spy.py` → collection error before redaction, now 3 passed; spy over 300 gen.v1 accounts finds no name or phone in any provider payload |
 | T-19 | M2 | Prompts v1 and schemas | done | `pytest tests/unit/agent/test_prompts.py` → collection error before module, now 5 passed (untrusted notes fenced and escaped after instructions); `cc prompts list` prints 5 SHA-256 hashes |
-| T-20 | M2 | Next-best-action node | todo | |
+| T-20 | M2 | Next-best-action node | done | `pytest tests/unit/agent/test_nba.py` → collection error before node, now 6 passed (dispute note → pause citing it; invalid output twice → analyst nba_invalid_output; outage → rules labelled fallback) |
 | T-21 | M2 | Rationale and draft nodes | todo | |
 | T-22 | M2 | Case graph, checkpointer, interrupt | todo | |
 | T-23 | M2 | Reply graph and STOP rule | todo | |
