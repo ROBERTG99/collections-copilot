@@ -16,10 +16,13 @@ from collections_copilot.api.deps.auth import JwksTokenVerifier, TokenVerifier
 from collections_copilot.api.routers import (
     accounts,
     approvals,
+    audit,
     cases,
     events,
     ingest,
     me,
+    metrics,
+    optouts,
     promises,
     queue,
     webhooks,
@@ -102,6 +105,9 @@ def create_app(
     app.include_router(settings_router.router)
     app.include_router(events.router)
     app.include_router(promises.router)
+    app.include_router(metrics.router)
+    app.include_router(audit.router)
+    app.include_router(optouts.router)
     app.include_router(webhooks.router)
     app.include_router(webhooks.mcpgw_router)
 

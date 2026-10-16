@@ -12,6 +12,7 @@ from collections_copilot.db.repositories.accounts import (
 )
 from collections_copilot.db.repositories.cases import ApprovalsRepo, CasesRepo, DraftsRepo
 from collections_copilot.db.repositories.ingest import IngestRepo
+from collections_copilot.db.repositories.metrics import MetricsRepo
 from collections_copilot.db.repositories.ops import (
     ContactsRepo,
     FollowUpsRepo,
@@ -45,6 +46,7 @@ class Repos:
         self.follow_ups = FollowUpsRepo(session)
         self.steps = StepsRepo(session)
         self.queue = QueueRepo(session)
+        self.metrics = MetricsRepo(session)
 
 
 __all__ = ["Repos"]
