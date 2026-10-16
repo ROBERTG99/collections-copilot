@@ -7,8 +7,10 @@ import os
 from alembic import context
 from sqlalchemy import create_engine, pool
 
+from collections_copilot.db.models import Base
+
 config = context.config
-target_metadata = None
+target_metadata = Base.metadata
 
 
 def _url() -> str:
