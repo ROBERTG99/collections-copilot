@@ -16,10 +16,11 @@ COPY apps/debtor-sim/pyproject.toml apps/debtor-sim/pyproject.toml
 COPY third_party/evalgate/pyproject.toml third_party/evalgate/pyproject.toml
 COPY third_party/mcp-gateway/pyproject.toml third_party/mcp-gateway/pyproject.toml
 RUN for d in apps/dev-oidc/src/dev_oidc apps/ledger-mcp/src/ledger_mcp apps/debtor-sim/src/debtor_sim \
-      third_party/evalgate/src/evalgate third_party/mcp-gateway/src/mcpgw_lite src/collections_copilot; \
+      third_party/evalgate/src/evalgate third_party/mcp-gateway/src/mcpgw_lite src/collections_copilot data; \
     do mkdir -p "$d" && touch "$d/__init__.py"; done \
  && uv sync --frozen --no-install-workspace --all-packages --no-dev
 COPY src src
+COPY data data
 COPY apps apps
 COPY third_party third_party
 RUN uv sync --frozen --all-packages --no-dev
@@ -36,7 +37,6 @@ COPY --from=builder --chown=app:app /app /app
 COPY --chown=app:app prompts prompts
 COPY --chown=app:app migrations migrations
 COPY --chown=app:app alembic.ini alembic.ini
-COPY --chown=app:app data data
 COPY --chown=app:app deploy/mcpgw deploy/mcpgw
 USER 10001
 

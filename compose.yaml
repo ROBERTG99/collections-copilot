@@ -121,6 +121,15 @@ services:
       postgres: { condition: service_healthy }
     restart: "no"
 
+  seed:
+    image: collections-copilot/tools:dev
+    profiles: ["jobs"]
+    environment: *app-env
+    command: ["cc", "seed"]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    restart: "no"
+
   api:
     build: { <<: *python-build, target: api }
     image: collections-copilot/api:dev
