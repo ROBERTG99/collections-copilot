@@ -35,7 +35,7 @@ chore: configure commit attribution
 | T-13 | M1 | Priority score | done | `pytest tests/unit/scoring/test_priority.py` → collection error before module, now 5 passed (incl. Hypothesis monotonicity); formula in docs/architecture.md |
 | T-14 | M1 | Compliance engine | done | `pytest tests/unit/compliance` → collection errors before engine, now 33 passed (Hypothesis: never outside window/over cap/after opt-out); compliance/ coverage 100% |
 | T-15 | M1 | Ledger MCP server | done | `pytest tests/integration/test_ledger_mcp.py` → collection error before server, now 3 passed (schemas match §4.4; same key → same ledger_ref, 1 row); docker smoke: ledger.get_balance through mcp-gateway with dev-issuer JWT → untrusted=true |
-| T-16 | M2 | LLM gateway, FakeLLM, cassettes, step records | todo | |
+| T-16 | M2 | LLM gateway, FakeLLM, cassettes, step records | done | `pytest tests/unit/llm/test_gateway.py tests/unit/llm/test_fake.py` → collection error before gateway, now 22 passed (retries only 408/409/429/5xx, refusal/max_tokens, breaker, cost); import-linter: provider SDKs only in llm |
 | T-17 | M2 | Bedrock Mantle, Anthropic, ChatBedrock adapters | todo | |
 | T-18 | M2 | PII redaction | todo | |
 | T-19 | M2 | Prompts v1 and schemas | todo | |

@@ -12,6 +12,7 @@ from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import interrupt
 
+from collections_copilot.llm.providers.base import ProviderRequest
 from collections_copilot.llm.providers.fake import FakeLLM
 
 
@@ -33,8 +34,12 @@ def build_skeleton_graph(
         return {"status": "processing"}
 
     async def draft(state: CaseState) -> CaseState:
-        raw = await model.complete("draft_message", "skeleton", state.get("account_id", ""))
-        return {"draft": json.loads(raw)}
+        response = await model.complete(
+            ProviderRequest(
+                "draft_message", "fake", "skeleton", "<context>{}</context>", {}, "low", 256
+            )
+        )
+        return {"draft": json.loads(response.text)}
 
     async def human_approval(state: CaseState) -> CaseState:
         decision = interrupt({"kind": "approval", "draft": state.get("draft")})
