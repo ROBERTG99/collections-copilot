@@ -28,6 +28,9 @@ def raising(exc: Exception) -> object:
         (raising(httpx.ConnectTimeout("connect timeout")), True),
         (lambda r: httpx.Response(429), True),
         (lambda r: httpx.Response(503), True),
+        (lambda r: httpx.Response(500), False),
+        (lambda r: httpx.Response(502), False),
+        (lambda r: httpx.Response(201, text="<html>"), False),
         (lambda r: httpx.Response(400, json={"code": 21211}), False),
         # The request may have reached Twilio: never resend blindly.
         (raising(httpx.ReadTimeout("read timeout")), False),
@@ -45,3 +48,20 @@ async def test_accepted_message_returns_sid() -> None:
     ok = sender(lambda r: httpx.Response(201, json={"sid": "SM123", "status": "queued"}))
     result = await ok.send("+15550000001", "hi", idempotency_key="sms:x:1")
     assert result.provider_sid == "SM123"
+
+
+@pytest.mark.parametrize(
+    ("handler", "maybe_sent"),
+    [
+        (raising(httpx.ConnectError("refused")), False),
+        (lambda r: httpx.Response(429), False),
+        (lambda r: httpx.Response(400), False),
+        (raising(httpx.ReadTimeout("read timeout")), True),
+        (lambda r: httpx.Response(502), True),
+        (lambda r: httpx.Response(201, text="<html>"), True),
+    ],
+)
+async def test_maybe_sent_counts_toward_the_cap(handler: object, maybe_sent: bool) -> None:
+    with pytest.raises(SmsError) as info:
+        await sender(handler).send("+15550000001", "hi", idempotency_key="sms:x:1")
+    assert info.value.maybe_sent is maybe_sent

@@ -300,6 +300,8 @@ class DbCaseStore:
             repos = Repos(s)
             draft = await repos.drafts.get_version(tenant, case_id, version)
             assert draft is not None
+            if draft.status != "pending":  # cancelled (STOP, dispute) or already decided
+                return
             if await repos.approvals.for_draft(tenant, draft.id) is not None:
                 return
             await repos.approvals.add(
@@ -328,7 +330,15 @@ class DbCaseStore:
     ) -> dict[str, Any]:
         tenant = _uuid(state["tenant_id"])
         async with self.sm() as s, s.begin():
-            row, created = await Repos(s).messages.claim(
+            repos = Repos(s)
+            # Lock the case row: apply_stop and cancel_open_work update it, so a STOP or a close
+            # either commits before this check or waits until the claim is written.
+            case = await repos.cases.get_for_update(tenant, _uuid(state["case_id"]))
+            if case is None or case.status in CLOSED_CASE_STATUSES:
+                return {"blocked": "case_closed"}
+            if await repos.opt_outs.is_opted_out(tenant, to_e164):
+                return {"blocked": "opted_out"}
+            row, created = await repos.messages.claim(
                 tenant,
                 key,
                 account_id=_uuid(state["facts"]["account_id"]),
@@ -478,6 +488,8 @@ class MemoryCaseStore:
         self, state: Mapping[str, Any], version: int, policy: dict[str, Any], send_at: datetime
     ) -> None:
         key = (state["case_id"], version)
+        if self.drafts.get(key, {}).get("status", "pending") != "pending":
+            return
         self.approvals.setdefault(
             key,
             {

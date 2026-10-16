@@ -14,10 +14,22 @@ class SmsResult:
 
 
 class SmsError(Exception):
-    def __init__(self, message: str, *, retryable: bool, status: int | None = None) -> None:
+    """`retryable`: the provider certainly did not take the message, so a resend is safe.
+    `maybe_sent`: the provider may have taken it (timeout, 5xx, unreadable 2xx); the send counts
+    toward the 7-day contact cap even though it is marked failed."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        retryable: bool,
+        status: int | None = None,
+        maybe_sent: bool = False,
+    ) -> None:
         super().__init__(message)
         self.retryable = retryable
         self.status = status
+        self.maybe_sent = maybe_sent
 
 
 class SmsSender(Protocol):

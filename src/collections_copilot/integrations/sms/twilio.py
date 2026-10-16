@@ -46,20 +46,33 @@ class TwilioSmsSender:
             # Read/write timeouts and dropped connections: Twilio may have accepted the message
             # (Messages.json does not honour idempotency tokens), so the outcome is unknown.
             raise SmsError(
-                f"twilio outcome unknown: {type(exc).__name__}", retryable=False
+                f"twilio outcome unknown: {type(exc).__name__}", retryable=False, maybe_sent=True
             ) from exc
-        if resp.status_code >= 500 or resp.status_code == 429:
+        if resp.status_code in (429, 503):  # throttled or unavailable: the message was not taken
             raise SmsError(f"twilio {resp.status_code}", retryable=True, status=resp.status_code)
+        if resp.status_code >= 500:  # 500/502/504 may come after Twilio accepted the message
+            raise SmsError(
+                f"twilio {resp.status_code}: outcome unknown",
+                retryable=False,
+                status=resp.status_code,
+                maybe_sent=True,
+            )
         if resp.status_code >= 400:
             raise SmsError(
                 f"twilio {resp.status_code}: {resp.text[:200]}",
                 retryable=False,
                 status=resp.status_code,
             )
-        payload = resp.json()
-        sid = payload.get("sid")
+        try:
+            payload = resp.json()
+        except ValueError:
+            payload = {}
+        sid = payload.get("sid") if isinstance(payload, dict) else None
         if not isinstance(sid, str) or not sid.startswith("SM"):
             raise SmsError(
-                "twilio response without a message sid", retryable=False, status=resp.status_code
+                "twilio response without a message sid",
+                retryable=False,
+                status=resp.status_code,
+                maybe_sent=True,
             )
         return SmsResult(provider_sid=sid, status=str(payload.get("status", "queued")))

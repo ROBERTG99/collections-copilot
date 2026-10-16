@@ -1,12 +1,16 @@
 """STOP handling by rule (FR-8): opt-out keywords are recognised before any model sees a reply.
 
-Three rules, in English and Spanish:
-1. The whole message is a keyword ("STOP", "cancel", "Alto", "dar de baja").
-2. An unambiguous opt-out word anywhere ("unsubscribe", "STOPALL", "opt out", "darme de baja").
-3. A request to stop contacting ("please stop texting me", "STOP please", "dejen de escribirme").
+Rules, in English and Spanish, on the upper-cased ASCII-folded text:
+1. The message is only keywords and courtesy words ("STOP", "STOP ALL", "Alto por favor", "Basta").
+2. An unambiguous opt-out phrase anywhere ("unsubscribe", "opt me out", "darme de baja",
+   "remove me from your list", "cancelar suscripción").
+3. A request to stop texting ("please stop texting me", "don't text me again", "leave me alone",
+   "dejen de escribirme", "no me molesten", "no quiero recibir mensajes"), unless negated
+   ("don't stop texting me").
 
-Ambiguous words in a longer message ("End of month", "Cancel the invoice", "don't stop the
-service") are not opt-outs here; the classifier can still label them `stop`.
+Ambiguous words inside longer messages ("End of month", "Cancel the invoice", "no text received
+with the link", "stop calling me, text me instead") are not opt-outs here; the classifier can
+still label them `stop`. Calls are not SMS, so "stop calling" is not an SMS opt-out.
 """
 
 from __future__ import annotations
@@ -24,32 +28,55 @@ STOP_KEYWORDS = frozenset(
         "QUIT",
         "OPTOUT",
         "OPT-OUT",
-        "OPT OUT",
         "REVOKE",
         "BAJA",
         "ALTO",
+        "PARA",
         "PARAR",
         "PARE",
+        "BASTA",
         "CANCELAR",
         "DESUSCRIBIR",
-        "NO MAS",
-        "DAR DE BAJA",
-        "DARME DE BAJA",
     }
 )
+COURTESY = frozenset(
+    {
+        "PLEASE",
+        "PLS",
+        "NOW",
+        "ALL",
+        "IT",
+        "THANKS",
+        "THANK",
+        "YOU",
+        "POR",
+        "FAVOR",
+        "YA",
+        "GRACIAS",
+        "TODO",
+        "TODOS",
+    }
+)
+WHOLE_PHRASES = frozenset({"OPT OUT", "NO MAS", "DAR DE BAJA", "DARME DE BAJA"})
 _PUNCT = re.compile(r"[^\w\s-]")
 _ANYWHERE = re.compile(
-    r"\b(UNSUBSCRIBE|STOPALL|OPT-?OUT|OPT OUT|DESUSCRIBIR(ME)?|DAR(ME)? DE BAJA)\b"
+    r"\b(UNSUBSCRIBE|STOPALL|OPT-?OUT|OPT ME OUT|OPT US OUT|DESUSCRIBIR(ME|NOS)?"
+    r"|(DAR(ME|NOS)?|DEN(ME|NOS)|ME DOY|NOS DAMOS) DE BAJA"
+    r"|CANCELAR (LA |MI )?SUSCRIPCION|REMOVE (ME|US|MY NUMBER) FROM|TAKE (ME|US) OFF)\b"
 )
-_CONTACT = r"(TEXT|TEXTING|TEXTS|MESSAGE|MESSAGES|MESSAGING|SMS|CONTACT|CONTACTING|CALLING|SENDING ME|EMAILING)"
+_TEXTS = r"(TEXT|TEXTS|TEXTING|MESSAGE|MESSAGES|MESSAGING|SMS|CONTACT|CONTACTING)"
+_NEGATED = re.compile(
+    r"\b(DON T|DONT|DO NOT|PLEASE DON T) STOP\b|\bNO (DEJEN|DEJES|DEJE|PAREN|PARES) DE\b"
+)
 _REQUESTS = [
-    # "STOP", "STOP please", "please stop", "STOP now" — but not "don't stop ..."
-    re.compile(r"^(PLEASE |PLS |JUST )?STOP( (PLEASE|PLS|NOW|IT|THIS|THANKS|THANK YOU))*$"),
-    re.compile(rf"(?<!DON T )(?<!DO NOT )\bSTOP {_CONTACT}\b"),
-    re.compile(rf"\bNO (MORE )?{_CONTACT}\b"),
-    re.compile(r"^BAJA\b"),
-    re.compile(r"\bDEJ(EN|E|AR) DE (ESCRIBIR|ENVIAR|MANDAR|LLAMAR|CONTACTAR)"),
-    re.compile(r"\bNO (ME )?(ESCRIBAN|ESCRIBAS|ENVIEN|MANDEN|LLAMEN|CONTACTEN)\b"),
+    re.compile(r"\bSTOP (SENDING|TEXTING|MESSAGING|CONTACTING)\b"),
+    re.compile(rf"\bSTOP (THE|THESE|ALL|YOUR) {_TEXTS}\b"),
+    re.compile(rf"\b(DON T|DONT|DO NOT|NEVER|PLEASE DON T) {_TEXTS} (ME|US)\b"),
+    re.compile(r"\bLEAVE (ME|US) ALONE\b"),
+    re.compile(rf"\bNO MORE {_TEXTS}\b"),
+    re.compile(r"\b(DEJ(EN|E|A|AR)|PAR(EN|E|A|AR)) DE (ESCRIBIR|ENVIAR|MANDAR|CONTACTAR)"),
+    re.compile(r"\bNO (ME |NOS )?(ESCRIBAN|ESCRIBAS|ENVIEN|MANDEN|CONTACTEN|MOLESTEN|MOLESTES)\b"),
+    re.compile(r"\bNO QUIERO (RECIBIR )?(MAS )?(MENSAJES|SMS|TEXTOS)\b"),
     re.compile(r"\bNO MAS (MENSAJES|SMS|TEXTOS)\b"),
 ]
 
@@ -63,8 +90,14 @@ def is_stop(body: str) -> bool:
     text = _normalise(body)
     if not text:
         return False
-    if text in STOP_KEYWORDS:
+    words = text.split()
+    if text in WHOLE_PHRASES or (
+        any(w in STOP_KEYWORDS for w in words)
+        and all(w in STOP_KEYWORDS or w in COURTESY for w in words)
+    ):
         return True
     if _ANYWHERE.search(text):
         return True
+    if _NEGATED.search(text):
+        return False
     return any(p.search(text) for p in _REQUESTS)

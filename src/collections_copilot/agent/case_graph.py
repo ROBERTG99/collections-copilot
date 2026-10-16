@@ -162,6 +162,51 @@ def build_case_graph(services: Services, checkpointer: BaseCheckpointSaver[Any] 
             state["tenant_id"], state["case_id"], "status", {"status": status}
         )
 
+    def auto_decision(state: CaseState, f: CaseFacts, postcheck_ok: bool) -> tuple[bool, str, Any]:
+        """The auto-approval policy on fresh facts (never on the checkpoint)."""
+        effective = auto_policy.effective(
+            f.auto_policy, settings.auto_approve_max_usd, settings.auto_approve_min_confidence
+        )
+        open_inv = [i for i in f.invoices if i.status == "open"]
+        ok, reason = auto_policy.qualifies(
+            effective,
+            action=state["nba"]["action"],
+            open_balance_cents=sum(i.amount_cents for i in open_inv),
+            currency=f.currency,
+            confidence=float(state["nba"]["confidence"]),
+            postcheck_ok=postcheck_ok,
+            requires_edit=bool(state.get("requires_edit")),
+            invoice_currencies=[i.currency for i in open_inv],
+        )
+        if ok and state["nba"].get("source") != "llm":
+            ok, reason = False, "rules or template fallback always needs a human"
+        return ok, reason, effective
+
+    async def reopen_for_review(
+        state: CaseState, draft: dict[str, Any], postcheck: dict[str, Any]
+    ) -> dict[str, Any]:
+        """An approved draft that can no longer be sent goes back to a human as a NEW pending
+        version (same text), so the approval API can take a fresh decision on it."""
+        version = int(draft["version"]) + 1
+        await store.save_draft(
+            state,
+            version=version,
+            body=draft["body"],
+            author=draft["author"],
+            language=facts_of(state).language,
+            model=draft.get("model"),
+            prompt_version=draft.get("prompt_version"),
+            precheck=state.get("precheck"),
+            postcheck=postcheck,
+        )
+        return {
+            "version": version,
+            "body": draft["body"],
+            "author": draft["author"],
+            "model": draft.get("model"),
+            "prompt_version": draft.get("prompt_version"),
+        }
+
     # --- nodes ------------------------------------------------------------------------------
     async def load_account(state: CaseState) -> dict[str, Any]:
         facts = await store.load(dict(state), now_of(state))
@@ -266,7 +311,7 @@ def build_case_graph(services: Services, checkpointer: BaseCheckpointSaver[Any] 
             else []
         )
         stored = await store.draft_version(dict(state), version)
-        if stored is not None and stored.get("status") != "cancelled":
+        if stored is not None:
             # A re-run after a crash keeps the row already written for this version, so the
             # text approved and sent is always the stored text (LLMs are not deterministic).
             d = {
@@ -342,24 +387,11 @@ def build_case_graph(services: Services, checkpointer: BaseCheckpointSaver[Any] 
         return update
 
     async def human_approval(state: CaseState) -> dict[str, Any]:
-        f = facts_of(state)
         d = state["draft"]
         post = state["postcheck"]
-        effective = auto_policy.effective(
-            f.auto_policy, settings.auto_approve_max_usd, settings.auto_approve_min_confidence
-        )
-        open_inv = [i for i in f.invoices if i.status == "open"]
-        ok, reason = auto_policy.qualifies(
-            effective,
-            action=state["nba"]["action"],
-            open_balance_cents=sum(i.amount_cents for i in open_inv),
-            currency=f.currency,
-            confidence=float(state["nba"]["confidence"]),
-            postcheck_ok=bool(post.get("ok")),
-            requires_edit=bool(state.get("requires_edit")),
-            invoice_currencies=[i.currency for i in open_inv],
-        )
-        if ok and state["nba"].get("source") == "llm":
+        fresh = await store.send_snapshot(dict(state), int(d["version"]), now_of(state))
+        ok, reason, effective = auto_decision(state, fresh.facts, bool(post.get("ok")))
+        if ok and not fresh.case_closed and not fresh.draft_cancelled:
             send_at = datetime.fromisoformat(post["send_at"])
             await store.record_auto_approval(state, int(d["version"]), effective.as_dict(), send_at)
             await services.events.publish(
@@ -424,8 +456,13 @@ def build_case_graph(services: Services, checkpointer: BaseCheckpointSaver[Any] 
             _compliance_ctx(snap.facts, now_of(state), state["nba"]["action"], latest["body"])
         )
         if not final.ok:
+            # The approved text no longer passes (e.g. a dispute or the cap landed meanwhile):
+            # back to a human on a new pending version, which the API can edit or reject.
+            reopened = await reopen_for_review(state, latest, final.as_dict())
+            await store.set_case(state, requires_edit=True)
             return {
                 "approval": {"decision": "invalid"},
+                "draft": reopened,
                 "postcheck": final.as_dict(),
                 "requires_edit": True,
             }
@@ -486,6 +523,19 @@ def build_case_graph(services: Services, checkpointer: BaseCheckpointSaver[Any] 
                 "send": {"status": "blocked", "violations": codes},
                 "closed_reason": "compliance_blocked",
             }
+        if approval["decision"] == "auto_approve":
+            still_ok, why, _ = auto_decision(state, f, result.ok)
+            if not still_ok:  # policy tightened or the balance grew since the auto-approval
+                await store.audit(
+                    state, "approval.auto_revoked", "case", state["case_id"], {"reason": why}
+                )
+                reopened = await reopen_for_review(state, snap.draft, result.as_dict())
+                return {
+                    "send": {"status": "needs_human", "reason": why},
+                    "draft": reopened,
+                    "postcheck": result.as_dict(),
+                    "approval": {"decision": "pending"},
+                }
         if result.deferred:
             return {
                 "approval": {**state["approval"], "send_at": result.send_at.isoformat()},
@@ -493,6 +543,10 @@ def build_case_graph(services: Services, checkpointer: BaseCheckpointSaver[Any] 
             }
         key = f"sms:{state['case_id']}:{version}"
         claim = await store.claim_message(dict(state), key, f.phone_e164, body, version)
+        if claim.get("blocked"):  # STOP or a close landed between the snapshot and the claim
+            reason = str(claim["blocked"])
+            await store.audit(state, "sms.blocked", "case", state["case_id"], {"reason": reason})
+            return {"send": {"status": "blocked", "reason": reason}, "closed_reason": reason}
         if not claim["created"]:
             if claim["provider_sid"]:
                 # Crash after the provider accepted it: make sure the 7-day cap counts it.
@@ -505,9 +559,11 @@ def build_case_graph(services: Services, checkpointer: BaseCheckpointSaver[Any] 
                     }
                 }
             # Crash between claim and provider response: at-most-once, never resend blindly.
+            # It may have been delivered, so it counts toward the 7-day cap.
             await store.mark_message(
                 state, claim["id"], status="failed", error="unknown_after_restart"
             )
+            await store.add_contact(state, claim["id"], now)
             await store.follow_up(
                 state, "send_retry", now + timedelta(hours=1), {"reason": "unknown_after_restart"}
             )
@@ -517,11 +573,13 @@ def build_case_graph(services: Services, checkpointer: BaseCheckpointSaver[Any] 
                 "closed_reason": "send_failed",
             }
         last_error = ""
+        maybe_sent = False
         for attempt in range(SEND_RETRIES):
             try:
                 sms = await services.sms.send(f.phone_e164, body, idempotency_key=key)
             except SmsError as exc:
                 last_error = str(exc)
+                maybe_sent = maybe_sent or exc.maybe_sent
                 if not exc.retryable or attempt == SEND_RETRIES - 1:
                     break
                 await asyncio.sleep(0.2 * 2**attempt)
@@ -553,6 +611,8 @@ def build_case_graph(services: Services, checkpointer: BaseCheckpointSaver[Any] 
         await store.mark_message(
             state, claim["id"], status="failed", error=last_error[:500], attempts=SEND_RETRIES
         )
+        if maybe_sent:  # the provider may have delivered it: count it toward the cap
+            await store.add_contact(state, claim["id"], now)
         await store.follow_up(
             state, "send_retry", now + timedelta(hours=1), {"error": last_error[:200]}
         )
@@ -619,6 +679,8 @@ def build_case_graph(services: Services, checkpointer: BaseCheckpointSaver[Any] 
         status = state["send"].get("status")
         if status == "deferred":
             return "wait_send_window"
+        if status == "needs_human":
+            return "human_approval"
         return "schedule_follow_up" if status == "sent" else "close"
 
     g: StateGraph[CaseState] = StateGraph(CaseState)
@@ -651,7 +713,9 @@ def build_case_graph(services: Services, checkpointer: BaseCheckpointSaver[Any] 
     )
     g.add_edge("wait_send_window", "send_sms")
     g.add_conditional_edges(
-        "send_sms", after_send, ["wait_send_window", "schedule_follow_up", "close"]
+        "send_sms",
+        after_send,
+        ["wait_send_window", "schedule_follow_up", "human_approval", "close"],
     )
     g.add_edge("schedule_follow_up", "await_reply")
     g.add_edge("await_reply", "close")

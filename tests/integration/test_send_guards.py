@@ -19,7 +19,7 @@ from collections_copilot.agent.reply_actions import apply_stop, cancel_open_work
 from collections_copilot.agent.store import DbCaseStore
 from collections_copilot.db.models import Approval, AuditEvent, ContactLog, Draft
 from collections_copilot.db.repositories import Repos
-from collections_copilot.integrations.sms.base import InMemorySmsSender
+from collections_copilot.integrations.sms.base import InMemorySmsSender, SmsError
 from collections_copilot.llm.providers.base import ProviderRequest, ProviderResponse
 from collections_copilot.llm.providers.fake import FakeLLM
 from tests.factories import make_account
@@ -221,6 +221,65 @@ async def test_dispute_before_approval_resume_returns_to_review(
         snapshot = await graph.aget_state(config(case_id))
     assert sms.sent == []
     assert snapshot.interrupts[0].value["kind"] == "approval"
+    # Re-review: the bounced draft comes back as a new pending version a human can decide on.
+    assert snapshot.interrupts[0].value["draft_version"] == 2
+    async with sessionmaker() as s:
+        drafts = await Repos(s).drafts.for_case(tenant, uuid.UUID(case_id))
+        approvals = await Repos(s).approvals.for_case(tenant, uuid.UUID(case_id))
+    assert [d.version for d in drafts] == [1, 2]
+    assert drafts[1].status == "pending"
+    assert drafts[1].body == drafts[0].body
+    assert {a.draft_id for a in approvals} == {drafts[0].id}
+
+
+async def test_auto_approval_revoked_when_policy_tightens(
+    sessionmaker, database_url, tenant
+) -> None:  # type: ignore[no-untyped-def]
+    case_id, _, sms = await _deferred_case(sessionmaker, database_url, tenant, auto=True)
+    async with sessionmaker() as s, s.begin():
+        await Repos(s).settings.put(
+            tenant,
+            "auto_approval",
+            {"enabled": False, "max_usd": 500, "min_confidence": 0.9},
+            "sam",
+        )
+    snapshot = await _resume_deferred(sessionmaker, database_url, case_id, sms)
+    assert sms.sent == []
+    assert snapshot.interrupts[0].value["kind"] == "approval"
+    assert snapshot.interrupts[0].value["draft_version"] == 2
+    assert "approval.auto_revoked" in await _audit_actions(sessionmaker, tenant)
+
+
+class MaybeDelivered(InMemorySmsSender):
+    async def send(self, to_e164: str, body: str, *, idempotency_key: str) -> Any:
+        raise SmsError("twilio outcome unknown: ReadTimeout", retryable=False, maybe_sent=True)
+
+
+async def test_unknown_send_outcome_counts_toward_cap(sessionmaker, database_url, tenant) -> None:  # type: ignore[no-untyped-def]
+    case_id, account_id, _ = await _deferred_case(sessionmaker, database_url, tenant)
+    snapshot = await _resume_deferred(sessionmaker, database_url, case_id, MaybeDelivered())
+    assert snapshot.values["send"]["status"] == "failed"
+    async with sessionmaker() as s:
+        rows = (
+            await s.execute(select(ContactLog).where(ContactLog.account_id == account_id))
+        ).all()
+    assert len(rows) == 1
+
+
+async def test_claim_rechecks_case_and_opt_out_under_lock(
+    sessionmaker, database_url, tenant
+) -> None:  # type: ignore[no-untyped-def]
+    account_id = await make_account(sessionmaker, tenant)
+    case_id = await new_case(sessionmaker, tenant, account_id)
+    store = DbCaseStore(sessionmaker)
+    state = {"tenant_id": str(tenant), "case_id": case_id, "facts": {"account_id": str(account_id)}}
+    async with sessionmaker() as s, s.begin():
+        await Repos(s).opt_outs.add(tenant, "+15550000001", source="sms_stop")
+    claim = await store.claim_message(state, f"sms:{case_id}:1", "+15550000001", "hi", 1)
+    assert claim == {"blocked": "opted_out"}
+    await cancel_open_work(sessionmaker, tenant, account_id, FIXED_NOW, "dispute")
+    claim = await store.claim_message(state, f"sms:{case_id}:1", "+15550000002", "hi", 1)
+    assert claim == {"blocked": "case_closed"}
 
 
 async def test_approval_on_closed_case_closes_without_send(
