@@ -123,9 +123,12 @@ class McpLedgerTools:
         data = result.structured_content if isinstance(result.structured_content, dict) else {}
         if result.is_error:
             if data.get("status") == "approval_required":
+                approval_id = data.get("approval_id")
+                if not isinstance(approval_id, str) or not approval_id:
+                    return LedgerResult("error", detail="approval_required without approval_id")
                 return LedgerResult(
                     "approval_required",
-                    approval_id=str(data.get("approval_id")),
+                    approval_id=approval_id,
                     reasons=[str(r) for r in data.get("reasons", [])],
                 )
             return LedgerResult(

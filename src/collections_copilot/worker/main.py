@@ -18,11 +18,13 @@ from starlette.routing import Route
 
 from collections_copilot.agent.case_graph import build_case_graph
 from collections_copilot.agent.checkpointer import open_checkpointer
+from collections_copilot.agent.nodes.record_promise import retry_write_back
 from collections_copilot.agent.services import DbStepSink, Services
 from collections_copilot.agent.store import DbCaseStore
 from collections_copilot.config import Settings, get_settings
-from collections_copilot.db.session import make_engine, make_sessionmaker
+from collections_copilot.db.session import advisory_lock, make_engine, make_sessionmaker
 from collections_copilot.integrations.email.smtp import SmtpNotifier
+from collections_copilot.integrations.mcp import build_ledger
 from collections_copilot.integrations.queue.messages import TaskMessage
 from collections_copilot.integrations.queue.sqs import QueueMessage, SqsQueueClient
 from collections_copilot.integrations.sms import build_sms_sender
@@ -80,7 +82,16 @@ async def run(settings: Settings) -> None:
         )
         saver = await stack.enter_async_context(open_checkpointer(settings.database_url))
         services = build_services(settings, sessionmaker)
-        runner = CaseRunner(build_case_graph(services, saver))
+        services.ledger = build_ledger(settings)
+
+        async def write_back(tenant_id: str, promise_id: str) -> str:
+            return await retry_write_back(services, sessionmaker, tenant_id, promise_id)
+
+        runner = CaseRunner(
+            build_case_graph(services, saver),
+            lock=lambda key: advisory_lock(sessionmaker, key),
+            write_back=write_back,
+        )
 
         async def handle_task(msg: QueueMessage) -> None:
             outcome = await runner.handle(TaskMessage.model_validate(msg.body))

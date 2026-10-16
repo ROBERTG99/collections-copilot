@@ -8,6 +8,11 @@
   other → analyst
 
 STOP never reaches the model. Each reply also resumes the case graph waiting in `await_reply`.
+
+Redelivery (SQS is at-least-once): each handler applies its side effects and marks the message
+`handled` in one transaction, so they happen once; a classification already stored on the
+message is reused instead of calling the model again; a handled message skips straight to
+`notify_case` (resuming the case graph is itself idempotent).
 """
 
 from __future__ import annotations
@@ -20,7 +25,7 @@ from langgraph.graph import END, START, StateGraph
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from collections_copilot.agent.prompts import UntrustedNote, render
-from collections_copilot.agent.reply_actions import apply_stop, cancel_open_work
+from collections_copilot.agent.reply_actions import apply_stop, cancel_open_work_in
 from collections_copilot.agent.schemas import ReplyClassification
 from collections_copilot.agent.services import Services
 from collections_copilot.compliance.stop_keywords import is_stop
@@ -44,6 +49,7 @@ class ReplyState(TypedDict, total=False):
     promise: dict[str, Any] | None
     outcome: str
     promise_id: str
+    previous: dict[str, Any] | None
 
 
 def build_reply_graph(services: Services, sm: async_sessionmaker[AsyncSession]) -> Any:
@@ -74,12 +80,30 @@ def build_reply_graph(services: Services, sm: async_sessionmaker[AsyncSession]) 
             msg = await repos.messages.get(tenant, reply["message_id"])
             if msg is None or msg.account_id is None:
                 return {"account": {}, "case_id": None}
+            case_id = str(msg.case_id) if msg.case_id else None
+            if msg.status == "handled":
+                return {
+                    "account": {},
+                    "case_id": case_id,
+                    "label": msg.classification or "other",
+                    "outcome": "duplicate",
+                }
+            previous = (
+                {
+                    "label": msg.classification,
+                    "confidence": msg.classification_confidence or 0.0,
+                    "promise": (msg.extracted or {}).get("promise"),
+                }
+                if msg.classification
+                else None
+            )
             acc = await repos.accounts.get(tenant, msg.account_id)
             assert acc is not None
             invoices = await repos.invoices.for_account(tenant, acc.id)
             open_inv = [i for i in invoices if i.status == "open"]
             return {
-                "case_id": str(msg.case_id) if msg.case_id else None,
+                "case_id": case_id,
+                "previous": previous,
                 "account": {
                     "id": str(acc.id),
                     "external_ref": acc.external_ref,
@@ -94,6 +118,13 @@ def build_reply_graph(services: Services, sm: async_sessionmaker[AsyncSession]) 
 
     async def classify_reply(state: ReplyState) -> dict[str, Any]:
         reply, acc = state["reply"], state.get("account") or {}
+        previous = state.get("previous")
+        if previous:  # redelivery after a crash: never classify the same reply twice
+            return {
+                "label": previous["label"],
+                "confidence": previous["confidence"],
+                "promise": previous["promise"],
+            }
         today = now().date()
         rendered = render(
             "classify_reply",
@@ -141,12 +172,14 @@ def build_reply_graph(services: Services, sm: async_sessionmaker[AsyncSession]) 
         acc = state.get("account") or {}
         promise = dict(state.get("promise") or {})
         balance = int(acc.get("open_balance_cents", 0))
-        amount = promise.get("amount_cents") or balance
+        amount = promise.get("amount_cents")
         raw_date = promise.get("promised_date")
         problems = []
         if not acc or balance <= 0:
             problems.append("no open balance")
-        if amount > balance:
+        if not amount or amount <= 0:
+            problems.append("no amount")  # never assume the full balance was promised
+        elif amount > balance:
             problems.append("amount above open balance")
         if not raw_date:
             problems.append("no promised date")
@@ -157,10 +190,9 @@ def build_reply_graph(services: Services, sm: async_sessionmaker[AsyncSession]) 
                     f"date {delta} days out (allowed {MIN_PROMISE_DAYS}–{MAX_PROMISE_DAYS})"
                 )
         if problems:
-            await _audit(state, "promise.invalid", {"problems": problems})
             return {"outcome": "analyst", "promise": {**promise, "problems": problems}}
         return {
-            "promise": {"amount_cents": int(amount), "promised_date": str(raw_date)},
+            "promise": {"amount_cents": int(amount or 0), "promised_date": str(raw_date)},
             "outcome": "valid",
         }
 
@@ -171,55 +203,73 @@ def build_reply_graph(services: Services, sm: async_sessionmaker[AsyncSession]) 
 
     async def handle_dispute(state: ReplyState) -> dict[str, Any]:
         acc = state["account"]
-        tenant = uuid.UUID(state["reply"]["tenant_id"])
+        tenant, account_id = uuid.UUID(state["reply"]["tenant_id"]), uuid.UUID(acc["id"])
         async with sm() as s, s.begin():
             repos = Repos(s)
-            await repos.invoices.mark_disputed(
-                tenant, uuid.UUID(acc["id"]), "disputed by SMS reply"
-            )
+            if not await _claim(repos, state):
+                return {"outcome": "duplicate"}
+            await repos.invoices.mark_disputed(tenant, account_id, "disputed by SMS reply")
             await repos.notes.add(
-                tenant,
-                uuid.UUID(acc["id"]),
-                "sms_reply",
-                "Debtor disputed by SMS; invoices paused.",
+                tenant, account_id, "sms_reply", "Debtor disputed by SMS; invoices paused."
             )
-        await cancel_open_work(sm, tenant, uuid.UUID(acc["id"]), now(), "dispute")
+            await cancel_open_work_in(repos, tenant, account_id, now(), "dispute")
         return {"outcome": "disputed"}
 
     async def handle_paid(state: ReplyState) -> dict[str, Any]:
         acc = state["account"]
-        tenant = uuid.UUID(state["reply"]["tenant_id"])
+        tenant, account_id = uuid.UUID(state["reply"]["tenant_id"]), uuid.UUID(acc["id"])
         async with sm() as s, s.begin():
             repos = Repos(s)
+            if not await _claim(repos, state):
+                return {"outcome": "duplicate"}
             await repos.follow_ups.add(
                 tenant,
                 case_id=uuid.UUID(state["case_id"]) if state.get("case_id") else None,
-                account_id=uuid.UUID(acc["id"]),
+                account_id=account_id,
                 kind="payment_verification",
                 due_at=now() + timedelta(days=2),
                 payload={"message_id": state["reply"]["message_id"]},
             )
             await repos.notes.add(
-                tenant,
-                uuid.UUID(acc["id"]),
-                "sms_reply",
-                "Debtor reports payment; verify remittance.",
+                tenant, account_id, "sms_reply", "Debtor reports payment; verify remittance."
             )
         return {"outcome": "verify_payment"}
 
     async def handle_wrong_number(state: ReplyState) -> dict[str, Any]:
         acc = state["account"]
-        tenant = uuid.UUID(state["reply"]["tenant_id"])
+        tenant, account_id = uuid.UUID(state["reply"]["tenant_id"]), uuid.UUID(acc["id"])
         async with sm() as s, s.begin():
-            await Repos(s).accounts.set_contact_flag(tenant, uuid.UUID(acc["id"]), "wrong_number")
-        await cancel_open_work(sm, tenant, uuid.UUID(acc["id"]), now(), "wrong_number")
+            repos = Repos(s)
+            if not await _claim(repos, state):
+                return {"outcome": "duplicate"}
+            await repos.accounts.set_contact_flag(tenant, account_id, "wrong_number")
+            await cancel_open_work_in(repos, tenant, account_id, now(), "wrong_number")
         return {"outcome": "contact_flagged"}
 
     async def to_analyst(state: ReplyState) -> dict[str, Any]:
-        await _audit(state, "reply.needs_analyst", {"label": state.get("label")})
+        reply = state["reply"]
+        payload: dict[str, Any] = {"label": state.get("label")}
+        problems = (state.get("promise") or {}).get("problems")
+        if problems:
+            payload["problems"] = problems
+        async with sm() as s, s.begin():
+            repos = Repos(s)
+            if await _claim(repos, state):
+                await audit.append(
+                    s,
+                    uuid.UUID(reply["tenant_id"]),
+                    actor_type="system",
+                    actor_id="reply-graph",
+                    action="reply.needs_analyst",
+                    entity="message",
+                    entity_id=reply["message_id"],
+                    payload=payload,
+                )
         return {"outcome": "analyst"}
 
     async def notify_case(state: ReplyState) -> dict[str, Any]:
+        async with sm() as s, s.begin():  # stop and promise paths are idempotent on their own
+            await _claim(Repos(s), state)
         case_id = state.get("case_id")
         enqueue = services.enqueue
         if case_id and callable(enqueue):
@@ -246,24 +296,18 @@ def build_reply_graph(services: Services, sm: async_sessionmaker[AsyncSession]) 
                 extracted={"promise": promise} if promise else None,
             )
 
-    async def _audit(state: ReplyState, action: str, payload: dict[str, Any]) -> None:
+    async def _claim(repos: Repos, state: ReplyState) -> bool:
         reply = state["reply"]
-        async with sm() as s, s.begin():
-            await audit.append(
-                s,
-                uuid.UUID(reply["tenant_id"]),
-                actor_type="system",
-                actor_id="reply-graph",
-                action=action,
-                entity="message",
-                entity_id=reply["message_id"],
-                payload=payload,
-            )
+        return await repos.messages.mark_handled(
+            uuid.UUID(reply["tenant_id"]), uuid.UUID(reply["message_id"])
+        )
 
     def after_stop(state: ReplyState) -> str:
         return END if state.get("label") == "stop" else "load"
 
     def after_load(state: ReplyState) -> str:
+        if state.get("outcome") == "duplicate":
+            return "notify_case"
         return "classify_reply" if state.get("account") else "to_analyst"
 
     def after_classify(state: ReplyState) -> str:
@@ -295,7 +339,7 @@ def build_reply_graph(services: Services, sm: async_sessionmaker[AsyncSession]) 
         g.add_node(name, fn)  # type: ignore[call-overload]
     g.add_edge(START, "stop_rule")
     g.add_conditional_edges("stop_rule", after_stop, ["load", END])
-    g.add_conditional_edges("load", after_load, ["classify_reply", "to_analyst"])
+    g.add_conditional_edges("load", after_load, ["classify_reply", "to_analyst", "notify_case"])
     g.add_conditional_edges(
         "classify_reply",
         after_classify,

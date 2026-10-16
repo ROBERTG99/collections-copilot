@@ -21,6 +21,7 @@ from collections_copilot.db.repositories import Repos
 from collections_copilot.integrations.mcp.ledger import LedgerResult, LedgerTools
 
 FINAL = {"recorded", "failed", "rejected", "kept", "broken"}
+OPEN = ("pending", "approval_required")
 
 
 def promise_key(tenant_id: str, provider_sid: str) -> str:
@@ -50,8 +51,15 @@ async def _apply(
 ) -> str:
     async with sm() as s, s.begin():
         repos = Repos(s)
-        promise = await repos.promises.get(tenant, promise_id)
+        # Serialise concurrent writers (a redelivery racing a retry) on the promise row; only a
+        # promise still waiting on the ledger moves on, so a final state is never overwritten and
+        # the promise_due follow-up and audit row are written once.
+        promise = await repos.promises.get_for_update(tenant, promise_id)
         assert promise is not None
+        if promise.status not in OPEN:
+            return f"promise_{promise.status}"
+        if result.status == "approval_required" and promise.status == "approval_required":
+            return "promise_held"
         if result.status == "recorded":
             await repos.promises.set(
                 tenant,

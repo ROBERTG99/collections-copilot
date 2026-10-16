@@ -36,3 +36,16 @@ async def ping(engine: AsyncEngine) -> bool:
         return True
     except Exception:
         return False
+
+
+@asynccontextmanager
+async def advisory_lock(sm: async_sessionmaker[AsyncSession], key: str) -> AsyncIterator[None]:
+    """Hold a Postgres advisory lock on `key` for the block (one holder across all workers).
+
+    The lock lives on its own connection inside a transaction (`pg_advisory_xact_lock`), so it is
+    released when the block ends or the connection dies with the worker."""
+    async with sm() as session, session.begin():
+        await session.execute(
+            text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))"), {"key": key}
+        )
+        yield

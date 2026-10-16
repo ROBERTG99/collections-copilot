@@ -95,8 +95,8 @@ async def test_redelivery_single_ledger_row(
         await graph.ainvoke(payload)
     result = await graph.ainvoke(payload)  # SQS redelivery
     assert result["outcome"] == "promise_recorded"
-    again = await graph.ainvoke(payload)  # a third delivery is a no-op
-    assert again["outcome"] == "promise_recorded"
+    again = await graph.ainvoke(payload)  # a third delivery is a no-op (message handled)
+    assert again["outcome"] == "duplicate"
     rows = ledger_rows(migrated_database, tenant)
     assert rows == [(promise_key(str(tenant), reply.provider_sid), 120_000)]
     async with sessionmaker() as s:

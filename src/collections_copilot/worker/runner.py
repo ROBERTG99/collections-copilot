@@ -9,7 +9,10 @@ SQS delivers at least once, so every handler first reads the checkpoint:
 
 from __future__ import annotations
 
+import contextlib
 import logging
+from collections.abc import AsyncIterator, Awaitable, Callable
+from contextlib import AbstractAsyncContextManager
 from typing import Any
 
 from langgraph.types import Command
@@ -20,19 +23,46 @@ from collections_copilot.observability.steps import StepContext, step_context
 log = logging.getLogger(__name__)
 
 
+Lock = Callable[[str], AbstractAsyncContextManager[None]]
+WriteBack = Callable[[str, str], Awaitable[str]]
+
+
+@contextlib.asynccontextmanager
+async def _no_lock(_: str) -> AsyncIterator[None]:
+    yield
+
+
 class CaseRunner:
-    def __init__(self, graph: Any) -> None:
+    """`lock(case_id)` serialises deliveries for one case across workers (duplicate SQS
+    deliveries must not run the same thread twice); `write_back(tenant_id, promise_id)` runs
+    the ledger retry after a supervisor approved a held promise."""
+
+    def __init__(
+        self, graph: Any, lock: Lock | None = None, write_back: WriteBack | None = None
+    ) -> None:
         self.graph = graph
+        self.lock = lock or _no_lock
+        self.write_back = write_back
 
     async def handle(self, task: TaskMessage) -> str:
+        if task.kind == "retry_write_back":
+            promise_id = (task.resume or {}).get("promise_id")
+            if self.write_back is None or not promise_id:
+                raise ValueError("retry_write_back needs a promise_id and a write-back handler")
+            async with self.lock(f"promise:{promise_id}"):
+                return await self.write_back(task.tenant_id, str(promise_id))
         if not task.case_id:
             raise ValueError("task without case_id")
-        config = {"configurable": {"thread_id": task.case_id}}
+        async with self.lock(f"case:{task.case_id}"):
+            return await self._handle_case(task, task.case_id)
+
+    async def _handle_case(self, task: TaskMessage, case_id: str) -> str:
+        config = {"configurable": {"thread_id": case_id}}
         ctx = StepContext(
             run_id=task.task_id,
             task_id=task.task_id,
             tenant_id=task.tenant_id,
-            case_id=task.case_id,
+            case_id=case_id,
         )
         with step_context(ctx):
             snapshot = await self.graph.aget_state(config)
@@ -42,7 +72,7 @@ class CaseRunner:
                 if not snapshot.values:
                     await self.graph.ainvoke(
                         {
-                            "case_id": task.case_id,
+                            "case_id": case_id,
                             "tenant_id": task.tenant_id,
                             "run_id": task.task_id,
                         },
@@ -58,11 +88,13 @@ class CaseRunner:
                     return "not_paused"
                 pending = snapshot.interrupts[0].value or {}
                 expected = (task.resume or {}).get("kind")
-                if expected and pending.get("kind") != expected:
+                if not expected:
+                    raise ValueError("resume without a kind")  # never resume a guessed interrupt
+                if pending.get("kind") != expected:
                     log.info(
                         "ignoring resume for %s while paused at %s", expected, pending.get("kind")
                     )
                     return "kind_mismatch"
                 await self.graph.ainvoke(Command(resume=task.resume or {}), config)
                 return "resumed"
-            return "ignored"
+            raise ValueError(f"unknown task kind {task.kind}")

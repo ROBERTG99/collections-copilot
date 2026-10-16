@@ -42,6 +42,14 @@ class PromisesRepo(Repo):
         stmt = select(Promise).where(Promise.tenant_id == tenant_id, Promise.id == pid)
         return (await self.s.execute(stmt)).scalar_one_or_none()
 
+    async def get_for_update(self, tenant_id: TenantId, promise_id: uuid.UUID) -> Promise | None:
+        stmt = (
+            select(Promise)
+            .where(Promise.tenant_id == tenant_id, Promise.id == promise_id)
+            .with_for_update()
+        )
+        return (await self.s.execute(stmt)).scalar_one_or_none()
+
     async def by_approval_id(self, approval_id: str) -> Promise | None:
         """Gateway webhooks identify a held write by approval id only (tenant checked by caller)."""
         stmt = select(Promise).where(Promise.mcp_approval_id == approval_id)
@@ -138,6 +146,20 @@ class MessagesRepo(Repo):
             )
         ).scalar_one()
         return row, created
+
+    async def mark_handled(self, tenant_id: TenantId, message_id: uuid.UUID) -> bool:
+        """Claim an inbound reply's side effects. False when another run already applied them."""
+        result = await self.s.execute(
+            update(Message)
+            .where(
+                Message.tenant_id == tenant_id,
+                Message.id == message_id,
+                Message.status != "handled",
+            )
+            .values(status="handled")
+            .returning(Message.id)
+        )
+        return result.scalar_one_or_none() is not None
 
     async def set(self, tenant_id: TenantId, message_id: uuid.UUID, **fields: Any) -> None:
         await self.s.execute(

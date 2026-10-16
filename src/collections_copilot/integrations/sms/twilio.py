@@ -1,4 +1,5 @@
-"""Twilio REST adapter (Messages.json via httpx; WireMock locally). Retries live in the caller."""
+"""Twilio REST adapter (Messages.json via httpx; WireMock locally). Retries live in the caller,
+which retries only errors marked `retryable` (the request certainly did not reach Twilio)."""
 
 from __future__ import annotations
 
@@ -38,9 +39,14 @@ class TwilioSmsSender:
             else:
                 async with httpx.AsyncClient(timeout=self.timeout_s) as client:
                     resp = await client.post(self.url, data=data, auth=self.auth, headers=headers)
+        except (httpx.ConnectError, httpx.ConnectTimeout, httpx.PoolTimeout) as exc:
+            # The request never left: safe to retry.
+            raise SmsError(f"twilio connect error: {type(exc).__name__}", retryable=True) from exc
         except httpx.HTTPError as exc:
+            # Read/write timeouts and dropped connections: Twilio may have accepted the message
+            # (Messages.json does not honour idempotency tokens), so the outcome is unknown.
             raise SmsError(
-                f"twilio connection error: {type(exc).__name__}", retryable=True
+                f"twilio outcome unknown: {type(exc).__name__}", retryable=False
             ) from exc
         if resp.status_code >= 500 or resp.status_code == 429:
             raise SmsError(f"twilio {resp.status_code}", retryable=True, status=resp.status_code)
