@@ -28,7 +28,7 @@ chore: configure commit attribution
 | T-06 | M0 | Compose dependencies and api health | done | `docker compose up -d --wait` → 7 services healthy; `pytest tests/integration/test_compose_health.py` → 1 passed |
 | T-07 | M0 | Walking skeleton | done | `make demo` (scripts/demo.py) → case awaiting_approval in Docker; `pytest tests/integration/test_walking_skeleton.py` failed before worker existed, now 1 passed |
 | T-08 | M1 | Models and migration 0001 | done | `pytest tests/integration/db/test_migrations.py` → failed before 0001 existed, now 1 passed (upgrade, constraints, append-only trigger, downgrade base) |
-| T-09 | M1 | Tenant-scoped repositories | todo | |
+| T-09 | M1 | Tenant-scoped repositories | done | `pytest tests/integration/db/test_tenant_scoping.py` → collection error before repositories, now 2 passed; ruff TID251 bans sqlalchemy.text outside db/ |
 | T-10 | M1 | Audit chain and `cc audit verify` | todo | |
 | T-11 | M1 | Synthetic generator gen.v1 | todo | |
 | T-12 | M1 | Ingest via JSON and presigned S3 upload | todo | |
