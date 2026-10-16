@@ -8,6 +8,7 @@ import io
 import json
 import uuid
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from typing import Any
 
 from pydantic import ValidationError
@@ -105,6 +106,10 @@ async def apply_rows(repos: Repos, tenant_id: uuid.UUID, rows: list[AgingRow]) -
         )
         if row.note:
             await repos.notes.add(tenant_id, account_id, "ingest", row.note)
+    if accounts:
+        await repos.queue.refresh_scores(
+            tenant_id, datetime.now(UTC).date(), list(accounts.values())
+        )
 
 
 async def ingest(

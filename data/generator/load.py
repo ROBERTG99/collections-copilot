@@ -25,6 +25,7 @@ async def load_tenant(
         await repos.tenants.ensure(spec.tenant_id, spec.name)
         current = await repos.settings.get(spec.tenant_id, SEED_SETTING)
         if current and current.get("digest") == digest:
+            await repos.queue.refresh_scores(spec.tenant_id, datetime.now(UTC).date())
             return False
         now = datetime.now(UTC)
         for acc in spec.accounts:
@@ -78,6 +79,8 @@ async def load_tenant(
                         idempotency_key=f"seed:{spec.tenant_id}:{acc.external_ref}:{n}",
                     )
                 )
+        await session.flush()
+        await repos.queue.refresh_scores(spec.tenant_id, as_of)
         await repos.settings.put(
             spec.tenant_id,
             SEED_SETTING,

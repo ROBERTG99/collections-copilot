@@ -75,6 +75,7 @@ class Account(Base):
     __tablename__ = "accounts"
     __table_args__ = (
         UniqueConstraint("tenant_id", "external_ref", name="uq_accounts_tenant_ref"),
+        Index("ix_accounts_queue", "tenant_id", text("priority_score DESC"), "id"),
         CheckConstraint(f"segment IN {SEGMENTS}", name="ck_accounts_segment"),
         CheckConstraint(f"language IN {LANGUAGES}", name="ck_accounts_language"),
     )
@@ -89,6 +90,12 @@ class Account(Base):
     currency: Mapped[str] = mapped_column(String(3), nullable=False, server_default="USD")
     opted_out_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     contact_flag: Mapped[str | None] = mapped_column(String(32))
+    # Cached deterministic priority (scoring/priority.py), refreshed on ingest, seed and case runs.
+    priority_score: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    score_components: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    open_balance_cents: Mapped[int] = mapped_column(BigInteger, nullable=False, server_default="0")
+    max_days_past_due: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    score_refreshed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = _created()
 
 

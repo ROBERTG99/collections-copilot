@@ -649,17 +649,3 @@ def eval_graph() -> Any:
         gateway=LLMGateway.from_settings(settings, build_provider(settings)),
     )
     return build_case_graph(services, InMemorySaver())
-
-
-def build_skeleton_graph(checkpointer: BaseCheckpointSaver[Any] | None) -> Any:
-    """Kept for the M0 walking-skeleton API path until T-26 replaces it."""
-    from collections_copilot.agent.store import MemoryCaseStore
-    from collections_copilot.config import get_settings
-    from collections_copilot.llm.gateway import LLMGateway
-    from collections_copilot.llm.providers.fake import FakeLLM
-
-    settings = get_settings()
-    return build_case_graph(
-        Services(settings=settings, store=MemoryCaseStore(), gateway=LLMGateway(FakeLLM())),
-        checkpointer,
-    )

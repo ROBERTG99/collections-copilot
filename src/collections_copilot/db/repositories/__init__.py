@@ -4,7 +4,12 @@ from __future__ import annotations
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from collections_copilot.db.repositories.accounts import AccountsRepo, InvoicesRepo, NotesRepo
+from collections_copilot.db.repositories.accounts import (
+    AccountsRepo,
+    InvoicesRepo,
+    NotesRepo,
+    QueueRepo,
+)
 from collections_copilot.db.repositories.cases import ApprovalsRepo, CasesRepo, DraftsRepo
 from collections_copilot.db.repositories.ingest import IngestRepo
 from collections_copilot.db.repositories.ops import (
@@ -39,6 +44,7 @@ class Repos:
         self.opt_outs = OptOutsRepo(session)
         self.follow_ups = FollowUpsRepo(session)
         self.steps = StepsRepo(session)
+        self.queue = QueueRepo(session)
 
 
 __all__ = ["Repos"]

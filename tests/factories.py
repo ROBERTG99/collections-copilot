@@ -9,6 +9,7 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from collections_copilot.db.models import Account, Invoice, Note, Tenant
+from collections_copilot.db.repositories import Repos
 
 
 async def make_tenant(sm: async_sessionmaker[AsyncSession], name: str | None = None) -> uuid.UUID:
@@ -58,4 +59,6 @@ async def make_account(
             )
         for body in notes or []:
             s.add(Note(tenant_id=tenant_id, account_id=aid, source="crm", body=body))
+        await s.flush()
+        await Repos(s).queue.refresh_scores(tenant_id, date.today(), [aid])
     return aid

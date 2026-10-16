@@ -67,9 +67,9 @@ def test_settings(database_url: str) -> Settings:
 @pytest.fixture(scope="session")
 async def api_app(test_settings: Settings, signing_key: rsa.RSAPrivateKey) -> AsyncIterator[Any]:
     verifier = StaticKeyVerifier(ISSUER, AUDIENCE, KID, signing_key.public_key())
-    app = create_app(test_settings, token_verifier=verifier, start_graph=False)
-    async with LifespanManager(app) as manager:
-        yield manager.app
+    app = create_app(test_settings, token_verifier=verifier)
+    async with LifespanManager(app):
+        yield app  # lifespan populates app.state; requests go straight to the FastAPI app
 
 
 @pytest.fixture

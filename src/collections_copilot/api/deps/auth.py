@@ -144,5 +144,6 @@ def require_roles(*roles: Role) -> Callable[..., Awaitable[Principal]]:
 
 
 ANY_ROLE = require_roles("analyst", "supervisor", "admin")
+ANALYST_OR_SUPERVISOR = require_roles("analyst", "supervisor")
 SUPERVISOR = require_roles("supervisor", "admin")
 ADMIN = require_roles("admin")

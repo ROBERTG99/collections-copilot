@@ -12,7 +12,7 @@ from fastapi.responses import JSONResponse
 
 from collections_copilot.api import errors
 from collections_copilot.api.deps.auth import JwksTokenVerifier, TokenVerifier
-from collections_copilot.api.routers import cases, ingest
+from collections_copilot.api.routers import accounts, cases, ingest, me, queue
 from collections_copilot.config import Settings, get_settings
 from collections_copilot.db.session import make_engine, make_sessionmaker, ping
 from collections_copilot.integrations.queue.sqs import QueueClient, SqsQueueClient
@@ -27,7 +27,6 @@ def create_app(
     token_verifier: TokenVerifier | None = None,
     queues: QueueClient | None = None,
     object_store: ObjectStore | None = None,
-    start_graph: bool = True,
 ) -> FastAPI:
     settings = settings or get_settings()
 
@@ -39,7 +38,6 @@ def create_app(
         app.state.token_verifier = token_verifier or JwksTokenVerifier(
             settings.oidc_issuer, settings.oidc_audience, settings.oidc_jwks_url
         )
-        app.state.graph = None
         async with AsyncExitStack() as stack:
             app.state.queues = queues or await stack.enter_async_context(
                 SqsQueueClient(settings.aws_region, settings.sqs_endpoint_url)
@@ -59,17 +57,6 @@ def create_app(
                 except Exception:
                     log.warning("object store unavailable at startup")
             app.state.object_store = store
-            if start_graph:
-                try:
-                    from collections_copilot.agent.case_graph import build_skeleton_graph
-                    from collections_copilot.agent.checkpointer import open_checkpointer
-
-                    saver = await stack.enter_async_context(
-                        open_checkpointer(settings.database_url)
-                    )
-                    app.state.graph = build_skeleton_graph(saver)
-                except Exception:
-                    log.warning("checkpointer unavailable at startup")
             try:
                 yield
             finally:
@@ -77,7 +64,10 @@ def create_app(
 
     app = FastAPI(title="collections-copilot API", version="0.1.0", lifespan=lifespan)
     errors.install(app)
+    app.include_router(me.router)
     app.include_router(ingest.router)
+    app.include_router(queue.router)
+    app.include_router(accounts.router)
     app.include_router(cases.router)
 
     @app.get("/healthz", tags=["health"])

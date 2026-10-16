@@ -1,14 +1,15 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import case, select, update
+from sqlalchemy import and_, case, func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert
 
-from collections_copilot.db.models import Account, Invoice, Note
+from collections_copilot.db.models import Account, Case, Invoice, Note, Promise
 from collections_copilot.db.repositories.base import Repo, TenantId, as_uuid
+from collections_copilot.db.repositories.cases import OPEN_STATUSES
 
 
 class AccountsRepo(Repo):
@@ -134,3 +135,100 @@ class NotesRepo(Repo):
         self.s.add(note)
         await self.s.flush()
         return note
+
+
+class QueueRepo(Repo):
+    """Prioritized queue: accounts by cached score, keyset-paginated on (score DESC, id)."""
+
+    async def refresh_scores(
+        self, tenant_id: TenantId, today: date, account_ids: list[uuid.UUID] | None = None
+    ) -> int:
+        from collections_copilot.scoring.priority import inputs_from, score
+
+        stmt = select(Account).where(Account.tenant_id == tenant_id)
+        if account_ids is not None:
+            stmt = stmt.where(Account.id.in_(account_ids))
+        accounts = list((await self.s.execute(stmt)).scalars())
+        if not accounts:
+            return 0
+        ids = [a.id for a in accounts]
+        invoices: dict[uuid.UUID, list[Invoice]] = {i: [] for i in ids}
+        for inv in (
+            await self.s.execute(
+                select(Invoice).where(Invoice.tenant_id == tenant_id, Invoice.account_id.in_(ids))
+            )
+        ).scalars():
+            invoices[inv.account_id].append(inv)
+        since = today - timedelta(days=90)
+        broken_rows = await self.s.execute(
+            select(Promise.account_id, func.count())
+            .where(
+                Promise.tenant_id == tenant_id,
+                Promise.account_id.in_(ids),
+                Promise.status == "broken",
+                Promise.promised_date >= since,
+            )
+            .group_by(Promise.account_id)
+        )
+        broken = {row[0]: int(row[1]) for row in broken_rows}
+        now = datetime.now(UTC)
+        for acc in accounts:
+            rows = [
+                (i.amount_cents, i.status, max(0, (today - i.due_on).days))
+                for i in invoices[acc.id]
+            ]
+            inputs = inputs_from(
+                invoices=rows,
+                broken_promises_90d=broken.get(acc.id, 0),
+                segment=acc.segment,
+                currency=acc.currency,
+            )
+            result = score(inputs)
+            acc.priority_score = result.score
+            acc.score_components = result.components
+            acc.open_balance_cents = inputs.balance_cents
+            acc.max_days_past_due = inputs.max_days_past_due
+            acc.score_refreshed_at = now
+        await self.s.flush()
+        return len(accounts)
+
+    async def page(
+        self,
+        tenant_id: TenantId,
+        *,
+        limit: int,
+        after: tuple[int, uuid.UUID] | None = None,
+        segment: str | None = None,
+        min_score: int | None = None,
+        status: str | None = None,
+        search: str | None = None,
+    ) -> list[tuple[Account, Case | None]]:
+        open_case = and_(
+            Case.account_id == Account.id,
+            Case.tenant_id == tenant_id,
+            Case.status.in_(OPEN_STATUSES),
+        )
+        stmt = (
+            select(Account, Case).outerjoin(Case, open_case).where(Account.tenant_id == tenant_id)
+        )
+        if after is not None:
+            score_after, id_after = after
+            stmt = stmt.where(
+                or_(
+                    Account.priority_score < score_after,
+                    and_(Account.priority_score == score_after, Account.id > id_after),
+                )
+            )
+        if segment:
+            stmt = stmt.where(Account.segment == segment)
+        if min_score is not None:
+            stmt = stmt.where(Account.priority_score >= min_score)
+        if status == "no_case":
+            stmt = stmt.where(Case.id.is_(None))
+        elif status:
+            stmt = stmt.where(Case.status == status)
+        if search:
+            like = f"%{search.replace('%', '').replace('_', '')}%"
+            stmt = stmt.where(or_(Account.name.ilike(like), Account.external_ref.ilike(like)))
+        stmt = stmt.order_by(Account.priority_score.desc(), Account.id).limit(limit)
+        return [(row[0], row[1]) for row in (await self.s.execute(stmt)).all()]

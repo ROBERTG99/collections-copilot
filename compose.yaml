@@ -112,6 +112,16 @@ services:
       timeout: 3s
       retries: 30
 
+  dev-oidc:
+    # Cognito double for local dev (synthetic personas only); disabled in AWS.
+    build: { <<: *python-build, target: dev-oidc }
+    image: collections-copilot/dev-oidc:dev
+    environment:
+      DEV_OIDC_ISSUER: http://localhost:8345
+      DEV_OIDC_CLIENT_IDS: cc-web
+      DEV_OIDC_ALLOW_DIRECT_TOKENS: "true"
+    ports: ["127.0.0.1:8345:8345"]
+
   migrate:
     build: { <<: *python-build, target: tools }
     image: collections-copilot/tools:dev
@@ -167,6 +177,7 @@ services:
       redis: { condition: service_healthy }
       elasticmq: { condition: service_healthy }
       minio: { condition: service_healthy }
+      dev-oidc: { condition: service_healthy }
       migrate: { condition: service_completed_successfully }
 
   worker:

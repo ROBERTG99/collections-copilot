@@ -82,8 +82,8 @@ Verification counts at handoff: `make check-fast` passes; `uv run pytest tests/i
 | T-22 | M2 | Case graph, checkpointer, interrupt | done | `pytest tests/integration/test_case_graph.py tests/integration/test_llm_outage.py` → collection errors before graph, now 7 passed (resume after worker crash without recomputing NBA; approval interrupt; auto-approval; outage → fallback, no send) |
 | T-23 | M2 | Reply graph and STOP rule | done | `pytest tests/integration/test_reply_graph.py` → collection error before graph, now 6 passed (STOP/stop/Baja/UNSUBSCRIBE → opt-out, one confirmation, zero LLM calls; dispute cancels open drafts) |
 | T-24 | M2 | MCP client and promise write-back | done | `pytest tests/integration/test_promise_writeback.py` → collection error before client, now 3 passed against in-process mcp-gateway + ledger-mcp (crash after call + redelivery → 1 ledger row; USD 8,000 → approval_required → retry same key → 1 row; -32040 → failed, no retry) |
-| T-25 | M3 | OIDC, dev-oidc, RBAC | todo | |
-| T-26 | M3 | Queue, accounts, cases endpoints | todo | |
+| T-25 | M3 | OIDC, dev-oidc, RBAC | done | uv run pytest tests/contract/test_oidc_contract.py tests/integration/test_rbac.py -q → all pass (7 OIDC contract, role matrix over every /api/v1 route incl. 401/403 + correlation_id, tenant isolation); dev-oidc in compose on 127.0.0.1:8345. Shares its commit with T-26 (same app factory). |
+| T-26 | M3 | Queue, accounts, cases endpoints | done | uv run pytest tests/integration/api/test_queue.py -q → 4 passed (test_sorted_by_priority_with_cursor, filters, account detail + 404 cross-tenant, case create/dedupe/enqueue); integration+contract (not docker) 58 passed; walking skeleton (docker) passed with dev-oidc tokens; scores cached on accounts (migration 0002) and refreshed on ingest/seed. make gen-types deferred until web/ exists (T-34). |
 | T-27 | M3 | Approvals and auto-approval policy | todo | |
 | T-28 | M3 | Twilio adapter, webhooks, debtor simulator | todo | |
 | T-29 | M3 | SSE progress | todo | |
