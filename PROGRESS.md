@@ -26,7 +26,7 @@ chore: configure commit attribution
 | T-04 | M0 | Claude harness files | done | `uv run pytest tests/harness` → 13 passed (CLAUDE.md 54 lines, 10 rules, 8 subagents, 13 skills, .mcp.json) |
 | T-05 | M0 | Hooks | done | `uv run pytest tests/harness/test_hooks.py` → 25 passed; `CLAUDE_CODE_REMOTE=true .claude/hooks/session_start.sh` → ready in 0.8 s |
 | T-06 | M0 | Compose dependencies and api health | done | `docker compose up -d --wait` → 7 services healthy; `pytest tests/integration/test_compose_health.py` → 1 passed |
-| T-07 | M0 | Walking skeleton | todo | |
+| T-07 | M0 | Walking skeleton | done | `make demo` (scripts/demo.py) → case awaiting_approval in Docker; `pytest tests/integration/test_walking_skeleton.py` failed before worker existed, now 1 passed |
 | T-08 | M1 | Models and migration 0001 | todo | |
 | T-09 | M1 | Tenant-scoped repositories | todo | |
 | T-10 | M1 | Audit chain and `cc audit verify` | todo | |

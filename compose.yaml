@@ -133,6 +133,17 @@ services:
       minio: { condition: service_healthy }
       migrate: { condition: service_completed_successfully }
 
+  worker:
+    build: { <<: *python-build, target: worker }
+    image: collections-copilot/worker:dev
+    environment: *app-env
+    ports: ["8311:8311"]
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      elasticmq: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
+
 volumes:
   pgdata:
   miniodata:
