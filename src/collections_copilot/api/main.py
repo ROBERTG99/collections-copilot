@@ -19,6 +19,7 @@ from collections_copilot.api.routers import (
     ingest,
     me,
     queue,
+    webhooks,
 )
 from collections_copilot.api.routers import (
     settings as settings_router,
@@ -26,6 +27,8 @@ from collections_copilot.api.routers import (
 from collections_copilot.config import Settings, get_settings
 from collections_copilot.db.session import make_engine, make_sessionmaker, ping
 from collections_copilot.integrations.queue.sqs import QueueClient, SqsQueueClient
+from collections_copilot.integrations.sms import build_sms_sender
+from collections_copilot.integrations.sms.base import SmsSender
 from collections_copilot.integrations.storage.s3 import ObjectStore, S3ObjectStore
 
 log = logging.getLogger(__name__)
@@ -37,6 +40,7 @@ def create_app(
     token_verifier: TokenVerifier | None = None,
     queues: QueueClient | None = None,
     object_store: ObjectStore | None = None,
+    sms_sender: SmsSender | None = None,
 ) -> FastAPI:
     settings = settings or get_settings()
 
@@ -45,6 +49,7 @@ def create_app(
         app.state.settings = settings
         app.state.engine = make_engine(settings.database_url)
         app.state.sessionmaker = make_sessionmaker(app.state.engine)
+        app.state.sms = sms_sender or build_sms_sender(settings)  # STOP confirmations only
         app.state.token_verifier = token_verifier or JwksTokenVerifier(
             settings.oidc_issuer, settings.oidc_audience, settings.oidc_jwks_url
         )
@@ -81,6 +86,7 @@ def create_app(
     app.include_router(cases.router)
     app.include_router(approvals.router)
     app.include_router(settings_router.router)
+    app.include_router(webhooks.router)
 
     @app.get("/healthz", tags=["health"])
     async def healthz() -> dict[str, str]:

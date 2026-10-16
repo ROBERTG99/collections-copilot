@@ -30,7 +30,7 @@
         "transformers": ["response-template"],
         "jsonBody": {
           "sid": "SM{{randomValue length=32 type='HEXADECIMAL' lowercase=true}}",
-          "account_sid": "{{request.pathSegments.[3]}}",
+          "account_sid": "{{request.pathSegments.[2]}}",
           "to": "{{formData request.body 'form' urlDecode=true}}{{form.To}}",
           "from": "{{form.From}}",
           "body": "{{form.Body}}",
@@ -42,7 +42,7 @@
           "price": null,
           "error_code": null,
           "error_message": null,
-          "uri": "/2010-04-01/Accounts/{{request.pathSegments.[3]}}/Messages.json"
+          "uri": "/2010-04-01/Accounts/{{request.pathSegments.[2]}}/Messages.json"
         }
       }
     },

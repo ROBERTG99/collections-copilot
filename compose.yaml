@@ -192,6 +192,20 @@ services:
       elasticmq: { condition: service_healthy }
       migrate: { condition: service_completed_successfully }
 
+  debtor-sim:
+    # Demo only: reads the WireMock journal and posts signed Twilio callbacks and replies.
+    build: { <<: *python-build, target: debtor-sim }
+    image: collections-copilot/debtor-sim:dev
+    environment:
+      DEBTOR_SIM_WIREMOCK_URL: http://wiremock-twilio:8080
+      DEBTOR_SIM_API_URL: http://api:8310
+      CC_PUBLIC_BASE_URL: http://api:8310
+      CC_TWILIO_AUTH_TOKEN: dev-twilio-auth-token
+      DEBTOR_SIM_PERSONA: "${DEBTOR_SIM_PERSONA:-auto}"
+    depends_on:
+      api: { condition: service_healthy }
+      wiremock-twilio: { condition: service_healthy }
+
 volumes:
   pgdata:
   miniodata:

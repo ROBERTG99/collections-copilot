@@ -1,5 +1,5 @@
-"""Worker entry point: consumes cc-tasks (case graph) and cc-replies (reply graph), runs the
-follow-up scheduler, and serves /healthz and /metrics on 8311."""
+"""Worker entry point: consumes cc-tasks (case graph) and cc-replies (reply graph), and serves
+/healthz and /metrics on 8311. The follow-up scheduler joins in T-30."""
 
 from __future__ import annotations
 
@@ -19,13 +19,14 @@ from starlette.routing import Route
 from collections_copilot.agent.case_graph import build_case_graph
 from collections_copilot.agent.checkpointer import open_checkpointer
 from collections_copilot.agent.nodes.record_promise import retry_write_back
+from collections_copilot.agent.reply_graph import build_reply_graph
 from collections_copilot.agent.services import DbStepSink, Services
 from collections_copilot.agent.store import DbCaseStore
 from collections_copilot.config import Settings, get_settings
 from collections_copilot.db.session import advisory_lock, make_engine, make_sessionmaker
 from collections_copilot.integrations.email.smtp import SmtpNotifier
 from collections_copilot.integrations.mcp import build_ledger
-from collections_copilot.integrations.queue.messages import TaskMessage
+from collections_copilot.integrations.queue.messages import ReplyMessage, TaskMessage
 from collections_copilot.integrations.queue.sqs import QueueMessage, SqsQueueClient
 from collections_copilot.integrations.sms import build_sms_sender
 from collections_copilot.llm.gateway import LLMGateway
@@ -84,6 +85,12 @@ async def run(settings: Settings) -> None:
         services = build_services(settings, sessionmaker)
         services.ledger = build_ledger(settings)
 
+        async def enqueue(task: TaskMessage) -> None:
+            await queues.send(settings.sqs_tasks_queue, task.model_dump(mode="json", by_alias=True))
+
+        services.enqueue = enqueue
+        replies = build_reply_graph(services, sessionmaker)
+
         async def write_back(tenant_id: str, promise_id: str) -> str:
             return await retry_write_back(services, sessionmaker, tenant_id, promise_id)
 
@@ -97,13 +104,27 @@ async def run(settings: Settings) -> None:
             outcome = await runner.handle(TaskMessage.model_validate(msg.body))
             log.info("task handled", extra={"outcome": outcome, "kind": msg.body.get("kind")})
 
+        async def handle_reply(msg: QueueMessage) -> None:
+            reply = ReplyMessage.model_validate(msg.body)
+            async with advisory_lock(sessionmaker, f"reply:{reply.message_id}"):
+                result = await replies.ainvoke(
+                    {"reply": reply.model_dump(mode="json", by_alias=True)}
+                )
+            log.info("reply handled", extra={"outcome": result.get("outcome")})
+
         consumers = [
             Consumer(
                 queues,
                 settings.sqs_tasks_queue,
                 handle_task,
                 concurrency=settings.worker_concurrency,
-            )
+            ),
+            Consumer(
+                queues,
+                settings.sqs_replies_queue,
+                handle_reply,
+                concurrency=settings.worker_concurrency,
+            ),
         ]
         server = _NoSignalServer(
             uvicorn.Config(
