@@ -268,3 +268,23 @@ def test_ordinals_ignored_and_extra_amounts_allowed() -> None:
     )
     allowed = amounts.allowed_amounts(invoices, extra_cents=[120_000])
     assert amounts.find_unknown("Thanks, we recorded USD 1,200.00.", allowed, invoices) == []
+
+
+@pytest.mark.parametrize(
+    ("number", "body"),
+    [
+        ("999", "You owe $999 now"),
+        ("100234", "Pay 100234 dollars"),
+        ("9", "Pay $999.00"),
+        ("INV-1", "Balance -999.00"),
+    ],
+)
+def test_numeric_invoice_numbers_cannot_mask_amounts(number: str, body: str) -> None:
+    invoices = [InvoiceFacts(number, 10_000, "USD", "open")]
+    assert amounts.find_unknown(body, amounts.allowed_amounts(invoices), invoices) != [], body
+
+
+def test_numeric_invoice_number_as_reference_is_not_an_amount() -> None:
+    invoices = [InvoiceFacts("100234", 10_000, "USD", "open")]
+    body = "Invoice 100234 for USD 100.00 is past due."
+    assert amounts.find_unknown(body, amounts.allowed_amounts(invoices), invoices) == []

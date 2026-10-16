@@ -73,7 +73,8 @@ def parse_csv(data: bytes, max_rows: int) -> ParseResult:
 
 async def apply_rows(repos: Repos, tenant_id: uuid.UUID, rows: list[AgingRow]) -> None:
     accounts: dict[str, uuid.UUID] = {}
-    for row in rows:
+    # Stable lock order across concurrent ingests that touch the same accounts (no deadlocks).
+    for row in sorted(rows, key=lambda r: (r.external_ref, r.invoice_number)):
         if row.external_ref not in accounts:
             acc = await repos.accounts.upsert(
                 tenant_id,

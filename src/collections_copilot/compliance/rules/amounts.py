@@ -94,17 +94,28 @@ def _blank(text: str, pattern: re.Pattern[str] | str) -> str:
 def extract(text: str, invoice_numbers: Iterable[str] = ()) -> list[tuple[str, int, str | None]]:
     """Potential money mentions as (token, cents, currency or None)."""
     scrubbed = _blank(text, URL)
+    numeric_refs: set[str] = set()
     for number in sorted(invoice_numbers, key=len, reverse=True):
-        if number:
-            scrubbed = _blank(scrubbed, number)
+        if not number:
+            continue
+        if number.isdigit():
+            numeric_refs.add(number)  # decided per token below, never blanked as a substring
+        else:
+            whole = re.compile(rf"(?<![\w]){re.escape(number)}(?![\w])")
+            scrubbed = _blank(scrubbed, whole)
     scrubbed = _blank(scrubbed, DATE_TIME)
     found: list[tuple[str, int, str | None]] = []
     for m in TOKEN.finditer(scrubbed):
         start = m.start("num")
         prev = scrubbed[start - 1] if start > 0 else " "
+        before_prev = scrubbed[start - 2] if start > 1 else " "
+        negative = prev == "-" and not before_prev.isalnum()
         glued_code = bool(m.group("pre")) and not m.group("pre").endswith(" ")
-        if (prev.isalpha() or prev in "-_#/") and not glued_code:
+        if (prev.isalpha() or prev in "-_#/") and not glued_code and not negative:
             continue  # identifier such as INV-2026-77, W-4821, A00001
+        has_marker = bool(m.group("pre") or m.group("post") or m.group("k"))
+        if m.group("num") in numeric_refs and not has_marker:
+            continue  # a numeric invoice number used as a reference ("Invoice 100234")
         end = m.end("num")
         nxt = scrubbed[end] if end < len(scrubbed) else " "
         if nxt.isalpha() and not (m.group("k") or m.group("post")):
