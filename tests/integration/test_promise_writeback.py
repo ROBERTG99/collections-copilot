@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import uuid
-from collections.abc import AsyncIterator
 from datetime import date, timedelta
 from typing import Any
 
@@ -18,16 +17,10 @@ from collections_copilot.integrations.mcp.ledger import LedgerResult, McpLedgerT
 from collections_copilot.integrations.mcp.tokens import DevIssuerTokenProvider
 from tests.factories import make_account
 from tests.integration.graph_support import make_services
-from tests.integration.ledger_stack import LedgerStack, ledger_stack
+from tests.integration.ledger_stack import LedgerStack
 from tests.integration.test_reply_graph import inbound
 
 pytestmark = pytest.mark.integration
-
-
-@pytest.fixture(scope="session")
-async def stack(migrated_database: str) -> AsyncIterator[LedgerStack]:
-    async with ledger_stack(migrated_database) as s:
-        yield s
 
 
 async def seeded_account(

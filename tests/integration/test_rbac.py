@@ -35,6 +35,11 @@ MATRIX: dict[tuple[str, str], set[str]] = {
     ("POST", "/api/v1/approvals:batch"): {A, S},
     ("GET", "/api/v1/settings/auto-approval"): ALL,
     ("PUT", "/api/v1/settings/auto-approval"): {S, D},
+    ("GET", "/api/v1/promises"): ALL,
+    ("GET", "/api/v1/replies"): ALL,
+    ("GET", "/api/v1/follow-ups"): ALL,
+    ("POST", "/api/v1/promises/{promise_id}:approve"): {S, D},
+    ("POST", "/api/v1/promises/{promise_id}:reject"): {S, D},
 }
 UNAUTHENTICATED_PREFIXES = ("/api/v1/webhooks/",)
 

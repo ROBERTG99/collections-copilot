@@ -9,11 +9,15 @@ under the tenant the message resolves to.
 
 from __future__ import annotations
 
+import hashlib
+import hmac
 import logging
 import uuid
 from datetime import UTC, datetime
+from typing import Any
 
 from fastapi import APIRouter, Request, Response
+from pydantic import BaseModel, Field
 
 from collections_copilot.agent.reply_actions import apply_stop
 from collections_copilot.api.errors import ProblemError
@@ -164,4 +168,67 @@ async def twilio_inbound(request: Request) -> Response:
         )
     except QueueUnavailableError as exc:  # Twilio retries the webhook; the row is deduplicated
         raise ProblemError(503, "reply queue unavailable", code="queue_unavailable") from exc
+    return Response(status_code=204)
+
+
+mcpgw_router = APIRouter(prefix="/api/v1/webhooks/mcpgw", tags=["webhooks"])
+
+
+class GatewayApproval(BaseModel):
+    approval_id: str = Field(min_length=1, max_length=64)
+    tenant: str
+    tool: str
+    args_redacted: dict[str, Any] = Field(default_factory=dict)
+    reasons: list[str] = Field(default_factory=list)
+    expires_at: datetime | None = None
+
+
+@mcpgw_router.post("/approvals", status_code=204, response_class=Response)
+async def mcpgw_approval(request: Request) -> Response:
+    """mcp-gateway held a ledger write for approval: link it to our promise and tell a
+    supervisor. Signed with HMAC-SHA256 over the raw body (`X-MCPGW-Signature: sha256=...`)."""
+    app = request.app
+    raw = await request.body()
+    expected = (
+        "sha256="
+        + hmac.new(
+            app.state.settings.mcpgw_webhook_secret.encode(), raw, hashlib.sha256
+        ).hexdigest()
+    )
+    if not hmac.compare_digest(expected, request.headers.get("x-mcpgw-signature", "")):
+        log.warning("mcp-gateway webhook with a bad signature")
+        raise ProblemError(403, "invalid X-MCPGW-Signature", code="bad_signature")
+    try:
+        event = GatewayApproval.model_validate_json(raw)
+        tenant = uuid.UUID(event.tenant)
+    except (ValueError, TypeError) as exc:
+        raise ProblemError(422, "invalid approval event", code="invalid_event") from exc
+    sid = str(event.args_redacted.get("source_message_sid") or "")
+    async with app.state.sessionmaker() as s, s.begin():
+        repos = Repos(s)
+        promise = await repos.promises.by_approval_id(event.approval_id)
+        if promise is None and sid:
+            # The webhook can arrive before the worker stored the approval id on the promise.
+            promise = await repos.promises.by_key(tenant, f"ptp:{tenant}:{sid}")
+        if promise is None or promise.tenant_id != tenant:
+            raise ProblemError(404, "unknown approval", code="unknown_approval")
+        if promise.status == "pending":
+            promise.status = "approval_required"
+            promise.mcp_approval_id = event.approval_id
+        await audit.append(
+            s,
+            tenant,
+            actor_type="webhook",
+            actor_id="mcp-gateway",
+            action="promise.approval_requested",
+            entity="promise",
+            entity_id=str(promise.id),
+            payload={"approval_id": event.approval_id, "reasons": event.reasons},
+        )
+        case_ref = str(promise.case_id or promise.id)
+    await app.state.notifier.notify_supervisor(
+        case_id=case_ref,
+        reason=f"a promise-to-pay needs approval: {', '.join(event.reasons) or event.tool}",
+        idempotency_key=f"mcpgw-approval:{event.approval_id}",
+    )
     return Response(status_code=204)

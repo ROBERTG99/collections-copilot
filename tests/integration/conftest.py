@@ -93,3 +93,12 @@ def auth(make_token: TokenFactory, tenant: uuid.UUID) -> Callable[..., dict[str,
         return {"Authorization": f"Bearer {token}"}
 
     return headers
+
+
+@pytest.fixture(scope="session")
+async def stack(migrated_database: str) -> AsyncIterator[Any]:
+    """In-process ledger-mcp and mcp-gateway (dev issuer) on free ports."""
+    from tests.integration.ledger_stack import ledger_stack
+
+    async with ledger_stack(migrated_database) as s:
+        yield s

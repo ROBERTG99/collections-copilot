@@ -20,6 +20,7 @@ from collections_copilot.api.routers import (
     events,
     ingest,
     me,
+    promises,
     queue,
     webhooks,
 )
@@ -28,6 +29,9 @@ from collections_copilot.api.routers import (
 )
 from collections_copilot.config import Settings, get_settings
 from collections_copilot.db.session import make_engine, make_sessionmaker, ping
+from collections_copilot.integrations.email.smtp import Notifier, SmtpNotifier
+from collections_copilot.integrations.mcp import build_gateway_admin
+from collections_copilot.integrations.mcp.admin import GatewayAdmin
 from collections_copilot.integrations.queue.sqs import QueueClient, SqsQueueClient
 from collections_copilot.integrations.sms import build_sms_sender
 from collections_copilot.integrations.sms.base import SmsSender
@@ -43,6 +47,8 @@ def create_app(
     queues: QueueClient | None = None,
     object_store: ObjectStore | None = None,
     sms_sender: SmsSender | None = None,
+    gateway_admin: GatewayAdmin | None = None,
+    notifier: Notifier | None = None,
 ) -> FastAPI:
     settings = settings or get_settings()
 
@@ -53,6 +59,10 @@ def create_app(
         app.state.sessionmaker = make_sessionmaker(app.state.engine)
         app.state.sms = sms_sender or build_sms_sender(settings)  # STOP confirmations only
         app.state.redis = Redis.from_url(settings.redis_url)
+        app.state.gateway_admin = gateway_admin or build_gateway_admin(settings)
+        app.state.notifier = notifier or SmtpNotifier(
+            settings.smtp_host, settings.smtp_port, settings.smtp_from, settings.supervisor_email
+        )
         app.state.token_verifier = token_verifier or JwksTokenVerifier(
             settings.oidc_issuer, settings.oidc_audience, settings.oidc_jwks_url
         )
@@ -91,7 +101,9 @@ def create_app(
     app.include_router(approvals.router)
     app.include_router(settings_router.router)
     app.include_router(events.router)
+    app.include_router(promises.router)
     app.include_router(webhooks.router)
+    app.include_router(webhooks.mcpgw_router)
 
     @app.get("/healthz", tags=["health"])
     async def healthz() -> dict[str, str]:
