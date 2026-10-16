@@ -39,7 +39,7 @@ class AuditPage(BaseModel):
 @router.get("/audit", response_model=AuditPage)
 async def list_audit(
     limit: int = Query(100, ge=1, le=500),
-    before_seq: int | None = Query(None, ge=1),
+    before_seq: int | None = Query(None, ge=1, le=2**63 - 1),
     action: str | None = Query(None, max_length=64, pattern=r"^[a-z_.]+$"),
     entity_id: str | None = Query(None, max_length=64),
     verify: bool = False,

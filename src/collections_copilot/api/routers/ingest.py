@@ -29,7 +29,7 @@ router = APIRouter(prefix="/api/v1/ingest", tags=["ingest"])
 
 class UploadRequest(BaseModel):
     filename: str = Field(min_length=1, max_length=255, pattern=r"^[\w.\- ]+\.csv$")
-    size_bytes: int = Field(gt=0)
+    size_bytes: int = Field(gt=0, le=2**63 - 1)
 
 
 class UploadResponse(BaseModel):

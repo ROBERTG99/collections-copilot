@@ -41,7 +41,7 @@ MAX_BATCH = 50
 
 class ApprovalRequest(BaseModel):
     decision: Literal["approve", "edit", "reject"]
-    draft_version: int = Field(ge=1)
+    draft_version: int = Field(ge=1, le=1_000_000)
     body: str | None = Field(default=None, max_length=MAX_BODY)
     reason: str | None = Field(default=None, max_length=500)
 
