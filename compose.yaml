@@ -135,7 +135,8 @@ services:
     image: collections-copilot/ledger-mcp:dev
     environment:
       LEDGER_DATABASE_URL: postgresql://cc:cc@postgres:5432/cc
-    ports: ["127.0.0.1:8343:8343"]
+    # No host port: the ledger trusts _meta.mcpgw.tenant, so only mcp-gateway may reach it.
+    expose: ["8343"]
     depends_on:
       postgres: { condition: service_healthy }
 

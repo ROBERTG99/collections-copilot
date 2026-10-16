@@ -123,3 +123,43 @@ async def test_cross_tenant_batch_is_404(client: httpx.AsyncClient, auth, sessio
         headers=auth("analyst", tenant_id=other),
     )
     assert got.status_code == 404
+
+
+async def test_concurrent_identical_ingests_one_batch(client: httpx.AsyncClient, auth) -> None:  # type: ignore[no-untyped-def]
+    import asyncio
+
+    headers = auth("analyst")
+    rows = aging_rows(30, prefix=f"C{uuid.uuid4().hex[:4]}")
+    results = await asyncio.gather(
+        *[
+            client.post("/api/v1/ingest/aging", json={"rows": rows}, headers=headers)
+            for _ in range(4)
+        ]
+    )
+    assert [r.status_code for r in results] == [200, 200, 200, 200], [r.text for r in results]
+    bodies = [r.json() for r in results]
+    assert len({b["batch_id"] for b in bodies}) == 1
+    assert sum(1 for b in bodies if not b["duplicate"]) == 1
+
+
+async def test_reingest_keeps_disputed_invoice(
+    client: httpx.AsyncClient, auth, sessionmaker, tenant
+) -> None:  # type: ignore[no-untyped-def]
+    from collections_copilot.db.repositories import Repos
+
+    headers = auth("analyst")
+    rows = aging_rows(2, prefix=f"R{uuid.uuid4().hex[:4]}")
+    first = await client.post("/api/v1/ingest/aging", json={"rows": rows}, headers=headers)
+    assert first.json()["status"] == "completed"
+    async with sessionmaker() as s, s.begin():
+        repos = Repos(s)
+        acc = await repos.accounts.get_by_ref(tenant, rows[0]["external_ref"])
+        assert acc is not None
+        await repos.invoices.mark_disputed(tenant, acc.id, "damaged goods")
+    rows[0]["note"] = "re-sent aging"  # change the payload so it is not a duplicate
+    again = await client.post("/api/v1/ingest/aging", json={"rows": rows}, headers=headers)
+    assert again.json()["duplicate"] is False
+    async with sessionmaker() as s:
+        inv = await Repos(s).invoices.get_by_number(tenant, rows[0]["invoice_number"])
+    assert inv is not None
+    assert inv.status == "disputed"

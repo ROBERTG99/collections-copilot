@@ -21,7 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from collections_copilot.db.models import AuditEvent
 
 GENESIS = "0" * 64
-_PHONE = re.compile(r"\+?\d[\d\s().-]{7,}\d")
+_PHONE = re.compile(r"\+\d[\d\s().-]{6,18}\d")
 _EMAIL = re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+")
 _SENSITIVE_KEYS = {
     "phone",

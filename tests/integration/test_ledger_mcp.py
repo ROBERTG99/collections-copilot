@@ -124,3 +124,29 @@ async def test_other_tenant_sees_nothing(ledger: Any) -> None:
             "get_balance", {"account_ref": "A00001"}, meta=meta("someone-else")
         )
     assert result.is_error
+
+
+async def test_foreign_invoice_and_changed_replay_rejected(ledger: Any) -> None:
+    store, tenant = ledger
+    args = {
+        "account_ref": "A00001",
+        "amount_cents": 30_000,
+        "currency": "USD",
+        "promised_date": (date.today() + timedelta(days=3)).isoformat(),
+        "invoice_numbers": ["INV-A00001-2"],
+        "source_message_sid": "SM" + "b" * 32,
+    }
+    key = f"ptp:{tenant}:SM{'b' * 32}"
+    async with Client(build_server(store)) as client:
+        foreign = await client.call_tool(
+            "record_promise_to_pay",
+            {**args, "invoice_numbers": ["INV-OTHER-1"]},
+            meta=meta(tenant, key),
+        )
+        assert foreign.is_error
+        first = await client.call_tool("record_promise_to_pay", args, meta=meta(tenant, key))
+        assert not first.is_error
+        changed = await client.call_tool(
+            "record_promise_to_pay", {**args, "amount_cents": 99_900}, meta=meta(tenant, key)
+        )
+        assert changed.is_error

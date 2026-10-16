@@ -15,13 +15,20 @@ END_BUFFER = timedelta(minutes=10)
 LAST_SEND = time(20, 50)  # WINDOW_END - END_BUFFER
 
 
+def _require_aware(now: datetime) -> None:
+    if now.tzinfo is None or now.utcoffset() is None:
+        raise ValueError("now must be timezone-aware")
+
+
 def in_window(now: datetime, tz: str) -> bool:
+    _require_aware(now)
     local = now.astimezone(ZoneInfo(tz)).time()
     return WINDOW_START <= local < LAST_SEND
 
 
 def next_send_time(now: datetime, tz: str) -> datetime:
     """`now` if inside the window, else the next 08:00 local (returned in the input's zone)."""
+    _require_aware(now)
     zone = ZoneInfo(tz)
     local = now.astimezone(zone)
     if in_window(now, tz):

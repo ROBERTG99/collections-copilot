@@ -18,7 +18,7 @@ from pydantic import BaseModel, Field
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
-from ledger_mcp.store import LedgerStore
+from ledger_mcp.store import IdempotencyConflictError, LedgerStore
 
 
 class ToolInputError(ValueError):
@@ -131,7 +131,34 @@ def build_server(store: LedgerStore) -> MCPServer:
         tenant = _tenant(ctx)
         key = _key(ctx)
         await _account(tenant, account_ref)
-        ledger_ref, replayed = await store.record_promise(
+        if not await store.invoices_belong(tenant, account_ref, invoice_numbers):
+            raise ToolInputError("invoice_numbers must be open invoices of the account")
+        try:
+            ledger_ref, replayed = await _record(
+                tenant,
+                key,
+                account_ref,
+                amount_cents,
+                currency,
+                promised_date,
+                invoice_numbers,
+                source_message_sid,
+            )
+        except IdempotencyConflictError as exc:
+            raise ToolInputError("idempotency key reused with different arguments") from exc
+        return PromiseRecorded(ledger_ref=ledger_ref, replayed=replayed)
+
+    async def _record(
+        tenant: str,
+        key: str,
+        account_ref: str,
+        amount_cents: int,
+        currency: str,
+        promised_date: date,
+        invoice_numbers: list[str],
+        source_message_sid: str,
+    ) -> tuple[str, bool]:
+        return await store.record_promise(
             tenant,
             key,
             {
@@ -143,7 +170,6 @@ def build_server(store: LedgerStore) -> MCPServer:
                 "source_message_sid": source_message_sid,
             },
         )
-        return PromiseRecorded(ledger_ref=ledger_ref, replayed=replayed)
 
     @server.tool(
         name="add_collection_note", annotations=write, description="Add a collection note (write)."

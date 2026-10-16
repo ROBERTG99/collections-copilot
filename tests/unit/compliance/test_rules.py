@@ -81,18 +81,20 @@ def test_amount_not_in_ledger_blocks() -> None:
 
 
 @pytest.mark.parametrize(
-    "text",
+    ("text", "currency"),
     [
-        "Balance $1,650.50 due.",
-        "Saldo 1.650,50 € pendiente.",
-        "Saldo EUR 450,50 pendiente.",
-        "Balance of 1200.00 USD.",
-        "Invoice INV-2: US$450.50.",
+        ("Balance $1,650.50 due.", "USD"),
+        ("Saldo 1.650,50 € pendiente.", "EUR"),
+        ("Saldo EUR 450,50 pendiente.", "EUR"),
+        ("Balance of 1200.00 USD.", "USD"),
+        ("Invoice INV-2: US$450.50.", "USD"),
+        ("Balance 1,650.50 due.", "USD"),
     ],
 )
-def test_ledger_amounts_accepted(text: str) -> None:
-    allowed = amounts.allowed_amounts(ctx().invoices)
-    assert amounts.find_unknown(text, allowed) == [], text
+def test_ledger_amounts_accepted(text: str, currency: str) -> None:
+    invoices = [InvoiceFacts(i.number, i.amount_cents, currency, i.status) for i in ctx().invoices]
+    allowed = amounts.allowed_amounts(invoices)
+    assert amounts.find_unknown(text, allowed, invoices) == [], text
 
 
 def test_amount_extraction_flags_bare_decimal_and_ignores_invoice_numbers() -> None:
@@ -195,3 +197,74 @@ def test_to_cents(token: str, cents: int) -> None:
 
 def test_to_cents_rejects_garbage() -> None:
     assert amounts.to_cents("x,yz") is None
+
+
+# --- M1 review regressions: the amount and link checks must fail closed ---------------------------
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "You owe 999 dollars.",
+        "Saldo: 999 pesos.",
+        "Pay USD999.00 now.",
+        "Pay 999.00USD now.",
+        "Pay $1k today.",
+        "pay 1,234 today",
+        "Balance GBP 450.50",
+        "Balance £450.50",
+        "Total 1200.00 MXN",
+    ],
+)
+def test_unknown_amounts_fail_closed(text: str) -> None:
+    allowed = amounts.allowed_amounts([InvoiceFacts("INV-1", 10_000, "USD", "open")])
+    assert amounts.find_unknown(text, allowed) != [], text
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Invoice INV-1 for USD 100.00 is due on 2026-03-15.",
+        "Reply within 3 days. Ref W-4821.",
+        "Call us at 09:30 about INV-1.",
+        "Pay at https://pay.collections.example/a/123456 today.",
+    ],
+)
+def test_identifiers_dates_and_small_counts_are_not_amounts(text: str) -> None:
+    invoices = [InvoiceFacts("INV-1", 10_000, "USD", "open")]
+    assert amounts.find_unknown(text, amounts.allowed_amounts(invoices), invoices) == [], text
+
+
+def test_currency_must_match_the_invoice() -> None:
+    invoices = [InvoiceFacts("INV-1", 120_000, "USD", "open")]
+    allowed = amounts.allowed_amounts(invoices)
+    assert amounts.find_unknown("EUR 1,200.00", allowed) == ["1,200.00"]
+    assert amounts.find_unknown("USD 1,200.00", allowed) == []
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["see goo.gl/abc", "rb.gy/x", "evil.app/pay", "pago.mx", "pay.collections.example.evil.ru/x"],
+)
+def test_any_unlisted_host_is_flagged(text: str) -> None:
+    assert links.find_disallowed(text) != [], text
+
+
+@pytest.mark.parametrize("text", ["Acme S.L. owes", "e.g. invoice", "version 1.2.3", "INV-1."])
+def test_link_check_ignores_non_hosts(text: str) -> None:
+    assert links.find_disallowed(text) == [], text
+
+
+def test_naive_datetime_rejected() -> None:
+    with pytest.raises(ValueError, match="timezone"):
+        window.in_window(datetime(2026, 1, 1, 12, 0), "UTC")
+
+
+def test_ordinals_ignored_and_extra_amounts_allowed() -> None:
+    invoices = [InvoiceFacts("INV-1", 10_000, "USD", "open")]
+    assert (
+        amounts.find_unknown("Due on the 115th day", amounts.allowed_amounts(invoices), invoices)
+        == []
+    )
+    allowed = amounts.allowed_amounts(invoices, extra_cents=[120_000])
+    assert amounts.find_unknown("Thanks, we recorded USD 1,200.00.", allowed, invoices) == []

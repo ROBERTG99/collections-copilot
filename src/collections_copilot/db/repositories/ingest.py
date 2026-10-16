@@ -23,6 +23,20 @@ class IngestRepo(Repo):
         stmt = select(IngestBatch).where(IngestBatch.tenant_id == tenant_id, IngestBatch.id == bid)
         return (await self.s.execute(stmt)).scalar_one_or_none()
 
+    async def get_for_update(
+        self, tenant_id: TenantId, batch_id: uuid.UUID | str
+    ) -> IngestBatch | None:
+        bid = as_uuid(batch_id)
+        if bid is None:
+            return None
+        stmt = (
+            select(IngestBatch)
+            .where(IngestBatch.tenant_id == tenant_id, IngestBatch.id == bid)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+        return (await self.s.execute(stmt)).scalar_one_or_none()
+
     async def by_sha(self, tenant_id: TenantId, sha256: str) -> IngestBatch | None:
         stmt = select(IngestBatch).where(
             IngestBatch.tenant_id == tenant_id, IngestBatch.sha256 == sha256

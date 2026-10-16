@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field
 
 from collections_copilot.api.deps.auth import ANY_ROLE, Principal
-from collections_copilot.api.deps.db import get_repos
+from collections_copilot.api.deps.db import REPOS
 from collections_copilot.api.errors import ProblemError
 from collections_copilot.db.models import IngestBatch
 from collections_copilot.db.repositories import Repos
@@ -75,7 +75,7 @@ async def create_upload(
     body: UploadRequest,
     request: Request,
     principal: Principal = Depends(ANY_ROLE),
-    repos: Repos = Depends(get_repos),
+    repos: Repos = REPOS,
 ) -> UploadResponse:
     settings = request.app.state.settings
     if body.size_bytes > settings.upload_max_bytes:
@@ -101,10 +101,10 @@ async def complete_upload(
     upload_id: str,
     request: Request,
     principal: Principal = Depends(ANY_ROLE),
-    repos: Repos = Depends(get_repos),
+    repos: Repos = REPOS,
 ) -> BatchRef:
     settings = request.app.state.settings
-    batch = await repos.ingest.get(principal.tenant_id, upload_id)
+    batch = await repos.ingest.get_for_update(principal.tenant_id, upload_id)
     if batch is None or batch.object_key is None:
         raise ProblemError(404, "upload not found", code="not_found")
     if batch.status != "awaiting_upload":
@@ -140,7 +140,7 @@ async def ingest_aging(
     body: AgingRequest,
     request: Request,
     principal: Principal = Depends(ANY_ROLE),
-    repos: Repos = Depends(get_repos),
+    repos: Repos = REPOS,
 ) -> BatchRef:
     settings = request.app.state.settings
     try:
@@ -160,7 +160,7 @@ async def ingest_aging(
 
 @router.get("/batches/{batch_id}", response_model=BatchOut)
 async def get_batch(
-    batch_id: str, principal: Principal = Depends(ANY_ROLE), repos: Repos = Depends(get_repos)
+    batch_id: str, principal: Principal = Depends(ANY_ROLE), repos: Repos = REPOS
 ) -> BatchOut:
     batch = await repos.ingest.get(principal.tenant_id, batch_id)
     if batch is None:

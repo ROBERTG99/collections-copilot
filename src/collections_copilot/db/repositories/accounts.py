@@ -4,7 +4,8 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import select, update
+from sqlalchemy import case, select, update
+from sqlalchemy.dialects.postgresql import insert
 
 from collections_copilot.db.models import Account, Invoice, Note
 from collections_copilot.db.repositories.base import Repo, TenantId, as_uuid
@@ -37,16 +38,15 @@ class AccountsRepo(Repo):
         return list((await self.s.execute(stmt)).scalars())
 
     async def upsert(self, tenant_id: TenantId, fields: dict[str, Any]) -> Account:
-        existing = await self.get_by_ref(tenant_id, fields["external_ref"])
-        if existing is None:
-            account = Account(tenant_id=tenant_id, **fields)
-            self.s.add(account)
-            await self.s.flush()
-            return account
-        for key, value in fields.items():
-            setattr(existing, key, value)
-        await self.s.flush()
-        return existing
+        """Insert or update by (tenant, external_ref); safe under concurrent ingests."""
+        stmt = insert(Account).values(id=uuid.uuid4(), tenant_id=tenant_id, **fields)
+        upsert = stmt.on_conflict_do_update(
+            index_elements=["tenant_id", "external_ref"],
+            set_={k: stmt.excluded[k] for k in fields if k != "external_ref"},
+        ).returning(Account)
+        result = await self.s.execute(upsert.execution_options(populate_existing=True))
+        account: Account = result.scalar_one()
+        return account
 
     async def set_opted_out(self, tenant_id: TenantId, phone_e164: str, at: datetime) -> int:
         result = await self.s.execute(
@@ -80,17 +80,24 @@ class InvoicesRepo(Repo):
     async def upsert(
         self, tenant_id: TenantId, account_id: uuid.UUID, fields: dict[str, Any]
     ) -> Invoice:
-        existing = await self.get_by_number(tenant_id, fields["number"])
-        if existing is None:
-            invoice = Invoice(tenant_id=tenant_id, account_id=account_id, **fields)
-            self.s.add(invoice)
-            await self.s.flush()
-            return invoice
-        for key, value in fields.items():
-            setattr(existing, key, value)
-        existing.account_id = account_id
-        await self.s.flush()
-        return existing
+        """Insert or update by (tenant, number). A disputed invoice is never reopened by an
+        aging re-import that says "open": disputes are resolved explicitly, not by ingest."""
+        stmt = insert(Invoice).values(
+            id=uuid.uuid4(), tenant_id=tenant_id, account_id=account_id, **fields
+        )
+        keep_dispute = (Invoice.status == "disputed") & (stmt.excluded.status == "open")
+        updates: dict[str, Any] = {k: stmt.excluded[k] for k in fields if k != "number"}
+        updates["account_id"] = account_id
+        updates["status"] = case((keep_dispute, Invoice.status), else_=stmt.excluded.status)
+        updates["dispute_reason"] = case(
+            (keep_dispute, Invoice.dispute_reason), else_=stmt.excluded.dispute_reason
+        )
+        upsert = stmt.on_conflict_do_update(
+            index_elements=["tenant_id", "number"], set_=updates
+        ).returning(Invoice)
+        result = await self.s.execute(upsert.execution_options(populate_existing=True))
+        invoice: Invoice = result.scalar_one()
+        return invoice
 
     async def mark_disputed(
         self,

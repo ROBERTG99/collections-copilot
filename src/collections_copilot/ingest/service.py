@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from pydantic import ValidationError
+from sqlalchemy.exc import IntegrityError
 
 from collections_copilot.db import audit
 from collections_copilot.db.models import IngestBatch
@@ -124,11 +125,29 @@ async def ingest(
         if batch is not None and batch.id != existing.id:
             await repos.ingest.delete(tenant_id, batch.id)
         return existing, True
-    if batch is None:
-        batch = await repos.ingest.create(
-            tenant_id, source=source, status="awaiting_upload", created_by=actor, filename=filename
-        )
-    batch.sha256 = sha256
+    try:
+        # Claim the file hash first; a concurrent ingest of the same bytes blocks on the unique
+        # index and then sees the winner's batch as a duplicate.
+        async with repos.session.begin_nested():
+            if batch is None:
+                batch = await repos.ingest.create(
+                    tenant_id,
+                    source=source,
+                    status="awaiting_upload",
+                    created_by=actor,
+                    filename=filename,
+                    sha256=sha256,
+                )
+            else:
+                batch.sha256 = sha256
+                await repos.session.flush()
+    except IntegrityError:
+        winner = await repos.ingest.by_sha(tenant_id, sha256)
+        if winner is None:
+            raise
+        if batch is not None and batch.id != winner.id:
+            await repos.ingest.delete(tenant_id, batch.id)
+        return winner, True
     batch.object_key = object_key or batch.object_key
     batch.size_bytes = size_bytes
     batch.row_count = len(parsed.rows) + len({e["row"] for e in parsed.errors})

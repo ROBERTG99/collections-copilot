@@ -40,4 +40,4 @@ make test           # unit + integration + contract (needs Docker deps)
 
 ## Disk budget in cloud sessions
 
-The session has a fixed disk allowance (about 40 GB). Docker build cache grows by roughly 1–2 GB per rebuild of the Python images; when `docker compose build` fails with "no space left on device", run `docker builder prune -af` and `docker image prune -f`.
+The session has a fixed disk allowance (`df -h /` reported 39G used and 76M free when the first build failed on 2026-10-16). `docker system df` then showed 19.73GB of build cache; when `docker compose build` fails with "no space left on device", run `docker builder prune -af` and `docker image prune -f`.

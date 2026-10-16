@@ -1,4 +1,11 @@
-"""Money in a message must exist in the ledger: an open invoice amount or the open balance."""
+"""Money in a message must exist in the ledger (fail closed).
+
+Every number in the text is treated as a potential amount unless it is provably something else:
+part of a known invoice number, a date or time, inside a URL, part of an identifier (letters or a
+hyphen glued in front, e.g. INV-2026-77, W-4821), or a small count (≤ 31) without any money marker.
+Everything left must equal an open invoice amount or the open balance, in the invoice currency
+when a currency marker is present.
+"""
 
 from __future__ import annotations
 
@@ -6,16 +13,53 @@ import re
 from collections.abc import Iterable
 from typing import Protocol
 
-CURRENCY = r"(?:US\$|\$|€|USD|EUR|usd|eur|dólares|euros)"
+# Currency markers mapped to ISO codes; unknown markers (pesos, £, …) never match a USD/EUR invoice.
+MARKERS: dict[str, str] = {
+    "us$": "USD",
+    "$": "USD",
+    "usd": "USD",
+    "dollar": "USD",
+    "dollars": "USD",
+    "dólar": "USD",
+    "dólares": "USD",
+    "dolares": "USD",
+    "€": "EUR",
+    "eur": "EUR",
+    "euro": "EUR",
+    "euros": "EUR",
+    "£": "GBP",
+    "gbp": "GBP",
+    "pesos": "MXN",
+    "peso": "MXN",
+    "mxn": "MXN",
+    "cad": "CAD",
+    "aud": "AUD",
+    "chf": "CHF",
+    "¥": "JPY",
+    "jpy": "JPY",
+}
+_MARKER = "|".join(sorted((re.escape(m) for m in MARKERS), key=len, reverse=True))
 NUMBER = r"\d{1,3}(?:[.,  ]\d{3})+(?:[.,]\d{1,2})?|\d+(?:[.,]\d{1,2})?"
-MONEY = re.compile(
-    rf"(?P<pre>{CURRENCY}\s?)?(?<![\w\-/.,])(?P<num>{NUMBER})(?![\w\-/]|[.,]\d)(?P<post>\s?{CURRENCY})?"
+TOKEN = re.compile(
+    rf"(?P<pre>(?:{_MARKER})\s?)?(?P<num>{NUMBER})(?P<k>[kK]\b)?(?P<post>\s?(?:{_MARKER})(?![a-z]))?",
+    re.IGNORECASE,
 )
+URL = re.compile(r"(?:https?://|www\.)\S+", re.I)
+DATE_TIME = re.compile(
+    r"\b\d{4}-\d{2}-\d{2}\b|\b\d{1,2}/\d{1,2}(?:/\d{2,4})?\b|\b\d{1,2}:\d{2}\b", re.I
+)
+SMALL_COUNT_MAX = 31
 
 
 class _Invoice(Protocol):
     @property
+    def number(self) -> str: ...
+
+    @property
     def amount_cents(self) -> int: ...
+
+    @property
+    def currency(self) -> str: ...
 
     @property
     def status(self) -> str: ...
@@ -42,28 +86,69 @@ def to_cents(token: str) -> int | None:
     return int(whole) * 100 + int(frac)
 
 
-def extract(text: str) -> list[tuple[str, int]]:
-    """Money mentions: numbers next to a currency marker, or numbers with decimals."""
-    found = []
-    for m in MONEY.finditer(text):
+def _blank(text: str, pattern: re.Pattern[str] | str) -> str:
+    regex = re.compile(re.escape(pattern)) if isinstance(pattern, str) else pattern
+    return regex.sub(lambda m: " " * len(m.group(0)), text)
+
+
+def extract(text: str, invoice_numbers: Iterable[str] = ()) -> list[tuple[str, int, str | None]]:
+    """Potential money mentions as (token, cents, currency or None)."""
+    scrubbed = _blank(text, URL)
+    for number in sorted(invoice_numbers, key=len, reverse=True):
+        if number:
+            scrubbed = _blank(scrubbed, number)
+    scrubbed = _blank(scrubbed, DATE_TIME)
+    found: list[tuple[str, int, str | None]] = []
+    for m in TOKEN.finditer(scrubbed):
+        start = m.start("num")
+        prev = scrubbed[start - 1] if start > 0 else " "
+        glued_code = bool(m.group("pre")) and not m.group("pre").endswith(" ")
+        if (prev.isalpha() or prev in "-_#/") and not glued_code:
+            continue  # identifier such as INV-2026-77, W-4821, A00001
+        end = m.end("num")
+        nxt = scrubbed[end] if end < len(scrubbed) else " "
+        if nxt.isalpha() and not (m.group("k") or m.group("post")):
+            continue  # ordinal or unit glued to the number (15th, 3x)
         num = m.group("num")
-        has_currency = bool(m.group("pre") or m.group("post"))
-        has_decimals = bool(re.search(r"[.,]\d{1,2}$", num))
-        if not (has_currency or has_decimals):
-            continue
         cents = to_cents(num)
-        if cents is not None:
-            found.append((num, cents))
+        if cents is None:
+            continue
+        if m.group("k"):
+            cents *= 1000
+        marker = (m.group("pre") or m.group("post") or "").strip().lower()
+        currency = MARKERS.get(marker)
+        has_decimals = bool(re.search(r"[.,]\d{1,2}$", num))
+        if not (marker or m.group("k") or has_decimals) and cents <= SMALL_COUNT_MAX * 100:
+            continue  # small count without any money signal ("3 days")
+        found.append((num + (m.group("k") or ""), cents, currency))
     return found
 
 
-def allowed_amounts(invoices: Iterable[_Invoice], extra_cents: Iterable[int] = ()) -> set[int]:
-    open_amounts = [i.amount_cents for i in invoices if i.status == "open"]
-    allowed = set(open_amounts) | set(extra_cents)
-    if open_amounts:
-        allowed.add(sum(open_amounts))
+def allowed_amounts(
+    invoices: Iterable[_Invoice], extra_cents: Iterable[int] = ()
+) -> set[tuple[str | None, int]]:
+    """(currency, cents) pairs the ledger supports; currency None means any marker-less mention."""
+    open_invoices = [i for i in invoices if i.status == "open"]
+    allowed: set[tuple[str | None, int]] = set()
+    by_currency: dict[str, int] = {}
+    for inv in open_invoices:
+        allowed.add((inv.currency, inv.amount_cents))
+        by_currency[inv.currency] = by_currency.get(inv.currency, 0) + inv.amount_cents
+    for currency, total in by_currency.items():
+        allowed.add((currency, total))
+    for cents in extra_cents:
+        for currency in by_currency or {"USD": 0}:
+            allowed.add((currency, cents))
     return allowed
 
 
-def find_unknown(text: str, allowed: set[int]) -> list[str]:
-    return [token for token, cents in extract(text) if cents not in allowed]
+def find_unknown(
+    text: str, allowed: set[tuple[str | None, int]], invoices: Iterable[_Invoice] = ()
+) -> list[str]:
+    cents_any = {c for _, c in allowed}
+    unknown = []
+    for token, cents, currency in extract(text, [i.number for i in invoices]):
+        ok = (currency, cents) in allowed if currency else cents in cents_any
+        if not ok:
+            unknown.append(token)
+    return unknown

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import uuid
 from datetime import date
 from typing import Any
@@ -28,12 +30,17 @@ CREATE TABLE IF NOT EXISTS ledger.promises (
   idempotency_key text NOT NULL, ledger_ref text NOT NULL, created_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE (tenant, idempotency_key)
 );
+ALTER TABLE ledger.promises ADD COLUMN IF NOT EXISTS args_sha256 text;
 CREATE TABLE IF NOT EXISTS ledger.notes (
   id uuid PRIMARY KEY, tenant text NOT NULL, account_ref text NOT NULL, body text NOT NULL,
   idempotency_key text NOT NULL, created_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE (tenant, idempotency_key)
 );
 """
+
+
+class IdempotencyConflictError(Exception):
+    """Same idempotency key, different arguments."""
 
 
 class LedgerStore:
@@ -96,13 +103,17 @@ class LedgerStore:
     async def record_promise(
         self, tenant: str, key: str, fields: dict[str, Any]
     ) -> tuple[str, bool]:
-        """Insert once per (tenant, key); returns (ledger_ref, replayed)."""
+        """Insert once per (tenant, key); returns (ledger_ref, replayed). A replay with different
+        arguments raises IdempotencyConflictError."""
         ledger_ref = f"LP-{uuid.uuid4().hex[:12].upper()}"
+        args_sha = hashlib.sha256(
+            json.dumps(fields, sort_keys=True, default=str).encode()
+        ).hexdigest()
         async with self.pool.connection() as conn:
             cur = await conn.execute(
                 "INSERT INTO ledger.promises (id, tenant, account_ref, amount_cents, currency, promised_date,"
-                " invoice_numbers, source_message_sid, idempotency_key, ledger_ref) "
-                "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) ON CONFLICT (tenant, idempotency_key) DO NOTHING "
+                " invoice_numbers, source_message_sid, idempotency_key, ledger_ref, args_sha256) "
+                "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) ON CONFLICT (tenant, idempotency_key) DO NOTHING "
                 "RETURNING ledger_ref",
                 (
                     uuid.uuid4(),
@@ -115,18 +126,32 @@ class LedgerStore:
                     fields["source_message_sid"],
                     key,
                     ledger_ref,
+                    args_sha,
                 ),
             )
             row = await cur.fetchone()
             if row is not None:
                 return str(row[0]), False
             cur = await conn.execute(
-                "SELECT ledger_ref FROM ledger.promises WHERE tenant=%s AND idempotency_key=%s",
+                "SELECT ledger_ref, args_sha256 FROM ledger.promises "
+                "WHERE tenant=%s AND idempotency_key=%s",
                 (tenant, key),
             )
             existing = await cur.fetchone()
             assert existing is not None
+            if existing[1] is not None and existing[1] != args_sha:
+                raise IdempotencyConflictError(key)
             return str(existing[0]), True
+
+    async def invoices_belong(self, tenant: str, ref: str, numbers: list[str]) -> bool:
+        async with self.pool.connection() as conn:
+            cur = await conn.execute(
+                "SELECT count(DISTINCT number) FROM ledger.invoices "
+                "WHERE tenant=%s AND account_ref=%s AND number = ANY(%s)",
+                (tenant, ref, numbers),
+            )
+            row = await cur.fetchone()
+            return row is not None and int(row[0]) == len(set(numbers))
 
     async def add_note(self, tenant: str, key: str, ref: str, body: str) -> tuple[str, bool]:
         note_id = uuid.uuid4()

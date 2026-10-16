@@ -120,7 +120,7 @@ async def current_principal(request: Request) -> Principal:
     verifier: TokenVerifier = request.app.state.token_verifier
     try:
         claims = await verifier.verify(auth[7:].strip())
-    except (jwt.PyJWTError, httpx.HTTPError) as exc:
+    except (jwt.PyJWTError, httpx.HTTPError, ValueError) as exc:
         raise ProblemError(
             401,
             "invalid token",
