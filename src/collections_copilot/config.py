@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     # data stores
     database_url: str = "postgresql+psycopg://cc:cc@localhost:8320/cc"
     redis_url: str = "redis://localhost:8330/0"
+    sse_heartbeat_s: float = Field(default=15.0, gt=0, le=60)
 
     # AWS-compatible services (ElasticMQ and MinIO locally)
     aws_region: str = "us-east-1"

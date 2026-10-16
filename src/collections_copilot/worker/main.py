@@ -12,6 +12,7 @@ from contextlib import AsyncExitStack
 from typing import Any
 
 import uvicorn
+from redis.asyncio import Redis
 from starlette.applications import Starlette
 from starlette.responses import JSONResponse, PlainTextResponse
 from starlette.routing import Route
@@ -31,6 +32,7 @@ from collections_copilot.integrations.queue.sqs import QueueMessage, SqsQueueCli
 from collections_copilot.integrations.sms import build_sms_sender
 from collections_copilot.llm.gateway import LLMGateway
 from collections_copilot.llm.providers import build_provider
+from collections_copilot.observability.events import RedisEventPublisher
 from collections_copilot.worker.consumer import Consumer
 from collections_copilot.worker.runner import CaseRunner
 
@@ -83,6 +85,9 @@ async def run(settings: Settings) -> None:
         )
         saver = await stack.enter_async_context(open_checkpointer(settings.database_url))
         services = build_services(settings, sessionmaker)
+        redis = Redis.from_url(settings.redis_url)
+        stack.push_async_callback(redis.aclose)
+        services.events = RedisEventPublisher(redis)
         services.ledger = build_ledger(settings)
 
         async def enqueue(task: TaskMessage) -> None:

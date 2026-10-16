@@ -30,6 +30,7 @@ MATRIX: dict[tuple[str, str], set[str]] = {
     ("GET", "/api/v1/accounts/{account_id}"): ALL,
     ("POST", "/api/v1/cases"): {A, S},
     ("GET", "/api/v1/cases/{case_id}"): ALL,
+    ("GET", "/api/v1/cases/{case_id}/events"): ALL,
     ("POST", "/api/v1/cases/{case_id}/approval"): {A, S},
     ("POST", "/api/v1/approvals:batch"): {A, S},
     ("GET", "/api/v1/settings/auto-approval"): ALL,

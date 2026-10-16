@@ -9,6 +9,7 @@ from typing import Any
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
+from redis.asyncio import Redis
 
 from collections_copilot.api import errors
 from collections_copilot.api.deps.auth import JwksTokenVerifier, TokenVerifier
@@ -16,6 +17,7 @@ from collections_copilot.api.routers import (
     accounts,
     approvals,
     cases,
+    events,
     ingest,
     me,
     queue,
@@ -50,6 +52,7 @@ def create_app(
         app.state.engine = make_engine(settings.database_url)
         app.state.sessionmaker = make_sessionmaker(app.state.engine)
         app.state.sms = sms_sender or build_sms_sender(settings)  # STOP confirmations only
+        app.state.redis = Redis.from_url(settings.redis_url)
         app.state.token_verifier = token_verifier or JwksTokenVerifier(
             settings.oidc_issuer, settings.oidc_audience, settings.oidc_jwks_url
         )
@@ -76,6 +79,7 @@ def create_app(
                 yield
             finally:
                 await app.state.engine.dispose()
+                await app.state.redis.aclose()
 
     app = FastAPI(title="collections-copilot API", version="0.1.0", lifespan=lifespan)
     errors.install(app)
@@ -86,6 +90,7 @@ def create_app(
     app.include_router(cases.router)
     app.include_router(approvals.router)
     app.include_router(settings_router.router)
+    app.include_router(events.router)
     app.include_router(webhooks.router)
 
     @app.get("/healthz", tags=["health"])
