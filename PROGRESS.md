@@ -21,7 +21,7 @@ chore: configure commit attribution
 | ID | Milestone | Title | Status | Evidence |
 |---|---|---|---|---|
 | T-01 | M0 | Bootstrap, attribution evidence, progress files | done | `uv run pytest tests/harness/test_repo_layout.py` → 4 passed; §1.1 evidence above |
-| T-02 | M0 | Resolve evalgate and mcp-gateway | todo | |
+| T-02 | M0 | Resolve evalgate and mcp-gateway | done | `uv run python -c "import evalgate"` → 0.1.0; `pytest tests/harness/test_dependencies.py` → 1 passed (fallbacks in third_party/, see DECISIONS) |
 | T-03 | M0 | uv workspace, tool config, Makefile | todo | |
 | T-04 | M0 | Claude harness files | todo | |
 | T-05 | M0 | Hooks | todo | |

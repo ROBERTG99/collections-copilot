@@ -6,6 +6,9 @@ license = "MIT"
 requires-python = ">=3.12"
 dependencies = ["pydantic>=2.14", "pyyaml>=6.0", "typer>=0.27"]
 
+[project.scripts]
+evalgate = "evalgate.cli:main"
+
 [build-system]
 requires = ["hatchling>=1.27"]
 build-backend = "hatchling.build"

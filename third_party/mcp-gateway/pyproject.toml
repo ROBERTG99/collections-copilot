@@ -6,6 +6,9 @@ license = "MIT"
 requires-python = ">=3.12"
 dependencies = ["fastapi>=0.143", "uvicorn>=0.54", "httpx>=0.28", "pyjwt[crypto]>=2.15", "pyyaml>=6.0", "psycopg[binary,pool]>=3.3", "mcp>=2.3"]
 
+[project.scripts]
+mcp-gateway-lite = "mcpgw_lite.server:main"
+
 [build-system]
 requires = ["hatchling>=1.27"]
 build-backend = "hatchling.build"

@@ -1,0 +1,19 @@
+# mcp-gateway policy for collections-copilot (YAML fallback for collections.rego; see docs/DECISIONS.md).
+# cc-worker may call only the ledger tools below; promises above 500000 cents or more than 60 days
+# out require a supervisor approval.
+tools:
+  ledger.get_balance: {scope: "ledger:read", write: false}
+  ledger.list_open_invoices: {scope: "ledger:read", write: false}
+  ledger.record_promise_to_pay: {scope: "ledger:write", write: true}
+  ledger.add_collection_note: {scope: "ledger:write", write: true}
+agents:
+  cc-worker:
+    tools:
+      - ledger.get_balance
+      - ledger.list_open_invoices
+      - ledger.record_promise_to_pay
+      - ledger.add_collection_note
+approval_rules:
+  ledger.record_promise_to_pay:
+    - {field: amount_cents, op: gt, value: 500000, reason: amount_above_500000_cents}
+    - {field: promised_date, op: days_from_today_gt, value: 60, reason: promised_date_beyond_60_days}
