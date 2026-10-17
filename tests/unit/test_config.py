@@ -27,3 +27,22 @@ def test_every_setting_is_documented_in_env_example() -> None:
         if f"CC_{name.upper()}" not in documented
     ]
     assert missing == []
+
+
+def test_prod_refuses_dev_secrets_and_local_issuer() -> None:
+    import pytest
+    from pydantic import ValidationError
+
+    from collections_copilot.config import Settings
+
+    with pytest.raises(ValidationError, match="CC_TWILIO_AUTH_TOKEN"):
+        Settings(env="prod", oidc_issuer="https://cognito-idp.example/pool")
+    with pytest.raises(ValidationError, match="CC_OIDC_ISSUER"):
+        Settings(env="prod", twilio_auth_token="x" * 32, mcpgw_webhook_secret="y" * 32)
+    ok = Settings(
+        env="prod",
+        twilio_auth_token="x" * 32,
+        mcpgw_webhook_secret="y" * 32,
+        oidc_issuer="https://cognito-idp.example/pool",
+    )
+    assert ok.env == "prod"

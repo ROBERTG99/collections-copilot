@@ -26,4 +26,5 @@ def is_valid(
     if not signature or not auth_token:
         return False
     expected = compute_signature(url, params, auth_token)
-    return hmac.compare_digest(expected, signature)
+    # Bytes, not str: compare_digest raises on non-ASCII str (a 500 instead of a 403).
+    return hmac.compare_digest(expected.encode(), signature.encode("utf-8", "replace"))

@@ -28,6 +28,7 @@ class Principal:
     username: str
     tenant_id: uuid.UUID
     roles: frozenset[str]
+    expires_at: int | None = None  # access-token expiry (epoch s): long streams end here
 
     def has(self, *roles: str) -> bool:
         return bool(self.roles & set(roles))
@@ -35,6 +36,9 @@ class Principal:
 
 class TokenVerifier(Protocol):
     async def verify(self, token: str) -> dict[str, Any]: ...
+
+
+JWKS_MAX_AGE_S = 3600
 
 
 class JwksTokenVerifier:
@@ -53,7 +57,7 @@ class JwksTokenVerifier:
         async with httpx.AsyncClient(timeout=5) as client:
             resp = await client.get(self.jwks_url)
             resp.raise_for_status()
-        keys = dict(self._keys)
+        keys: dict[str, Any] = {}  # replace, never merge: a rotated-out key stops verifying
         for jwk in resp.json().get("keys", []):
             if jwk.get("kty") == "RSA" and jwk.get("kid"):
                 keys[jwk["kid"]] = jwt.PyJWK(jwk).key
@@ -64,7 +68,7 @@ class JwksTokenVerifier:
         header = jwt.get_unverified_header(token)
         if header.get("alg") != "RS256" or not header.get("kid"):
             raise jwt.InvalidTokenError("RS256 with kid required")
-        if header["kid"] not in self._keys:
+        if header["kid"] not in self._keys or time.monotonic() - self._fetched > JWKS_MAX_AGE_S:
             await self._refresh()
         key = self._keys.get(header["kid"])
         if key is None:
@@ -82,6 +86,9 @@ class JwksTokenVerifier:
         auds = aud if isinstance(aud, list) else [aud]
         if self.audience not in auds:
             raise jwt.InvalidAudienceError("audience mismatch")
+        # Cognito ID tokens (token_use=id) live in the browser; only access tokens reach the API.
+        if claims.get("token_use", "access") != "access":
+            raise jwt.InvalidTokenError("access token required")
         return claims
 
 
@@ -105,7 +112,14 @@ def principal_from_claims(claims: dict[str, Any]) -> Principal:
             401, "token has no valid custom:tenant_id", code="invalid_token"
         ) from exc
     username = str(claims.get("cognito:username") or claims.get("username") or claims["sub"])
-    return Principal(sub=str(claims["sub"]), username=username, tenant_id=tenant_id, roles=roles)
+    exp = claims.get("exp")
+    return Principal(
+        sub=str(claims["sub"]),
+        username=username,
+        tenant_id=tenant_id,
+        roles=roles,
+        expires_at=int(exp) if isinstance(exp, int | float) else None,
+    )
 
 
 async def current_principal(request: Request) -> Principal:
@@ -118,8 +132,10 @@ async def current_principal(request: Request) -> Principal:
             headers={"WWW-Authenticate": 'Bearer error="invalid_token"'},
         )
     verifier: TokenVerifier = request.app.state.token_verifier
+    token = auth[7:].strip()
+    cached = request.scope.get("cc.claims")  # verified once by the limits middleware
     try:
-        claims = await verifier.verify(auth[7:].strip())
+        claims = cached[1] if cached and cached[0] == token else await verifier.verify(token)
     except (jwt.PyJWTError, httpx.HTTPError, ValueError) as exc:
         raise ProblemError(
             401,

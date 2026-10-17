@@ -132,6 +132,48 @@ class MessagesRepo(Repo):
         )
         return (await self.s.execute(stmt)).scalar_one_or_none()
 
+    async def latest_outbound_per_tenant(self, phone_e164: str, since: datetime) -> list[Message]:
+        """Webhook routing (cross-tenant by design): each tenant's latest outbound message to a
+        number since `since`. More than one row means the reply cannot be attributed by the
+        sender alone."""
+        latest = (
+            select(Message.tenant_id, func.max(Message.created_at).label("at"))
+            .where(
+                Message.direction == "outbound",
+                Message.to_e164 == phone_e164,
+                Message.created_at >= since,
+            )
+            .group_by(Message.tenant_id)
+            .subquery()
+        )
+        stmt = (
+            select(Message)
+            .join(
+                latest,
+                (Message.tenant_id == latest.c.tenant_id) & (Message.created_at == latest.c.at),
+            )
+            .where(Message.direction == "outbound", Message.to_e164 == phone_e164)
+        )
+        rows: dict[uuid.UUID, Message] = {}
+        for row in (await self.s.execute(stmt)).scalars():
+            rows.setdefault(row.tenant_id, row)
+        return list(rows.values())
+
+    async def stale_received(self, before: datetime, limit: int = 50) -> list[Message]:
+        """Scheduler sweep (cross-tenant by design): inbound replies never handed to the reply
+        graph (the enqueue failed after the row was stored)."""
+        stmt = (
+            select(Message)
+            .where(
+                Message.direction == "inbound",
+                Message.status == "received",
+                Message.created_at < before,
+            )
+            .order_by(Message.created_at)
+            .limit(limit)
+        )
+        return list((await self.s.execute(stmt)).scalars())
+
     async def add_inbound(self, tenant_id: TenantId, **fields: Any) -> tuple[Message, bool]:
         stmt = (
             insert(Message)
@@ -262,6 +304,10 @@ class OptOutsRepo(Repo):
         )
         return (await self.s.execute(stmt)).scalar_one_or_none() is not None
 
+    async def get(self, tenant_id: TenantId, phone_e164: str) -> OptOut | None:
+        stmt = select(OptOut).where(OptOut.tenant_id == tenant_id, OptOut.phone_e164 == phone_e164)
+        return (await self.s.execute(stmt)).scalar_one_or_none()
+
     async def list(self, tenant_id: TenantId, limit: int = 200) -> list[OptOut]:
         stmt = (
             select(OptOut)
@@ -280,14 +326,22 @@ class FollowUpsRepo(Repo):
         return row
 
     async def pending_for_case(
-        self, tenant_id: TenantId, case_id: uuid.UUID, kind: str
+        self,
+        tenant_id: TenantId,
+        case_id: uuid.UUID,
+        kind: str,
+        due_after: datetime | None = None,
     ) -> FollowUp | None:
+        """A pending follow-up of this kind; with `due_after`, only one still in the future (a
+        past-due row may be the one the scheduler is processing right now)."""
         stmt = select(FollowUp).where(
             FollowUp.tenant_id == tenant_id,
             FollowUp.case_id == case_id,
             FollowUp.kind == kind,
             FollowUp.status == "pending",
         )
+        if due_after is not None:
+            stmt = stmt.where(FollowUp.due_at > due_after)
         return (await self.s.execute(stmt)).scalars().first()
 
     async def cancel_for_case(self, tenant_id: TenantId, case_id: uuid.UUID) -> None:

@@ -39,7 +39,7 @@ MATRIX: dict[tuple[str, str], set[str]] = {
     ("GET", "/api/v1/metrics/ops"): {S, D},
     ("GET", "/api/v1/audit"): {S, D},
     ("GET", "/api/v1/opt-outs"): ALL,
-    ("POST", "/api/v1/opt-outs"): {A, S},
+    ("POST", "/api/v1/opt-outs"): ALL,
     ("GET", "/api/v1/replies"): ALL,
     ("GET", "/api/v1/follow-ups"): ALL,
     ("POST", "/api/v1/promises/{promise_id}:approve"): {S, D},
@@ -103,6 +103,8 @@ async def test_role_matrix(client: httpx.AsyncClient, auth, method: str, path: s
                 resp.status_code,
                 resp.text[:200],
             )
+            # An allowed role must never crash the route either (M3 review).
+            assert resp.status_code < 500, (role, method, path, resp.status_code, resp.text[:200])
         else:
             assert resp.status_code == 403, (role, method, path, resp.status_code)
             assert resp.json()["correlation_id"]
@@ -130,3 +132,50 @@ async def test_tampered_token_401(client: httpx.AsyncClient, auth) -> None:  # t
     resp = await client.get("/api/v1/me", headers={"Authorization": tampered})
     assert resp.status_code == 401
     assert uuid.UUID(resp.json()["correlation_id"])
+
+
+async def test_cross_tenant_ids_are_404(
+    client: httpx.AsyncClient, sessionmaker, tenant, auth
+) -> None:  # type: ignore[no-untyped-def]
+    """FR-13: a tenant-A token with a tenant-B id is 404 on every id-bearing route."""
+    from datetime import date
+
+    from collections_copilot.db.repositories import Repos
+    from tests.factories import make_account, make_tenant
+
+    other = await make_tenant(sessionmaker)
+    account = await make_account(sessionmaker, other)
+    async with sessionmaker() as s, s.begin():
+        repos = Repos(s)
+        case = await repos.cases.create(other, account, status="awaiting_approval")
+        await repos.drafts.add(other, case.id, version=1, body="Hi", language="en", author="ai")
+        promise = await repos.promises.create_if_absent(
+            other,
+            account_id=account,
+            amount_cents=100,
+            currency="USD",
+            promised_date=date.today(),
+            invoice_numbers=["INV-1"],
+            status="approval_required",
+            mcp_approval_id="apr-x",
+            idempotency_key=f"ptp:{other}:{uuid.uuid4().hex}",
+        )
+    mine = auth("supervisor")
+    checks = [
+        ("GET", f"/api/v1/accounts/{account}", None),
+        ("GET", f"/api/v1/cases/{case.id}", None),
+        ("GET", f"/api/v1/cases/{case.id}/events", None),
+        ("POST", f"/api/v1/cases/{case.id}/approval", {"decision": "approve", "draft_version": 1}),
+        ("POST", f"/api/v1/promises/{promise.id}:approve", None),
+        ("POST", f"/api/v1/promises/{promise.id}:reject", {"reason": "x"}),
+        ("POST", "/api/v1/cases", {"account_ids": [str(account)]}),
+    ]
+    for method, url, body in checks:
+        resp = await client.request(method, url, json=body, headers=mine)
+        assert resp.status_code == 404, (method, url, resp.status_code, resp.text[:200])
+    batch = await client.post(
+        "/api/v1/approvals:batch",
+        json={"items": [{"case_id": str(case.id), "decision": "approve", "draft_version": 1}]},
+        headers=auth("analyst"),
+    )
+    assert batch.json()["results"][0]["status"] == 404

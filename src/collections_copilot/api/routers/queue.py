@@ -18,6 +18,18 @@ from collections_copilot.db.repositories import Repos
 
 router = APIRouter(prefix="/api/v1", tags=["queue"])
 Segment = Literal["enterprise", "mid_market", "smb"]
+# The queue joins open cases only, so a filter is an open status or "no_case".
+QueueStatus = Literal[
+    "no_case",
+    "queued",
+    "processing",
+    "awaiting_approval",
+    "scheduled",
+    "sent",
+    "awaiting_reply",
+    "requires_analyst",
+    "escalated",
+]
 
 
 def encode_cursor(score: int, account_id: uuid.UUID) -> str:
@@ -64,7 +76,7 @@ async def get_queue(
     cursor: str | None = Query(None, max_length=128),
     segment: Segment | None = None,
     min_score: int | None = Query(None, ge=0, le=100),
-    status: str | None = Query(None, max_length=32, pattern=r"^[a-z_]+$"),
+    status: QueueStatus | None = None,
     q: str | None = Query(None, max_length=100),
     principal: Principal = Depends(ANY_ROLE),
     repos: Repos = REPOS,

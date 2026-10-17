@@ -21,7 +21,7 @@ from typing import Any, Literal
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field, model_validator
 
-from collections_copilot.agent.store import DbCaseStore
+from collections_copilot.agent.store import load_facts
 from collections_copilot.api import views
 from collections_copilot.api.deps.auth import ANALYST_OR_SUPERVISOR, Principal
 from collections_copilot.api.errors import ProblemError
@@ -101,7 +101,7 @@ async def _postcheck(
     body: str,
     now: datetime,
 ) -> engine.CheckResult:
-    facts = await DbCaseStore._facts(repos, tenant, case_id, account_id, now)
+    facts = await load_facts(repos, tenant, case_id, account_id, now)
     return engine.postcheck(
         engine.ComplianceContext(
             now=now,

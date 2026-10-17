@@ -58,13 +58,21 @@ def _b64(n: int) -> str:
 class Issuer:
     issuer: str
     client_ids: tuple[str, ...]
+    redirect_uris: tuple[str, ...] = ("http://localhost:8300/auth/callback",)
     ttl_s: int = 3600
+    refresh_ttl_s: int = 12 * 3600
     key: rsa.RSAPrivateKey = field(
         default_factory=lambda: rsa.generate_private_key(public_exponent=65537, key_size=2048)
     )
     kid: str = field(default_factory=lambda: f"dev-oidc-{uuid.uuid4().hex[:10]}")
     codes: dict[str, dict[str, Any]] = field(default_factory=dict)
-    refresh: dict[str, str] = field(default_factory=dict)
+    # refresh token -> (username, client_id, expiry); rotated on every use (reuse is invalid)
+    refresh: dict[str, tuple[str, str, float]] = field(default_factory=dict)
+
+    def allowed_origins(self) -> set[str]:
+        from urllib.parse import urlsplit
+
+        return {f"{u.scheme}://{u.netloc}" for u in map(urlsplit, self.redirect_uris)}
 
     def jwks(self) -> dict[str, Any]:
         nums = self.key.public_key().public_numbers()
@@ -109,7 +117,7 @@ class Issuer:
         }
         headers = {"kid": self.kid}
         refresh = secrets.token_urlsafe(32)
-        self.refresh[refresh] = persona.username
+        self.refresh[refresh] = (persona.username, client_id, time.time() + self.refresh_ttl_s)
         return {
             "id_token": jwt.encode(id_claims, self.key, algorithm="RS256", headers=headers),
             "access_token": jwt.encode(access_claims, self.key, algorithm="RS256", headers=headers),
@@ -123,11 +131,17 @@ def create_app(issuer: Issuer | None = None, allow_direct_tokens: bool | None = 
     iss = issuer or Issuer(
         issuer=os.environ.get("DEV_OIDC_ISSUER", "http://localhost:8345").rstrip("/"),
         client_ids=tuple(os.environ.get("DEV_OIDC_CLIENT_IDS", "cc-web").split(",")),
+        redirect_uris=tuple(
+            os.environ.get("DEV_OIDC_REDIRECT_URIS", "http://localhost:8300/auth/callback").split(
+                ","
+            )
+        ),
     )
+    # Direct tokens (tests, demo) are off unless explicitly enabled (compose enables them).
     direct = (
         allow_direct_tokens
         if allow_direct_tokens is not None
-        else os.environ.get("DEV_OIDC_ALLOW_DIRECT_TOKENS", "true").lower() == "true"
+        else os.environ.get("DEV_OIDC_ALLOW_DIRECT_TOKENS", "false").lower() == "true"
     )
     app = FastAPI(title="dev-oidc (Cognito double)")
     app.state.issuer = iss
@@ -174,6 +188,8 @@ def create_app(issuer: Issuer | None = None, allow_direct_tokens: bool | None = 
         scope: str = "openid",
     ) -> HTMLResponse:
         _check_client(client_id)
+        if redirect_uri not in iss.redirect_uris:
+            raise HTTPException(400, "redirect_uri is not registered for this client")
         if response_type != "code" or code_challenge_method != "S256":
             raise HTTPException(400, "only response_type=code with PKCE S256 is supported")
         hidden = "".join(
@@ -210,6 +226,8 @@ def create_app(issuer: Issuer | None = None, allow_direct_tokens: bool | None = 
         nonce: str = Form(""),
     ) -> RedirectResponse:
         _check_client(client_id)
+        if redirect_uri not in iss.redirect_uris:
+            raise HTTPException(400, "redirect_uri is not registered for this client")
         if username not in PERSONAS:
             raise HTTPException(400, "unknown persona")
         code = secrets.token_urlsafe(24)
@@ -240,6 +258,10 @@ def create_app(issuer: Issuer | None = None, allow_direct_tokens: bool | None = 
                     {"error": "invalid_grant", "error_description": "redirect_uri"}, status_code=400
                 )
             verifier = str(form.get("code_verifier", ""))
+            if not 43 <= len(verifier) <= 128:
+                return JSONResponse(
+                    {"error": "invalid_grant", "error_description": "pkce"}, status_code=400
+                )
             challenge = (
                 base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest())
                 .rstrip(b"=")
@@ -251,10 +273,10 @@ def create_app(issuer: Issuer | None = None, allow_direct_tokens: bool | None = 
                 )
             return JSONResponse(iss.tokens(PERSONAS[entry["username"]], client_id, entry["nonce"]))
         if grant == "refresh_token":
-            username = iss.refresh.pop(str(form.get("refresh_token", "")), None)
-            if username is None:
+            grant_entry = iss.refresh.pop(str(form.get("refresh_token", "")), None)
+            if grant_entry is None or grant_entry[1] != client_id or grant_entry[2] < time.time():
                 return JSONResponse({"error": "invalid_grant"}, status_code=400)
-            return JSONResponse(iss.tokens(PERSONAS[username], client_id))
+            return JSONResponse(iss.tokens(PERSONAS[grant_entry[0]], client_id))
         return JSONResponse({"error": "unsupported_grant_type"}, status_code=400)
 
     @app.get("/userinfo")
@@ -279,6 +301,13 @@ def create_app(issuer: Issuer | None = None, allow_direct_tokens: bool | None = 
 
     @app.get("/logout")
     async def logout(logout_uri: str = "/") -> RedirectResponse:
+        from urllib.parse import urlsplit
+
+        parts = urlsplit(logout_uri)
+        if parts.scheme and f"{parts.scheme}://{parts.netloc}" not in iss.allowed_origins():
+            raise HTTPException(400, "logout_uri is not allowed")  # no open redirect
+        if not parts.scheme and not logout_uri.startswith("/"):
+            raise HTTPException(400, "logout_uri is not allowed")
         return RedirectResponse(logout_uri, status_code=302)
 
     @app.post("/dev/token")
@@ -289,13 +318,15 @@ def create_app(issuer: Issuer | None = None, allow_direct_tokens: bool | None = 
         persona = PERSONAS.get(str(body.get("username")))
         if persona is None:
             raise HTTPException(400, "unknown persona")
-        return JSONResponse(iss.tokens(persona, str(body.get("client_id", iss.client_ids[0]))))
+        client_id = str(body.get("client_id", iss.client_ids[0]))
+        _check_client(client_id)
+        return JSONResponse(iss.tokens(persona, client_id))
 
     return app
 
 
 def main() -> None:
-    host = os.environ.get("DEV_OIDC_HOST", "0.0.0.0")  # noqa: S104 - container port
+    host = os.environ.get("DEV_OIDC_HOST", "127.0.0.1")  # compose sets 0.0.0.0 in the container
     uvicorn.run(
         create_app(),
         host=host,

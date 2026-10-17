@@ -21,7 +21,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from collections_copilot.db.models import AuditEvent
 
 GENESIS = "0" * 64
-_PHONE = re.compile(r"\+\d[\d\s().-]{6,18}\d")
+_PHONE = re.compile(
+    r"\+\d[\d\s().-]{6,18}\d"  # E.164 and international formats
+    r"|(?<!\w)\(?\d{3}\)?[\s.-]\d{3}[\s.-]\d{4}(?!\w)"  # NANP without +1
+    r"|(?<![\w.,])\d{3} \d{2} \d{2} \d{2}(?![\w.,])"  # Spanish local: 555 12 34 56
+    r"|(?<![\w.,])\d{3} \d{3} \d{3}(?![\w.,])"  # Spanish local: 555 123 456
+)
 _EMAIL = re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+")
 _SENSITIVE_KEYS = {
     "phone",

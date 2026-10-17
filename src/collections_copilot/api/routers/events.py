@@ -8,6 +8,7 @@ reconnects with `Last-Event-ID` receives only later events; without it, the reta
 from __future__ import annotations
 
 import logging
+import time
 import uuid
 from collections.abc import AsyncIterator
 
@@ -53,6 +54,10 @@ async def case_events(
         nonlocal after
         yield "retry: 3000\n\n"
         while not await request.is_disconnected():
+            if principal.expires_at and time.time() >= principal.expires_at:
+                # The token expired: end the stream; the BFF refreshes on reconnect.
+                yield _frame("error", '{"detail": "session expired; reconnect"}')
+                return
             try:
                 events = await reader.read(tenant, case_key, after, heartbeat_ms)
             except RedisError:

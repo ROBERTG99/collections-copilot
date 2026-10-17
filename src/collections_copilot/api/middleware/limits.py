@@ -31,7 +31,10 @@ from collections_copilot.api.errors import problem
 
 log = logging.getLogger(__name__)
 MUTATING = {"POST", "PUT", "PATCH", "DELETE"}
-EXEMPT_PREFIXES = ("/healthz", "/readyz", "/api/v1/webhooks/", "/docs", "/openapi.json")
+EXEMPT_PREFIXES = ("/healthz", "/readyz", "/docs", "/openapi.json")
+WEBHOOK_PREFIX = "/api/v1/webhooks/"
+PENDING_TTL_S = 60
+NOT_STORED = {401, 403, 429}
 # A JSON-escaped NUL (\u0000 not preceded by an odd number of backslashes), a raw NUL, or %00.
 NUL_JSON = re.compile(rb"(?<!\\)(?:\\\\)*\\u0000")
 IDEMPOTENCY_KEY = re.compile(r"^[A-Za-z0-9_.:-]{1,128}$")
@@ -46,11 +49,20 @@ def _header(scope: Scope, name: bytes) -> str | None:
     return None
 
 
-def _who(scope: Scope) -> str:
-    """The caller's identity for limits: a hash of the bearer token, else the client IP."""
+async def identity(scope: Scope) -> str:
+    """Who a request counts against: the verified (tenant, sub) of its bearer token, else the
+    client IP. An unverifiable token is NOT trusted as an identity (a random token per request
+    would otherwise get a fresh bucket each time). Verified claims are cached on the scope for
+    the auth dependency."""
     auth = _header(scope, b"authorization") or ""
     if auth.lower().startswith("bearer ") and len(auth) > 7:
-        return "u:" + hashlib.sha256(auth[7:].strip().encode()).hexdigest()[:32]
+        token = auth[7:].strip()
+        try:
+            claims = await scope["app"].state.token_verifier.verify(token)
+            scope["cc.claims"] = (token, claims)
+            return f"u:{claims.get('custom:tenant_id')}:{claims.get('sub')}"
+        except Exception:  # invalid tokens are rejected later by the auth dependency
+            log.debug("unverifiable bearer token counted against the client IP")
     client = scope.get("client") or ("unknown", 0)
     return f"ip:{client[0]}"
 
@@ -165,10 +177,19 @@ class RateLimitMiddleware:
             await self.app(scope, receive, send)
             return
         state = scope["app"].state
-        limit = int(state.settings.rate_limit_per_minute)
+        webhook = path.startswith(WEBHOOK_PREFIX)
+        # Webhooks (signed by Twilio or the gateway) are limited per source IP.
+        limit = int(
+            state.settings.webhook_rate_limit_per_minute
+            if webhook
+            else state.settings.rate_limit_per_minute
+        )
+        who = (
+            f"ip:{(scope.get('client') or ('unknown', 0))[0]}" if webhook else await identity(scope)
+        )
         now = time.time()
         window = int(now // 60)
-        key = f"cc:rl:{_who(scope)}:{window}"
+        key = f"cc:rl:{who}:{window}"
         try:
             pipe = state.redis.pipeline(transaction=True)
             pipe.incr(key)
@@ -231,13 +252,13 @@ class IdempotencyMiddleware:
         redis = scope["app"].state.redis
         body = await _read_body(receive)
         fingerprint = hashlib.sha256(body).hexdigest()
-        store_key = f"cc:idem:{_who(scope)}:{scope['method']}:{path}:{key}"
+        store_key = f"cc:idem:{await identity(scope)}:{scope['method']}:{path}:{key}"
         try:
             claimed = await redis.set(
                 store_key,
                 json.dumps({"state": "pending", "fp": fingerprint}),
                 nx=True,
-                ex=IDEMPOTENCY_TTL_S,
+                ex=PENDING_TTL_S,  # a crashed request frees the key after a minute
             )
             existing = None if claimed else await redis.get(store_key)
         except RedisError:
@@ -296,7 +317,8 @@ class IdempotencyMiddleware:
         self, redis: Any, store_key: str, fingerprint: str, captured: dict[str, Any]
     ) -> None:
         try:
-            if captured["status"] >= 500 or len(captured["body"]) > MAX_STORED_BODY:
+            status = captured["status"]
+            if status >= 500 or status in NOT_STORED or len(captured["body"]) > MAX_STORED_BODY:
                 await redis.delete(store_key)  # let the client retry
                 return
             keep = {b"content-type", b"location", b"x-correlation-id"}

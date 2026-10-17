@@ -5,11 +5,11 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Response
 from pydantic import BaseModel, Field
 
 from collections_copilot.agent.reply_actions import cancel_open_work_in
-from collections_copilot.api.deps.auth import ANALYST_OR_SUPERVISOR, ANY_ROLE, Principal
+from collections_copilot.api.deps.auth import ANY_ROLE, Principal
 from collections_copilot.api.deps.db import REPOS
 from collections_copilot.db import audit
 from collections_copilot.db.repositories import Repos
@@ -56,7 +56,9 @@ async def list_opt_outs(
 @router.post("/opt-outs", response_model=OptOutResult, status_code=201)
 async def add_opt_out(
     body: OptOutIn,
-    principal: Principal = Depends(ANALYST_OR_SUPERVISOR),
+    response: Response,
+    # Analysts record a debtor's spoken request; admins own compliance settings (spec §3).
+    principal: Principal = Depends(ANY_ROLE),
     repos: Repos = REPOS,
 ) -> OptOutResult:
     tenant, now = principal.tenant_id, datetime.now(UTC)
@@ -75,8 +77,9 @@ async def add_opt_out(
         entity_id=None,
         payload={"source": "analyst", "reason": body.reason},
     )
-    rows = [r for r in await repos.opt_outs.list(tenant, 1000) if r.phone_e164 == body.phone_e164]
-    row = rows[0]
+    row = await repos.opt_outs.get(tenant, body.phone_e164)
+    assert row is not None
+    response.status_code = 201 if created else 200
     return OptOutResult(
         opt_out=OptOutOut(
             phone_e164=row.phone_e164,

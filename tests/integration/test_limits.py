@@ -110,3 +110,33 @@ async def test_nul_characters_are_422_not_500(client: httpx.AsyncClient, auth) -
         headers={**auth("analyst"), "Content-Type": "application/json"},
     )
     assert escaped.status_code == 201  # an escaped backslash followed by "u0000" is plain text
+
+
+async def test_random_tokens_share_the_ip_bucket(
+    client: httpx.AsyncClient, api_app: Any, low_rate_limit: int
+) -> None:
+    """M3 security review: an unverifiable bearer token is not an identity of its own."""
+    async for key in api_app.state.redis.scan_iter(match="cc:rl:ip:*"):
+        await api_app.state.redis.delete(key)  # earlier unauthenticated tests share this bucket
+    codes = []
+    for _ in range(6):
+        junk = {"Authorization": f"Bearer junk-{uuid.uuid4().hex}"}
+        codes.append((await client.get("/api/v1/me", headers=junk)).status_code)
+    assert codes[:5] == [401] * 5
+    assert codes[5] == 429
+
+
+async def test_unauthenticated_results_are_not_stored(client: httpx.AsyncClient, auth) -> None:  # type: ignore[no-untyped-def]
+    key = f"k-{uuid.uuid4().hex}"
+    body = {"phone_e164": "+15550004444"}
+    denied = await client.post(
+        "/api/v1/opt-outs",
+        json=body,
+        headers={"Authorization": "Bearer junk", "Idempotency-Key": key},
+    )
+    assert denied.status_code == 401
+    ok = await client.post(
+        "/api/v1/opt-outs", json=body, headers={**auth("analyst"), "Idempotency-Key": key}
+    )
+    assert ok.status_code in (200, 201)
+    assert "idempotent-replayed" not in ok.headers

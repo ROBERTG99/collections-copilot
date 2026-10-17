@@ -90,7 +90,8 @@ class Account(Base):
     currency: Mapped[str] = mapped_column(String(3), nullable=False, server_default="USD")
     opted_out_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     contact_flag: Mapped[str | None] = mapped_column(String(32))
-    # Cached deterministic priority (scoring/priority.py), refreshed on ingest, seed and case runs.
+    # Cached deterministic priority (scoring/priority.py): refreshed on ingest, seed, broken promises
+    # and daily by the scheduler (docs/DECISIONS.md).
     priority_score: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
     score_components: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     open_balance_cents: Mapped[int] = mapped_column(BigInteger, nullable=False, server_default="0")

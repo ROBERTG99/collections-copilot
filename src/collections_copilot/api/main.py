@@ -66,7 +66,9 @@ def create_app(
         app.state.engine = make_engine(settings.database_url)
         app.state.sessionmaker = make_sessionmaker(app.state.engine)
         app.state.sms = sms_sender or build_sms_sender(settings)  # STOP confirmations only
-        app.state.redis = Redis.from_url(settings.redis_url)
+        app.state.redis = Redis.from_url(
+            settings.redis_url, max_connections=settings.redis_max_connections
+        )
         app.state.gateway_admin = gateway_admin or build_gateway_admin(settings)
         app.state.notifier = notifier or SmtpNotifier(
             settings.smtp_host, settings.smtp_port, settings.smtp_from, settings.supervisor_email

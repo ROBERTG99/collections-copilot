@@ -69,9 +69,10 @@ class LeaderLock:
         if self._conn is not None:
             try:  # still alive? A dropped connection means the lock is gone.
                 await self._conn.execute(text("SELECT 1"))
+                await self._conn.commit()  # never sit idle in a transaction
                 return True
             except Exception:
-                await self._close()
+                await self._close(invalidate=True)
         conn = await self.engine.connect()
         try:
             got = (
@@ -98,10 +99,16 @@ class LeaderLock:
                 text("SELECT pg_advisory_unlock(hashtextextended(:key, 0))"), {"key": self.key}
             )
             await self._conn.commit()
-        finally:
-            await self._close()
+        except Exception:
+            # The unlock failed: never hand a lock-holding connection back to the pool.
+            await self._close(invalidate=True)
+            raise
+        await self._close()
 
-    async def _close(self) -> None:
+    async def _close(self, invalidate: bool = False) -> None:
         conn, self._conn = self._conn, None
-        if conn is not None:
-            await conn.close()
+        if conn is None:
+            return
+        if invalidate:
+            await conn.invalidate()  # the pool's reset (ROLLBACK) does not drop advisory locks
+        await conn.close()

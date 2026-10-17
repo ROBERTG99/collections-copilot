@@ -31,6 +31,7 @@ async def apply_stop(
     phone_e164: str,
     now: datetime,
     source: str = "sms_stop",
+    confirm: bool = True,
 ) -> bool:
     """Opt out, cancel pending drafts, close open cases, send ONE confirmation, audit.
     Returns True if this call created the opt-out (later STOPs are no-ops).
@@ -52,7 +53,7 @@ async def apply_stop(
                     await repos.cases.set(tenant_id, case.id, status="closed", closed_at=now)
                     await repos.follow_ups.cancel_for_case(tenant_id, case.id)
         key = stop_confirmation_key(tenant_id, phone_e164)
-        if created:
+        if created and confirm:
             await repos.messages.claim(
                 tenant_id,
                 key,

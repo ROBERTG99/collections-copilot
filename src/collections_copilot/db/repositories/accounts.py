@@ -32,6 +32,11 @@ class AccountsRepo(Repo):
         )
         return list((await self.s.execute(stmt)).scalars())
 
+    async def tenants_with_phone(self, phone_e164: str) -> list[uuid.UUID]:
+        """Webhook STOP handling (cross-tenant by design): every tenant holding this number."""
+        stmt = select(Account.tenant_id).where(Account.phone_e164 == phone_e164).distinct()
+        return list((await self.s.execute(stmt)).scalars())
+
     async def list_ids(self, tenant_id: TenantId) -> list[uuid.UUID]:
         stmt = (
             select(Account.id).where(Account.tenant_id == tenant_id).order_by(Account.external_ref)

@@ -19,10 +19,12 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+import time
 import uuid
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -31,10 +33,15 @@ from collections_copilot.db.models import FollowUp
 from collections_copilot.db.repositories import Repos
 from collections_copilot.db.session import LeaderLock
 from collections_copilot.integrations.email.smtp import Notifier
-from collections_copilot.integrations.queue.messages import TaskMessage
+from collections_copilot.integrations.queue.messages import ReplyMessage, TaskMessage
 
 log = logging.getLogger(__name__)
 Enqueue = Callable[[TaskMessage], Awaitable[None]]
+EnqueueReply = Callable[[ReplyMessage], Awaitable[None]]
+MAX_ATTEMPTS = 5
+BACKOFF = timedelta(minutes=5)
+SWEEP_GRACE = timedelta(minutes=2)
+SCORE_REFRESH_EVERY_S = 24 * 3600
 
 
 @dataclass
@@ -53,13 +60,16 @@ class Scheduler:
         notifier: Notifier,
         clock: Callable[[], datetime] = lambda: datetime.now(UTC),
         batch: int = 50,
+        enqueue_reply: EnqueueReply | None = None,
     ) -> None:
         self.sm = sm
         self.lock = lock
         self.enqueue = enqueue
+        self.enqueue_reply = enqueue_reply
         self.notifier = notifier
         self.clock = clock
         self.batch = batch
+        self._last_score_refresh = float("-inf")
 
     async def tick(self, *, require_leader: bool = True) -> TickResult:
         if require_leader and not await self.lock.try_acquire():
@@ -67,21 +77,106 @@ class Scheduler:
         result = TickResult(leader=True)
         now = self.clock()
         for _ in range(self.batch):
-            # One row per transaction: a queue failure rolls back only that row, which stays
-            # pending for the next tick; tasks already sent belong to committed rows.
-            async with self.sm() as s, s.begin():
-                repos = Repos(s)
-                rows = await repos.follow_ups.claim_due(now, limit=1)
-                if not rows:
-                    break
-                row = rows[0]
-                tasks = await self._act(repos, row, now)
-                for task in tasks:
+            row_ref: tuple[uuid.UUID, uuid.UUID, str, dict[str, Any]] | None = None
+            try:
+                async with self.sm() as s, s.begin():
+                    repos = Repos(s)
+                    rows = await repos.follow_ups.claim_due(now, limit=1)
+                    if not rows:
+                        break
+                    row = rows[0]
+                    row_ref = (row.id, row.tenant_id, row.kind, dict(row.payload or {}))
+                    tasks = await self._act(repos, row, now)
+                    row.status = "done"
+            except Exception as exc:  # one bad row must never stall every other follow-up
+                if row_ref is None:
+                    raise
+                await self._back_off(row_ref, exc, now)
+                continue
+            # Enqueue only after the commit: a task never points at uncommitted rows. A lost
+            # task is recovered by the sweeps below (queued cases, received replies).
+            for task in tasks:
+                try:
                     await self.enqueue(task)
-                row.status = "done"
-            result.enqueued.extend(tasks)
-            result.done[row.kind] = result.done.get(row.kind, 0) + 1
+                    result.enqueued.append(task)
+                except Exception:
+                    log.warning("follow-up task not enqueued", extra={"kind": task.kind})
+            result.done[row_ref[2]] = result.done.get(row_ref[2], 0) + 1
+        await self._sweep(result)
+        await self._daily_score_refresh(now)
         return result
+
+    async def _back_off(
+        self,
+        row_ref: tuple[uuid.UUID, uuid.UUID, str, dict[str, Any]],
+        exc: Exception,
+        now: datetime,
+    ) -> None:
+        row_id, tenant, kind, payload = row_ref
+        attempts = int(payload.get("attempts", 0)) + 1
+        log.warning("follow-up failed", extra={"kind": kind, "attempts": attempts})
+        async with self.sm() as s, s.begin():
+            repos = Repos(s)
+            if attempts >= MAX_ATTEMPTS:
+                await repos.follow_ups.set(tenant, row_id, status="cancelled")
+                await audit.append(
+                    s,
+                    tenant,
+                    actor_type="system",
+                    actor_id="scheduler",
+                    action="follow_up.failed",
+                    entity="follow_up",
+                    entity_id=str(row_id),
+                    payload={"kind": kind, "attempts": attempts, "error": type(exc).__name__},
+                )
+                return
+            await repos.follow_ups.set(
+                tenant,
+                row_id,
+                status="pending",
+                due_at=now + BACKOFF * 2 ** (attempts - 1),
+                payload={**payload, "attempts": attempts},
+            )
+
+    async def _sweep(self, result: TickResult) -> None:
+        """Recover work whose enqueue was lost (queue outage, crash after a commit): cases still
+        `queued` and replies still `received` after a grace period. Both are idempotent."""
+        cutoff = datetime.now(UTC) - SWEEP_GRACE
+        async with self.sm() as s:
+            repos = Repos(s)
+            cases = await repos.cases.stale_queued(cutoff, limit=self.batch)
+            replies = await repos.messages.stale_received(cutoff, limit=self.batch)
+        for case in cases:
+            task = TaskMessage(
+                tenant_id=str(case.tenant_id), kind="process_case", case_id=str(case.id)
+            )
+            with contextlib.suppress(Exception):
+                await self.enqueue(task)
+                result.enqueued.append(task)
+        if self.enqueue_reply is None:
+            return
+        for msg in replies:
+            reply = ReplyMessage(
+                tenant_id=str(msg.tenant_id),
+                message_id=str(msg.id),
+                provider_sid=str(msg.provider_sid),
+                from_e164=str(msg.from_e164 or ""),
+                body=msg.body,
+                received_at=msg.created_at,
+            )
+            with contextlib.suppress(Exception):
+                await self.enqueue_reply(reply)
+
+    async def _daily_score_refresh(self, now: datetime) -> None:
+        """Days past due grow every day; cached queue scores are refreshed once a day."""
+        if time.monotonic() - self._last_score_refresh < SCORE_REFRESH_EVERY_S:
+            return
+        self._last_score_refresh = time.monotonic()
+        async with self.sm() as s:
+            tenants = await Repos(s).tenants.list_ids()
+        for tenant in tenants:
+            async with self.sm() as s, s.begin():
+                await Repos(s).queue.refresh_scores(tenant, now.date())
 
     async def run(self, interval_s: float, stop: asyncio.Event) -> None:
         try:
@@ -157,6 +252,10 @@ class Scheduler:
         if await repos.cases.open_for_account(tenant, promise.account_id) is not None:
             return []  # an open case already covers this account
         account = await repos.accounts.get(tenant, promise.account_id)
+        if account is None or account.opted_out_at is not None or account.contact_flag:
+            return []  # nobody to contact: the broken promise is recorded, no case is opened
+        if await repos.opt_outs.is_opted_out(tenant, account.phone_e164):
+            return []
         async with repos.session.begin_nested():
             case = await repos.cases.create(
                 tenant,

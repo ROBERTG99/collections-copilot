@@ -120,6 +120,8 @@ services:
       DEV_OIDC_ISSUER: http://localhost:8345
       DEV_OIDC_CLIENT_IDS: cc-web
       DEV_OIDC_ALLOW_DIRECT_TOKENS: "true"
+      DEV_OIDC_REDIRECT_URIS: http://localhost:8300/auth/callback
+      DEV_OIDC_HOST: 0.0.0.0
     ports: ["127.0.0.1:8345:8345"]
 
   migrate:

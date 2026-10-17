@@ -1009,6 +1009,11 @@ export interface components {
             dlq_depth: {
                 [key: string]: number | null;
             };
+            /**
+             * Dlq Scope
+             * @default platform
+             */
+            dlq_scope: string;
             /** Follow Ups Pending */
             follow_ups_pending: number;
             /**
@@ -1915,7 +1920,7 @@ export interface operations {
                 cursor?: string | null;
                 segment?: ("enterprise" | "mid_market" | "smb") | null;
                 min_score?: number | null;
-                status?: string | null;
+                status?: ("no_case" | "queued" | "processing" | "awaiting_approval" | "scheduled" | "sent" | "awaiting_reply" | "requires_analyst" | "escalated") | null;
                 q?: string | null;
             };
             header?: never;

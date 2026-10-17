@@ -176,6 +176,48 @@ def _approval_dict(a: Approval) -> dict[str, Any]:
     }
 
 
+async def load_facts(
+    repos: Repos, tenant: uuid.UUID, case_id: uuid.UUID, account_id: uuid.UUID, now: datetime
+) -> CaseFacts:
+    """Everything the graph and the approval API check against, read now."""
+    account = await repos.accounts.get(tenant, account_id)
+    assert account is not None
+    today = now.date()
+    invoices = [
+        InvoiceRow(i.number, i.amount_cents, i.currency, i.status, max(0, (today - i.due_on).days))
+        for i in await repos.invoices.for_account(tenant, account.id)
+    ]
+    notes = [
+        NoteFact(str(n.id), n.source, n.body, n.created_at.isoformat())
+        for n in reversed(await repos.notes.for_account(tenant, account.id, limit=20))
+    ]
+    broken = await repos.promises.broken_since(tenant, account.id, today - timedelta(days=90))
+    contacts = await repos.contacts.recent(tenant, account.id, now)
+    opted = account.opted_out_at is not None or await repos.opt_outs.is_opted_out(
+        tenant, account.phone_e164
+    )
+    policy = await repos.settings.get(tenant, "auto_approval") or {}
+    return CaseFacts(
+        tenant_id=str(tenant),
+        case_id=str(case_id),
+        account_id=str(account.id),
+        external_ref=account.external_ref,
+        name=account.name,
+        phone_e164=account.phone_e164,
+        timezone=account.timezone,
+        segment=account.segment,
+        language=account.language,
+        currency=account.currency,
+        opted_out=opted,
+        contact_flag=account.contact_flag,
+        invoices=invoices,
+        notes=notes,
+        broken_promises_90d=broken,
+        contacts_7d=[c.isoformat() for c in contacts],
+        auto_policy={**DEFAULT_POLICY, **policy},
+    )
+
+
 class DbCaseStore:
     def __init__(self, sessionmaker: async_sessionmaker[AsyncSession]) -> None:
         self.sm = sessionmaker
@@ -187,50 +229,7 @@ class DbCaseStore:
             case = await repos.cases.get(tenant, case_id)
             if case is None:
                 raise LookupError(f"case {case_id} not found for tenant")
-            return await self._facts(repos, tenant, case_id, case.account_id, now)
-
-    @staticmethod
-    async def _facts(
-        repos: Repos, tenant: uuid.UUID, case_id: uuid.UUID, account_id: uuid.UUID, now: datetime
-    ) -> CaseFacts:
-        account = await repos.accounts.get(tenant, account_id)
-        assert account is not None
-        today = now.date()
-        invoices = [
-            InvoiceRow(
-                i.number, i.amount_cents, i.currency, i.status, max(0, (today - i.due_on).days)
-            )
-            for i in await repos.invoices.for_account(tenant, account.id)
-        ]
-        notes = [
-            NoteFact(str(n.id), n.source, n.body, n.created_at.isoformat())
-            for n in reversed(await repos.notes.for_account(tenant, account.id, limit=20))
-        ]
-        broken = await repos.promises.broken_since(tenant, account.id, today - timedelta(days=90))
-        contacts = await repos.contacts.recent(tenant, account.id, now)
-        opted = account.opted_out_at is not None or await repos.opt_outs.is_opted_out(
-            tenant, account.phone_e164
-        )
-        policy = await repos.settings.get(tenant, "auto_approval") or {}
-        return CaseFacts(
-            tenant_id=str(tenant),
-            case_id=str(case_id),
-            account_id=str(account.id),
-            external_ref=account.external_ref,
-            name=account.name,
-            phone_e164=account.phone_e164,
-            timezone=account.timezone,
-            segment=account.segment,
-            language=account.language,
-            currency=account.currency,
-            opted_out=opted,
-            contact_flag=account.contact_flag,
-            invoices=invoices,
-            notes=notes,
-            broken_promises_90d=broken,
-            contacts_7d=[c.isoformat() for c in contacts],
-            auto_policy={**DEFAULT_POLICY, **policy},
-        )
+            return await load_facts(repos, tenant, case_id, case.account_id, now)
 
     async def send_snapshot(
         self, state: Mapping[str, Any], version: int, now: datetime
@@ -241,7 +240,7 @@ class DbCaseStore:
             case = await repos.cases.get(tenant, case_id)
             if case is None:
                 raise LookupError(f"case {case_id} not found for tenant")
-            facts = await self._facts(repos, tenant, case_id, case.account_id, now)
+            facts = await load_facts(repos, tenant, case_id, case.account_id, now)
             row = await repos.drafts.get_version(tenant, case_id, version)
             approval = await repos.approvals.for_draft(tenant, row.id) if row else None
             return SendSnapshot(
@@ -382,7 +381,12 @@ class DbCaseStore:
         tenant, case_id = _uuid(state["tenant_id"]), _uuid(state["case_id"])
         async with self.sm() as s, s.begin():
             repos = Repos(s)
-            if await repos.follow_ups.pending_for_case(tenant, case_id, kind) is not None:
+            # Dedupe only against future rows: a past-due one may be mid-processing by the
+            # scheduler, and skipping a new deferral then would strand the case.
+            existing = await repos.follow_ups.pending_for_case(
+                tenant, case_id, kind, due_after=utcnow()
+            )
+            if existing is not None:
                 return
             await repos.follow_ups.add(
                 tenant,

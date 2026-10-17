@@ -30,6 +30,7 @@ class OpsMetrics(BaseModel):
     cost_per_account_usd: float | None
     node_p95_ms: dict[str, float]
     dlq_depth: dict[str, int | None]
+    dlq_scope: str = "platform"  # the dead-letter queues are shared by all tenants
     opt_outs: int
     follow_ups_pending: int
     replies: int

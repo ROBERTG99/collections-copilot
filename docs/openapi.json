@@ -1476,6 +1476,11 @@
             "title": "Dlq Depth",
             "type": "object"
           },
+          "dlq_scope": {
+            "default": "platform",
+            "title": "Dlq Scope",
+            "type": "string"
+          },
           "follow_ups_pending": {
             "title": "Follow Ups Pending",
             "type": "integer"
@@ -3163,8 +3168,17 @@
             "schema": {
               "anyOf": [
                 {
-                  "maxLength": 32,
-                  "pattern": "^[a-z_]+$",
+                  "enum": [
+                    "no_case",
+                    "queued",
+                    "processing",
+                    "awaiting_approval",
+                    "scheduled",
+                    "sent",
+                    "awaiting_reply",
+                    "requires_analyst",
+                    "escalated"
+                  ],
                   "type": "string"
                 },
                 {

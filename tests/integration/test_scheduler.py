@@ -172,3 +172,44 @@ async def test_reminders_only_while_still_waiting(sessionmaker, tenant) -> None:
         await sched.lock.release()
     mine = [n for n in notifier.sent if n["case_id"] == str(waiting.id)]
     assert sorted(n["key"].split(":")[0] for n in mine) == ["approval-reminder", "send_retry"]
+
+
+class BrokenNotifier(InMemoryNotifier):
+    async def notify_supervisor(self, *, case_id: str, reason: str, idempotency_key: str) -> None:
+        raise ConnectionError("smtp down")
+
+
+async def test_failing_row_backs_off_without_stalling_others(sessionmaker, tenant) -> None:  # type: ignore[no-untyped-def]
+    """M3 review: one follow-up that keeps failing must not block every later one."""
+    account = await make_account(sessionmaker, tenant)
+    async with sessionmaker() as s, s.begin():
+        repos = Repos(s)
+        waiting = await repos.cases.create(tenant, account, status="awaiting_approval")
+        deferred = await repos.cases.create(tenant, account, status="closed")
+        reminder = await repos.follow_ups.add(
+            tenant,
+            case_id=waiting.id,
+            account_id=account,
+            kind="approval_reminder",
+            due_at=FIXED_NOW - timedelta(hours=2),  # earliest: claimed first
+        )
+        await repos.follow_ups.add(
+            tenant,
+            case_id=deferred.id,
+            account_id=account,
+            kind="deferred_send",
+            due_at=FIXED_NOW - timedelta(hours=1),
+        )
+    sink = Sink()
+    sched = scheduler(sessionmaker, sink, f"test-{uuid.uuid4()}", BrokenNotifier())
+    try:
+        await sched.tick()
+    finally:
+        await sched.lock.release()
+    assert [t.case_id for t in sink.for_tenant(tenant)] == [str(deferred.id)]
+    async with sessionmaker() as s:
+        rows = {f.id: f for f in await Repos(s).follow_ups.list(tenant)}
+    backed_off = rows[reminder.id]
+    assert backed_off.status == "pending"
+    assert backed_off.payload["attempts"] == 1
+    assert backed_off.due_at > FIXED_NOW

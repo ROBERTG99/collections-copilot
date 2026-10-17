@@ -1,10 +1,16 @@
 """Twilio webhooks (FR-7, FR-8): status callbacks and inbound replies, verified by signature.
 
-Status callbacks are stored once per (MessageSid, MessageStatus) and only move a message
-forward. Inbound replies are stored once per MessageSid; STOP keywords are applied here by rule
-(opt-out, cancel drafts, one confirmation) before anything is queued, so a STOP never reaches the
-reply graph or a model. Everything else goes to `cc-replies`. A bad signature is 403 and audited
-under the tenant the message resolves to.
+The signature is checked before anything else, so an unsigned request can neither probe which
+numbers are debtors nor write to the database beyond a throttled audit event. Status callbacks
+are stored once per (MessageSid, MessageStatus) and only move a message forward. A bad
+signature on a status callback is audited (at most once per tenant and minute) under the tenant
+its MessageSid belongs to; unknown or inbound ones are logged only.
+
+Inbound replies carry only the sender's number. STOP keywords are applied by rule before anything
+is queued, in EVERY tenant that has texted or holds that number (one confirmation SMS). Any other
+reply is routed only when exactly one tenant has texted the number recently; otherwise it is not
+attributed (each candidate tenant gets an audit event, without the text). See
+docs/KNOWN_LIMITATIONS.md: production uses a sending number per tenant.
 """
 
 from __future__ import annotations
@@ -12,12 +18,14 @@ from __future__ import annotations
 import hashlib
 import hmac
 import logging
+import time
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from fastapi import APIRouter, Request, Response
 from pydantic import BaseModel, Field
+from redis.exceptions import RedisError
 
 from collections_copilot.agent.reply_actions import apply_stop
 from collections_copilot.api.errors import ProblemError
@@ -31,6 +39,8 @@ from collections_copilot.integrations.sms.signature import is_valid
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/webhooks/twilio", tags=["webhooks"])
 MAX_BODY_CHARS = 1600
+REPLY_ROUTING_WINDOW = timedelta(days=90)
+STATUS_FIELDS = ("MessageSid", "MessageStatus", "ErrorCode", "AccountSid")
 STATUS_RANK = {
     "accepted": 0,
     "queued": 0,
@@ -52,22 +62,39 @@ def _public_url(request: Request) -> str:
     return f"{request.app.state.settings.public_base_url.rstrip('/')}{request.url.path}"
 
 
-async def _reject(request: Request, tenant: uuid.UUID | None, kind: str, sid: str) -> None:
-    """403 for a bad signature, audited when the message identifies a tenant."""
-    if tenant is not None:
-        async with request.app.state.sessionmaker() as s, s.begin():
-            await audit.append(
-                s,
-                tenant,
-                actor_type="webhook",
-                actor_id="twilio",
-                action="webhook.bad_signature",
-                entity="message",
-                entity_id=sid[:64] or None,
-                payload={"kind": kind, "path": request.url.path},
-            )
-    log.warning("twilio webhook with a bad signature", extra={"kind": kind})
-    raise ProblemError(403, "invalid X-Twilio-Signature", code="bad_signature")
+def _signed(request: Request, params: list[tuple[str, str]]) -> bool:
+    return is_valid(
+        _public_url(request),
+        params,
+        request.headers.get("x-twilio-signature"),
+        request.app.state.settings.twilio_auth_token,
+    )
+
+
+async def audit_bad_signature(request: Request, tenant: uuid.UUID | None, source: str) -> None:
+    """Audit a rejected webhook at most once per tenant, source and minute (an attacker must not
+    be able to flood the hash-chained log), with no attacker-supplied values."""
+    if tenant is None:
+        log.warning("webhook with a bad signature", extra={"source": source})
+        return
+    key = f"cc:badsig:{tenant}:{source}:{int(time.time() // 60)}"
+    try:
+        first = await request.app.state.redis.set(key, "1", nx=True, ex=120)
+    except RedisError:
+        first = True
+    if not first:
+        return
+    async with request.app.state.sessionmaker() as s, s.begin():
+        await audit.append(
+            s,
+            tenant,
+            actor_type="webhook",
+            actor_id=source,
+            action="webhook.bad_signature",
+            entity="webhook",
+            entity_id=None,
+            payload={"path": request.url.path},
+        )
 
 
 @router.post("/status", status_code=204, response_class=Response)
@@ -76,21 +103,19 @@ async def twilio_status(request: Request) -> Response:
     params = await _form(request)
     fields = dict(params)
     sid, status = fields.get("MessageSid", ""), fields.get("MessageStatus", "").lower()
+    valid = _signed(request, params)
     async with sm() as s:
+        # MessageSids are random provider ids, so this lookup reveals nothing to a prober.
         message = await Repos(s).messages.by_sid(sid) if sid else None
-    valid = is_valid(
-        _public_url(request),
-        params,
-        request.headers.get("x-twilio-signature"),
-        request.app.state.settings.twilio_auth_token,
-    )
     if not valid:
-        await _reject(request, message.tenant_id if message else None, "status", sid)
+        await audit_bad_signature(request, message.tenant_id if message else None, "twilio")
+        raise ProblemError(403, "invalid X-Twilio-Signature", code="bad_signature")
     if message is None or not status:
         return Response(status_code=204)  # unknown message: nothing to update
+    kept = {k: fields[k] for k in STATUS_FIELDS if k in fields}  # no phone numbers at rest
     async with sm() as s, s.begin():
         repos = Repos(s)
-        created = await repos.messages.add_status_event(message.tenant_id, sid, status, fields)
+        created = await repos.messages.add_status_event(message.tenant_id, sid, status, kept)
         current = await repos.messages.get(message.tenant_id, message.id)
         if (
             created
@@ -111,24 +136,26 @@ async def twilio_inbound(request: Request) -> Response:
     app = request.app
     sm = app.state.sessionmaker
     params = await _form(request)
+    if not _signed(request, params):
+        log.warning("inbound webhook with a bad signature")
+        raise ProblemError(403, "invalid X-Twilio-Signature", code="bad_signature")
     fields = dict(params)
     sid, sender = fields.get("MessageSid", ""), fields.get("From", "")
     body = fields.get("Body", "")[:MAX_BODY_CHARS]
-    async with sm() as s:
-        # Inbound SMS carry only the sender's number: the latest outbound message to it
-        # resolves the tenant, account and case.
-        last = await Repos(s).messages.latest_outbound_to(sender) if sender else None
-    valid = is_valid(
-        _public_url(request),
-        params,
-        request.headers.get("x-twilio-signature"),
-        app.state.settings.twilio_auth_token,
-    )
-    if not valid:
-        await _reject(request, last.tenant_id if last else None, "inbound", sid)
-    if last is None or not sid:
-        log.info("inbound SMS from an unknown sender ignored")
+    if not sid or not sender:
         return Response(status_code=204)
+    now = datetime.now(UTC)
+    async with sm() as s:
+        repos = Repos(s)
+        routes = await repos.messages.latest_outbound_per_tenant(sender, now - REPLY_ROUTING_WINDOW)
+        holders = await repos.accounts.tenants_with_phone(sender)
+    if is_stop(body):
+        await _stop_everywhere(request, sid, sender, body, routes, holders, now)
+        return Response(status_code=204)
+    if len(routes) != 1:
+        await _unattributed(request, routes, sid)
+        return Response(status_code=204)
+    last = routes[0]
     tenant = last.tenant_id
     async with sm() as s, s.begin():
         message, _ = await Repos(s).messages.add_inbound(
@@ -144,16 +171,6 @@ async def twilio_inbound(request: Request) -> Response:
         message_id, handled = message.id, message.status == "handled"
     if handled:
         return Response(status_code=204)  # a retried webhook for a reply already handled
-    now = datetime.now(UTC)
-    if is_stop(body):
-        await apply_stop(sm, app.state.sms, tenant_id=tenant, phone_e164=sender, now=now)
-        async with sm() as s, s.begin():
-            repos = Repos(s)
-            await repos.messages.set(
-                tenant, message_id, classification="stop", classification_confidence=1.0
-            )
-            await repos.messages.mark_handled(tenant, message_id)
-        return Response(status_code=204)
     reply = ReplyMessage(
         tenant_id=str(tenant),
         message_id=str(message_id),
@@ -169,6 +186,70 @@ async def twilio_inbound(request: Request) -> Response:
     except QueueUnavailableError as exc:  # Twilio retries the webhook; the row is deduplicated
         raise ProblemError(503, "reply queue unavailable", code="queue_unavailable") from exc
     return Response(status_code=204)
+
+
+async def _stop_everywhere(
+    request: Request,
+    sid: str,
+    sender: str,
+    body: str,
+    routes: list[Any],
+    holders: list[uuid.UUID],
+    now: datetime,
+) -> None:
+    """A STOP binds every tenant that texted or holds the number; one confirmation is sent."""
+    app = request.app
+    sm = app.state.sessionmaker
+    tenants = list(dict.fromkeys([r.tenant_id for r in routes] + holders))
+    if not tenants:
+        log.info("STOP from an unknown sender")
+        return
+    primary = routes[0] if len(routes) == 1 else None
+    owner = primary.tenant_id if primary else tenants[0]
+    for tenant in tenants:
+        await apply_stop(
+            sm,
+            app.state.sms,
+            tenant_id=tenant,
+            phone_e164=sender,
+            now=now,
+            confirm=tenant == owner,
+        )
+    async with sm() as s, s.begin():
+        repos = Repos(s)
+        message, _ = await repos.messages.add_inbound(
+            owner,
+            provider_sid=sid,
+            account_id=primary.account_id if primary else None,
+            case_id=primary.case_id if primary else None,
+            from_e164=sender,
+            body=body,
+            status="received",
+        )
+        await repos.messages.set(
+            owner, message.id, classification="stop", classification_confidence=1.0
+        )
+        await repos.messages.mark_handled(owner, message.id)
+
+
+async def _unattributed(request: Request, routes: list[Any], sid: str) -> None:
+    """A reply we cannot attribute to one tenant is not stored as any tenant's message."""
+    if not routes:
+        log.info("inbound SMS from an unknown sender ignored")
+        return
+    async with request.app.state.sessionmaker() as s, s.begin():
+        for route in routes:
+            await audit.append(
+                s,
+                route.tenant_id,
+                actor_type="webhook",
+                actor_id="twilio",
+                action="reply.unattributed",
+                entity="account",
+                entity_id=str(route.account_id) if route.account_id else None,
+                payload={"reason": "number texted by several tenants", "candidates": len(routes)},
+            )
+    log.warning("inbound SMS matches several tenants; not routed", extra={"n": len(routes)})
 
 
 mcpgw_router = APIRouter(prefix="/api/v1/webhooks/mcpgw", tags=["webhooks"])
@@ -195,8 +276,9 @@ async def mcpgw_approval(request: Request) -> Response:
             app.state.settings.mcpgw_webhook_secret.encode(), raw, hashlib.sha256
         ).hexdigest()
     )
-    if not hmac.compare_digest(expected, request.headers.get("x-mcpgw-signature", "")):
-        log.warning("mcp-gateway webhook with a bad signature")
+    given = request.headers.get("x-mcpgw-signature", "").encode("utf-8", "replace")
+    if not hmac.compare_digest(expected.encode(), given):
+        await audit_bad_signature(request, _claimed_tenant(raw), "mcp-gateway")
         raise ProblemError(403, "invalid X-MCPGW-Signature", code="bad_signature")
     try:
         event = GatewayApproval.model_validate_json(raw)
@@ -204,6 +286,12 @@ async def mcpgw_approval(request: Request) -> Response:
     except (ValueError, TypeError) as exc:
         raise ProblemError(422, "invalid approval event", code="invalid_event") from exc
     sid = str(event.args_redacted.get("source_message_sid") or "")
+    try:  # a replayed event is answered without a second audit row
+        first = await app.state.redis.set(
+            f"cc:mcpgw:{event.approval_id}", "1", nx=True, ex=7 * 24 * 3600
+        )
+    except RedisError:
+        first = True
     async with app.state.sessionmaker() as s, s.begin():
         repos = Repos(s)
         promise = await repos.promises.by_approval_id(event.approval_id)
@@ -215,6 +303,9 @@ async def mcpgw_approval(request: Request) -> Response:
         if promise.status == "pending":
             promise.status = "approval_required"
             promise.mcp_approval_id = event.approval_id
+        case_ref = str(promise.case_id or promise.id)
+        if not first:
+            return Response(status_code=204)
         await audit.append(
             s,
             tenant,
@@ -225,10 +316,17 @@ async def mcpgw_approval(request: Request) -> Response:
             entity_id=str(promise.id),
             payload={"approval_id": event.approval_id, "reasons": event.reasons},
         )
-        case_ref = str(promise.case_id or promise.id)
     await app.state.notifier.notify_supervisor(
         case_id=case_ref,
         reason=f"a promise-to-pay needs approval: {', '.join(event.reasons) or event.tool}",
         idempotency_key=f"mcpgw-approval:{event.approval_id}",
     )
     return Response(status_code=204)
+
+
+def _claimed_tenant(raw: bytes) -> uuid.UUID | None:
+    """The tenant an unverified gateway event names, for the throttled audit only."""
+    try:
+        return uuid.UUID(GatewayApproval.model_validate_json(raw).tenant)
+    except (ValueError, TypeError):
+        return None

@@ -10,6 +10,7 @@ from collections.abc import AsyncIterator
 from urllib.parse import parse_qs, urlsplit
 
 import httpx
+import jwt
 import pytest
 import uvicorn
 from dev_oidc.app import TENANT_A, TENANT_B, Issuer, create_app
@@ -105,12 +106,14 @@ async def test_code_flow_tokens_verify_like_cognito(
     async with httpx.AsyncClient() as client:
         tokens = await login(client, oidc, username)
     verifier = JwksTokenVerifier(oidc, "cc-web")
-    for kind in ("id_token", "access_token"):
-        claims = await verifier.verify(tokens[kind])
-        principal = principal_from_claims(claims)
-        assert str(principal.tenant_id) == tenant
-        assert principal.roles == frozenset({role})
-        assert principal.username == username
+    claims = await verifier.verify(tokens["access_token"])
+    principal = principal_from_claims(claims)
+    assert str(principal.tenant_id) == tenant
+    assert principal.roles == frozenset({role})
+    assert principal.username == username
+    # ID tokens stay in the browser session; the API accepts access tokens only (M3 review).
+    with pytest.raises(jwt.InvalidTokenError, match="access token required"):
+        await verifier.verify(tokens["id_token"])
 
 
 async def test_pkce_and_code_reuse_rejected(oidc: str) -> None:
@@ -182,3 +185,26 @@ async def test_refresh_token_rotates(oidc: str) -> None:
             },
         )
         assert replay.status_code == 400
+
+
+async def test_security_hardening(oidc: str) -> None:
+    """M3 security review: registered redirect URIs only, no open logout redirect, direct
+    tokens off by default."""
+    async with httpx.AsyncClient(base_url=oidc) as client:
+        bad = await client.get(
+            "/authorize",
+            params={
+                "response_type": "code",
+                "client_id": "cc-web",
+                "redirect_uri": "https://evil.example/cb",
+                "state": "s",
+                "code_challenge": "x" * 43,
+                "code_challenge_method": "S256",
+            },
+        )
+        assert bad.status_code == 400
+        evil = await client.get("/logout", params={"logout_uri": "https://evil.example/"})
+        assert evil.status_code == 400
+        home = await client.get("/logout", params={"logout_uri": "http://localhost:8300/"})
+        assert home.status_code == 302
+        assert (await client.post("/dev/token", json={"username": "adi.admin"})).status_code == 404

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+from datetime import datetime
 from typing import Any
 
 from sqlalchemy import select, update
@@ -52,6 +53,16 @@ class CasesRepo(Repo):
             select(Case)
             .where(Case.tenant_id == tenant_id, Case.account_id == account_id)
             .order_by(Case.created_at.desc())
+        )
+        return list((await self.s.execute(stmt)).scalars())
+
+    async def stale_queued(self, before: datetime, limit: int = 50) -> list[Case]:
+        """Scheduler sweep (cross-tenant by design): cases nobody picked up."""
+        stmt = (
+            select(Case)
+            .where(Case.status == "queued", Case.updated_at < before)
+            .order_by(Case.updated_at)
+            .limit(limit)
         )
         return list((await self.s.execute(stmt)).scalars())
 

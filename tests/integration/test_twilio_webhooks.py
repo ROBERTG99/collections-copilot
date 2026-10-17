@@ -109,8 +109,12 @@ async def test_bad_signature_403_and_audited(
             AuditEvent.action == "webhook.bad_signature",
             model=AuditEvent,
         )
-        == 2
+        == 1  # both are 403; the audit is throttled to one event per tenant and minute
     )
+    weird = await client.post(
+        STATUS, data=params, headers={"X-Twilio-Signature": "é".encode("latin-1")}
+    )
+    assert weird.status_code == 403  # non-ASCII signature: 403, never a 500
     async with sessionmaker() as s:
         row = await Repos(s).messages.get(tenant, msg.id)
     assert row is not None
@@ -172,3 +176,56 @@ async def test_inbound_reply_is_queued_once_stored(
     unknown = {**params, "MessageSid": "SM" + uuid.uuid4().hex, "From": "+15559998888"}
     assert (await post_signed(client, api_app, INBOUND, unknown)).status_code == 204
     assert len(queue.sent) == 2
+
+
+async def test_same_number_in_two_tenants(client, api_app, sessionmaker, tenant, doubles) -> None:  # type: ignore[no-untyped-def]
+    """M3 reviews: a shared number must never route one tenant's debtor reply to another."""
+    from tests.factories import make_tenant
+
+    queue, sms = doubles
+    phone = f"+1555{uuid.uuid4().int % 10_000_000:07d}"
+    other = await make_tenant(sessionmaker)
+    await outbound(sessionmaker, tenant, phone_e164=phone)
+    await outbound(sessionmaker, other, phone_e164=phone)
+    reply = {
+        "MessageSid": "SM" + uuid.uuid4().hex,
+        "From": phone,
+        "To": "+15550001000",
+        "Body": "I can pay 1,200 on Friday",
+    }
+    assert (await post_signed(client, api_app, INBOUND, reply)).status_code == 204
+    assert queue.sent == []  # ambiguous: not attributed to either tenant
+    assert await _count(sessionmaker, Message.provider_sid == reply["MessageSid"]) == 0
+    for t in (tenant, other):
+        assert (
+            await _count(
+                sessionmaker,
+                AuditEvent.tenant_id == t,
+                AuditEvent.action == "reply.unattributed",
+                model=AuditEvent,
+            )
+            == 1
+        )
+    stop = {**reply, "MessageSid": "SM" + uuid.uuid4().hex, "Body": "STOP"}
+    assert (await post_signed(client, api_app, INBOUND, stop)).status_code == 204
+    async with sessionmaker() as s:
+        repos = Repos(s)
+        assert await repos.opt_outs.is_opted_out(tenant, phone)
+        assert await repos.opt_outs.is_opted_out(other, phone)  # STOP binds every tenant
+    assert len(sms.sent) == 1  # one confirmation, not one per tenant
+    assert queue.sent == []
+
+
+async def test_stop_from_holder_without_outbound(
+    client, api_app, sessionmaker, tenant, doubles
+) -> None:  # type: ignore[no-untyped-def]
+    _, sms = doubles
+    account = await make_account(sessionmaker, tenant)
+    async with sessionmaker() as s:
+        acc = await Repos(s).accounts.get(tenant, account)
+    assert acc is not None
+    stop = {"MessageSid": "SM" + uuid.uuid4().hex, "From": acc.phone_e164, "Body": "STOP"}
+    assert (await post_signed(client, api_app, INBOUND, stop)).status_code == 204
+    async with sessionmaker() as s:
+        assert await Repos(s).opt_outs.is_opted_out(tenant, acc.phone_e164)
+    assert len(sms.sent) == 1

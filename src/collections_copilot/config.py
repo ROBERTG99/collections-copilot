@@ -5,7 +5,7 @@ from __future__ import annotations
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -23,6 +23,8 @@ class Settings(BaseSettings):
     scheduler_interval_s: float = Field(default=30.0, gt=0, le=3600)
     max_json_bytes: int = Field(default=1024 * 1024, gt=0)
     rate_limit_per_minute: int = Field(default=120, gt=0)
+    webhook_rate_limit_per_minute: int = Field(default=600, gt=0)
+    redis_max_connections: int = Field(default=200, gt=0)
 
     # AWS-compatible services (ElasticMQ and MinIO locally)
     aws_region: str = "us-east-1"
@@ -86,6 +88,26 @@ class Settings(BaseSettings):
     metrics_port: int = 8311
 
     demo_mode: Literal["offline", "live"] = Field(default="offline")
+
+    @model_validator(mode="after")
+    def _refuse_dev_defaults_in_prod(self) -> Settings:
+        """In production every shared secret must be set and the issuer must be HTTPS: a dev
+        default would let anyone who read the repository sign webhooks."""
+        if self.env != "prod":
+            return self
+        problems = [
+            name
+            for name, value in (
+                ("CC_TWILIO_AUTH_TOKEN", self.twilio_auth_token),
+                ("CC_MCPGW_WEBHOOK_SECRET", self.mcpgw_webhook_secret),
+            )
+            if not value or value.startswith("dev-")
+        ]
+        if not self.oidc_issuer.startswith("https://") or "localhost" in self.oidc_issuer:
+            problems.append("CC_OIDC_ISSUER (https, not localhost)")
+        if problems:
+            raise ValueError(f"production settings still use dev defaults: {', '.join(problems)}")
+        return self
 
 
 @lru_cache(maxsize=1)

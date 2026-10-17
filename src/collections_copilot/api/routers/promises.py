@@ -121,6 +121,12 @@ async def approve_promise(
     async with app.state.sessionmaker() as s, s.begin():
         repos = Repos(s)
         promise = await _held(repos, principal, promise_id)
+        invoices = await repos.invoices.for_account(tenant, promise.account_id)
+        if not any(i.status == "open" for i in invoices):
+            # Paid or disputed since the reply: do not write a promise for nothing owed.
+            raise ProblemError(
+                409, "the account has no open invoices any more", code="nothing_open"
+            )
         approval_id = str(promise.mcp_approval_id)
         gateway_status = await _gateway_decide(
             request, str(tenant), approval_id, "approve", f"approved by {principal.username}"

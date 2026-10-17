@@ -138,8 +138,18 @@ async def run(settings: Settings) -> None:
             ),
         ]
         stop = asyncio.Event()
+
+        async def enqueue_reply(reply: ReplyMessage) -> None:
+            await queues.send(
+                settings.sqs_replies_queue, reply.model_dump(mode="json", by_alias=True)
+            )
+
         scheduler = Scheduler(
-            sessionmaker, LeaderLock(engine, "cc-scheduler"), enqueue, services.notifier
+            sessionmaker,
+            LeaderLock(engine, "cc-scheduler"),
+            enqueue,
+            services.notifier,
+            enqueue_reply=enqueue_reply,
         )
         server = _NoSignalServer(
             uvicorn.Config(
