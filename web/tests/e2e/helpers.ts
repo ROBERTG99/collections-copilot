@@ -43,12 +43,19 @@ export const problem = (status: number, detail: string) => ({
 type QueueItem = { account_id: string; opted_out: boolean; case_id: string | null };
 
 /** A case paused at human approval, created through the BFF as the signed-in user. */
-export async function caseAwaitingApproval(page: Page): Promise<string> {
+export async function caseAwaitingApproval(page: Page, phoneEndsWith?: string): Promise<string> {
   const headers = { "x-cc-csrf": "1", "content-type": "application/json" };
-  const queue = await page.request.get("/api/queue?limit=40&status=no_case");
+  const queue = await page.request.get("/api/queue?limit=100&status=no_case");
   expect(queue.ok()).toBeTruthy();
   const items = ((await queue.json()) as { items: QueueItem[] }).items.filter((i) => !i.opted_out);
-  for (const item of items.slice(0, 15)) {
+  for (const item of items.slice(0, 40)) {
+    const account = (await (await page.request.get(`/api/accounts/${item.account_id}`)).json()) as {
+      phone_e164: string;
+      precheck: { ok: boolean; deferred: boolean };
+    };
+    // Only accounts that can be texted right now (inside their 08:00–21:00 window).
+    if (!account.precheck.ok || account.precheck.deferred) continue;
+    if (phoneEndsWith && !phoneEndsWith.includes(account.phone_e164.slice(-1))) continue;
     const created = await page.request.post("/api/cases", {
       headers,
       data: { account_ids: [item.account_id] },
@@ -70,4 +77,15 @@ export async function caseAwaitingApproval(page: Page): Promise<string> {
     }
   }
   throw new Error("no case reached awaiting_approval");
+}
+
+/** Approve the latest draft of a case through the BFF, as the signed-in user. */
+export async function approveCase(page: Page, caseId: string): Promise<void> {
+  const detail = await (await page.request.get(`/api/cases/${caseId}`)).json();
+  const version = (detail as { drafts: { version: number }[] }).drafts.at(-1)?.version ?? 1;
+  const resp = await page.request.post(`/api/cases/${caseId}/approval`, {
+    headers: { "x-cc-csrf": "1", "content-type": "application/json" },
+    data: { decision: "approve", draft_version: version },
+  });
+  expect(resp.ok()).toBeTruthy();
 }

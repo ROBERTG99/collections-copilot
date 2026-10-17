@@ -42,6 +42,7 @@ MATRIX: dict[tuple[str, str], set[str]] = {
     ("GET", "/api/v1/opt-outs"): ALL,
     ("POST", "/api/v1/opt-outs"): ALL,
     ("GET", "/api/v1/replies"): ALL,
+    ("POST", "/api/v1/replies/{message_id}:reclassify"): {A, S},
     ("GET", "/api/v1/follow-ups"): ALL,
     ("POST", "/api/v1/promises/{promise_id}:approve"): {S, D},
     ("POST", "/api/v1/promises/{promise_id}:reject"): {S, D},
@@ -63,6 +64,7 @@ BODIES: dict[tuple[str, str], Any] = {
         "min_confidence": 0.95,
     },
     ("POST", "/api/v1/opt-outs"): {"phone_e164": "+15550009999"},
+    ("POST", "/api/v1/replies/{message_id}:reclassify"): {"label": "other"},
     ("POST", "/api/v1/promises/{promise_id}:reject"): {"reason": "x"},
 }
 
@@ -89,6 +91,7 @@ async def test_role_matrix(client: httpx.AsyncClient, auth, method: str, path: s
         .replace("{account_id}", ZERO)
         .replace("{case_id}", ZERO)
         .replace("{promise_id}", ZERO)
+        .replace("{message_id}", ZERO)
     )
     body = BODIES.get((method, path))
     unauth = await client.request(method, url, json=body)

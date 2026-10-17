@@ -18,7 +18,7 @@ from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel, Field
 
 from collections_copilot.api import views
-from collections_copilot.api.deps.auth import ANY_ROLE, SUPERVISOR, Principal
+from collections_copilot.api.deps.auth import ANALYST_OR_SUPERVISOR, ANY_ROLE, SUPERVISOR, Principal
 from collections_copilot.api.deps.db import REPOS
 from collections_copilot.api.errors import ProblemError
 from collections_copilot.api.schemas import MessageOut, PromiseOut
@@ -225,3 +225,44 @@ async def _gateway_decide(
             code="gateway_unavailable",
             headers={"Retry-After": "5"},
         ) from exc
+
+
+class ReclassifyBody(BaseModel):
+    label: Literal["promise_to_pay", "dispute", "wrong_number", "paid", "stop", "other"]
+    note: str | None = Field(default=None, max_length=500)
+
+
+@router.post(
+    "/replies/{message_id}:reclassify", response_model=MessageOut, responses={404: {}, 409: {}}
+)
+async def reclassify_reply(
+    message_id: uuid.UUID,
+    body: ReclassifyBody,
+    principal: Principal = Depends(ANALYST_OR_SUPERVISOR),
+    repos: Repos = REPOS,
+) -> MessageOut:
+    """An analyst corrects the label. This records the correction for review and evals; it does
+    not replay side effects (a STOP is applied by recording an opt-out, not by relabelling)."""
+    tenant = principal.tenant_id
+    message = await repos.messages.get(tenant, message_id)
+    if message is None or message.direction != "inbound":
+        raise ProblemError(404, "reply not found", code="not_found")
+    if body.label == "stop":
+        raise ProblemError(
+            409, "record an opt-out instead of relabelling a reply as STOP", code="use_opt_out"
+        )
+    previous = message.classification
+    message.classification = body.label
+    message.classification_confidence = 1.0
+    await audit.append(
+        repos.session,
+        tenant,
+        actor_type="user",
+        actor_id=principal.username,
+        action="reply.reclassified",
+        entity="message",
+        entity_id=str(message.id),
+        payload={"from": previous, "to": body.label, "note": body.note},
+    )
+    await repos.session.flush()
+    return views.message_out(message)

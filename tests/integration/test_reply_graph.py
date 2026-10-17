@@ -164,3 +164,23 @@ async def test_paid_and_wrong_number_and_other(sessionmaker, database_url, tenan
         assert acc.contact_flag == "wrong_number"
         kinds = {f.kind for f in await repos.follow_ups.list(tenant)}
         assert "payment_verification" in kinds
+
+
+async def test_reclassify_records_correction_only(client, sessionmaker, tenant, auth) -> None:  # type: ignore[no-untyped-def]
+    account = await make_account(sessionmaker, tenant)
+    reply = await inbound(sessionmaker, tenant, account, "Who is this?")
+    url = f"/api/v1/replies/{reply.message_id}:reclassify"
+    resp = await client.post(
+        url, json={"label": "dispute", "note": "mentions damaged goods"}, headers=auth("analyst")
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["classification"] == "dispute"
+    stop = await client.post(url, json={"label": "stop"}, headers=auth("analyst"))
+    assert stop.status_code == 409
+    async with sessionmaker() as s:
+        repos = Repos(s)
+        assert {i.status for i in await repos.invoices.for_account(tenant, account)} == {"open"}
+    other = await client.post(
+        url, json={"label": "other"}, headers=auth("analyst", tenant_id=uuid.uuid4())
+    )
+    assert other.status_code == 404

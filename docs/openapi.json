@@ -1956,6 +1956,39 @@
         "title": "QueuePage",
         "type": "object"
       },
+      "ReclassifyBody": {
+        "properties": {
+          "label": {
+            "enum": [
+              "promise_to_pay",
+              "dispute",
+              "wrong_number",
+              "paid",
+              "stop",
+              "other"
+            ],
+            "title": "Label",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "required": [
+          "label"
+        ],
+        "title": "ReclassifyBody",
+        "type": "object"
+      },
       "RejectBody": {
         "properties": {
           "reason": {
@@ -3357,6 +3390,66 @@
           }
         },
         "summary": "List Replies",
+        "tags": [
+          "promises"
+        ]
+      }
+    },
+    "/api/v1/replies/{message_id}:reclassify": {
+      "post": {
+        "description": "An analyst corrects the label. This records the correction for review and evals; it does\nnot replay side effects (a STOP is applied by recording an opt-out, not by relabelling).",
+        "operationId": "reclassify_reply_api_v1_replies__message_id__reclassify_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "message_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Message Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReclassifyBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "409": {
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Reclassify Reply",
         "tags": [
           "promises"
         ]

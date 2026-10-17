@@ -368,6 +368,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/replies/{message_id}:reclassify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reclassify Reply
+         * @description An analyst corrects the label. This records the correction for review and evals; it does
+         *     not replay side effects (a STOP is applied by recording an opt-out, not by relabelling).
+         */
+        post: operations["reclassify_reply_api_v1_replies__message_id__reclassify_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/settings/auto-approval": {
         parameters: {
             query?: never;
@@ -1192,6 +1213,16 @@ export interface components {
             items: components["schemas"]["QueueItem"][];
             /** Next Cursor */
             next_cursor: string | null;
+        };
+        /** ReclassifyBody */
+        ReclassifyBody: {
+            /**
+             * Label
+             * @enum {string}
+             */
+            label: "promise_to_pay" | "dispute" | "wrong_number" | "paid" | "stop" | "other";
+            /** Note */
+            note?: string | null;
         };
         /** RejectBody */
         RejectBody: {
@@ -2039,6 +2070,55 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["MessageOut"][];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reclassify_reply_api_v1_replies__message_id__reclassify_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                message_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReclassifyBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageOut"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

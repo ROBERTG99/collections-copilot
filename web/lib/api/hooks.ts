@@ -103,3 +103,121 @@ export function useDecision(caseId: string) {
     },
   });
 }
+
+export function useReplies() {
+  return useQuery({
+    queryKey: ["replies"],
+    queryFn: async () =>
+      unwrap(await api.GET("/api/v1/replies", { params: { query: { limit: 200 } } })),
+  });
+}
+
+export function useReclassify() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async (v: { id: string; label: Reclassify }) =>
+      unwrap(
+        await api.POST("/api/v1/replies/{message_id}:reclassify", {
+          params: { path: { message_id: v.id } },
+          body: { label: v.label },
+        }),
+      ),
+    onSuccess: () => void client.invalidateQueries({ queryKey: ["replies"] }),
+  });
+}
+export type Reclassify = "promise_to_pay" | "dispute" | "wrong_number" | "paid" | "other";
+
+export function usePromises() {
+  return useQuery({
+    queryKey: ["promises"],
+    queryFn: async () =>
+      unwrap(await api.GET("/api/v1/promises", { params: { query: { limit: 200 } } })),
+  });
+}
+
+export function useFollowUps() {
+  return useQuery({
+    queryKey: ["follow-ups"],
+    queryFn: async () =>
+      unwrap(
+        await api.GET("/api/v1/follow-ups", {
+          params: { query: { status: "pending", limit: 200 } },
+        }),
+      ),
+  });
+}
+
+export function usePromiseDecision() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async (v: { id: string; approve: boolean; reason?: string }) =>
+      v.approve
+        ? unwrap(
+            await api.POST("/api/v1/promises/{promise_id}:approve", {
+              params: { path: { promise_id: v.id } },
+            }),
+          )
+        : unwrap(
+            await api.POST("/api/v1/promises/{promise_id}:reject", {
+              params: { path: { promise_id: v.id } },
+              body: { reason: v.reason ?? "" },
+            }),
+          ),
+    onSuccess: () => void client.invalidateQueries({ queryKey: ["promises"] }),
+  });
+}
+
+export function useAudit(action: string | undefined) {
+  return useQuery({
+    queryKey: ["audit", action],
+    queryFn: async () =>
+      unwrap(
+        await api.GET("/api/v1/audit", {
+          params: { query: { limit: 200, verify: true, action: action || undefined } },
+        }),
+      ),
+  });
+}
+
+export function useOps(windowDays: number) {
+  return useQuery({
+    queryKey: ["ops", windowDays],
+    queryFn: async () =>
+      unwrap(
+        await api.GET("/api/v1/metrics/ops", { params: { query: { window_days: windowDays } } }),
+      ),
+  });
+}
+
+export function useAutoApproval() {
+  return useQuery({
+    queryKey: ["auto-approval"],
+    queryFn: async () => unwrap(await api.GET("/api/v1/settings/auto-approval")),
+  });
+}
+
+export function useSaveAutoApproval() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async (v: { enabled: boolean; max_usd: number; min_confidence: number }) =>
+      unwrap(await api.PUT("/api/v1/settings/auto-approval", { body: v })),
+    onSuccess: () => void client.invalidateQueries({ queryKey: ["auto-approval"] }),
+  });
+}
+
+export function useOptOuts() {
+  return useQuery({
+    queryKey: ["opt-outs"],
+    queryFn: async () =>
+      unwrap(await api.GET("/api/v1/opt-outs", { params: { query: { limit: 200 } } })),
+  });
+}
+
+export function useAddOptOut() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async (phone: string) =>
+      unwrap(await api.POST("/api/v1/opt-outs", { body: { phone_e164: phone } })),
+    onSuccess: () => void client.invalidateQueries({ queryKey: ["opt-outs"] }),
+  });
+}
