@@ -20,6 +20,7 @@ x-app-env: &app-env
   CC_OIDC_ISSUER: http://localhost:8345
   CC_OIDC_JWKS_URL: http://dev-oidc:8345/.well-known/jwks.json
   CC_LLM_PROVIDER: "${CC_LLM_PROVIDER:-fake}"
+  CC_RATE_LIMIT_PER_MINUTE: "${CC_RATE_LIMIT_PER_MINUTE:-120}"  # scripts/bench.sh raises it
   CC_TWILIO_BASE_URL: http://wiremock-twilio:8080
   CC_PUBLIC_BASE_URL: http://api:8310
   CC_MCPGW_URL: http://mcp-gateway:8344/mcp
@@ -172,7 +173,9 @@ services:
   api:
     build: { <<: *python-build, target: api }
     image: collections-copilot/api:dev
-    environment: *app-env
+    environment:
+      <<: *app-env
+      CC_API_WORKERS: "${CC_API_WORKERS:-4}"  # one process is CPU-bound below NFR-1 (DECISIONS)
     ports: ["127.0.0.1:8310:8310"]
     depends_on:
       postgres: { condition: service_healthy }

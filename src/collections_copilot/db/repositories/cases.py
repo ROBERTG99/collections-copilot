@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 
 from collections_copilot.db.models import OPEN_CASE_PREDICATE, Approval, Case, Draft
 from collections_copilot.db.repositories.base import Repo, TenantId, as_uuid
@@ -48,13 +48,23 @@ class CasesRepo(Repo):
         )
         return (await self.s.execute(stmt)).scalar_one_or_none()
 
-    async def for_account(self, tenant_id: TenantId, account_id: uuid.UUID) -> list[Case]:
+    async def for_account(
+        self, tenant_id: TenantId, account_id: uuid.UUID, limit: int | None = None
+    ) -> list[Case]:
+        """Newest first; `limit` keeps a detail payload bounded as history grows."""
         stmt = (
             select(Case)
             .where(Case.tenant_id == tenant_id, Case.account_id == account_id)
-            .order_by(Case.created_at.desc())
+            .order_by(Case.created_at.desc(), Case.id)
+            .limit(limit)
         )
         return list((await self.s.execute(stmt)).scalars())
+
+    async def count_for_account(self, tenant_id: TenantId, account_id: uuid.UUID) -> int:
+        stmt = select(func.count()).where(
+            Case.tenant_id == tenant_id, Case.account_id == account_id
+        )
+        return int((await self.s.execute(stmt)).scalar_one())
 
     async def stale_queued(self, before: datetime, limit: int = 50) -> list[Case]:
         """Scheduler sweep (cross-tenant by design): cases nobody picked up."""

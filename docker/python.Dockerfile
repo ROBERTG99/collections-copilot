@@ -48,7 +48,8 @@ FROM runtime AS api
 EXPOSE 8310
 HEALTHCHECK --interval=5s --timeout=3s --start-period=20s --retries=12 \
   CMD ["python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8310/healthz', timeout=2).status == 200 else 1)"]
-CMD ["uvicorn", "collections_copilot.api.main:app", "--factory", "--host", "0.0.0.0", "--port", "8310", "--proxy-headers", "--no-server-header", "--no-access-log"]
+# CC_API_WORKERS uvicorn processes on 8310 (collections_copilot/api/serve.py).
+CMD ["python", "-m", "collections_copilot.api.serve"]
 
 FROM runtime AS worker
 EXPOSE 8311

@@ -231,6 +231,11 @@ function AccountBody({ account }: { account: AccountDetail }) {
             ))}
           </ul>
         )}
+        {account.cases_total > account.cases.length ? (
+          <p className="mt-2 text-sm text-muted">
+            Showing the latest {account.cases.length} of {account.cases_total} cases.
+          </p>
+        ) : null}
       </section>
 
       <section aria-labelledby="notes-title">

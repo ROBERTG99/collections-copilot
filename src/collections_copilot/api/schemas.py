@@ -146,7 +146,8 @@ class AccountDetail(BaseModel):
     aging: AgingBuckets
     invoices: list[InvoiceOut]
     notes: list[NoteOut]
-    cases: list[CaseSummary]
+    cases: list[CaseSummary]  # the newest ACCOUNT_HISTORY_LIMIT, newest first
+    cases_total: int
     messages: list[MessageOut]
     promises: list[PromiseOut]
     precheck: ComplianceOut

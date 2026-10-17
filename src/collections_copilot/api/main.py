@@ -48,6 +48,7 @@ from collections_copilot.integrations.sms import build_sms_sender
 from collections_copilot.integrations.sms.base import SmsSender
 from collections_copilot.integrations.storage.s3 import ObjectStore, S3ObjectStore
 from collections_copilot.observability.logging import configure_logging
+from collections_copilot.observability.metrics import scrape_registry
 from collections_copilot.observability.tracing import setup_tracing
 
 log = logging.getLogger(__name__)
@@ -131,7 +132,8 @@ def create_app(
     app.add_middleware(RateLimitMiddleware)
     app.add_middleware(BodyLimitMiddleware, max_bytes=settings.max_json_bytes)
     app.add_middleware(TelemetryMiddleware)  # outermost: every request, rejections included
-    app.mount("/metrics", make_asgi_app())  # Prometheus scrape (internal; the ALB serves /api)
+    # Prometheus scrape (internal; the ALB serves /api), summed across worker processes
+    app.mount("/metrics", make_asgi_app(scrape_registry()))
     app.include_router(me.router)
     app.include_router(ingest.router)
     app.include_router(queue.router)

@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     sse_heartbeat_s: float = Field(default=15.0, gt=0, le=60)
     scheduler_interval_s: float = Field(default=30.0, gt=0, le=3600)
     max_json_bytes: int = Field(default=1024 * 1024, gt=0)
+    api_workers: int = Field(default=1, ge=1, le=16)  # uvicorn processes per API container
     rate_limit_per_minute: int = Field(default=120, gt=0)
     webhook_rate_limit_per_minute: int = Field(default=600, gt=0)
     redis_max_connections: int = Field(default=200, gt=0)

@@ -1,8 +1,14 @@
-"""Prometheus metrics (§14). Labels are low-cardinality: never tenant, case, phone or text."""
+"""Prometheus metrics (§14). Labels are low-cardinality: never tenant, case, phone or text.
+
+With several API worker processes (`CC_API_WORKERS`), `PROMETHEUS_MULTIPROC_DIR` is set before
+they start: each process writes its values there and `scrape_registry` sums them per scrape.
+"""
 
 from __future__ import annotations
 
-from prometheus_client import Counter, Gauge, Histogram
+import os
+
+from prometheus_client import REGISTRY, CollectorRegistry, Counter, Gauge, Histogram, multiprocess
 
 HTTP_DURATION = Histogram(
     "cc_http_request_duration_seconds",
@@ -28,3 +34,12 @@ NBA_DECISIONS = Counter("cc_nba_decisions_total", "Next-best-action decisions.",
 APPROVALS = Counter("cc_approvals_total", "Human approval decisions.", ["decision"])
 SMS_SENT = Counter("cc_sms_sent_total", "Outbound SMS attempts by result.", ["status"])
 DLQ_DEPTH = Gauge("cc_sqs_dlq_depth", "Messages in each dead-letter queue.", ["queue"])
+
+
+def scrape_registry() -> CollectorRegistry:
+    """What /metrics serves: this process's registry, or every worker's values in multiprocess mode."""
+    if not os.environ.get("PROMETHEUS_MULTIPROC_DIR"):
+        return REGISTRY
+    registry = CollectorRegistry()
+    multiprocess.MultiProcessCollector(registry)  # type: ignore[no-untyped-call]
+    return registry

@@ -13,6 +13,10 @@
             "title": "Cases",
             "type": "array"
           },
+          "cases_total": {
+            "title": "Cases Total",
+            "type": "integer"
+          },
           "contact_flag": {
             "anyOf": [
               {
@@ -132,6 +136,7 @@
           "invoices",
           "notes",
           "cases",
+          "cases_total",
           "messages",
           "promises",
           "precheck"
@@ -3709,7 +3714,7 @@
     },
     "/api/v1/webhooks/mcpgw/approvals": {
       "post": {
-        "description": "mcp-gateway held a ledger write for approval: link it to our promise and tell a\nsupervisor. Signed with HMAC-SHA256 over the raw body (`X-MCPGW-Signature: sha256=...`).",
+        "description": "mcp-gateway held a ledger write for approval: link it to our promise and tell a\nsupervisor. Signed with HMAC-SHA256 over `{timestamp}.{raw body}` (`X-MCPGW-Timestamp`,\n`X-MCPGW-Signature: sha256=...`); a timestamp more than 5 minutes off is refused, so a\ncaptured event cannot be replayed later.",
         "operationId": "mcpgw_approval_api_v1_webhooks_mcpgw_approvals_post",
         "responses": {
           "204": {

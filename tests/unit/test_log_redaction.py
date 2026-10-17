@@ -124,9 +124,17 @@ def test_encoded_and_unprefixed_secrets_are_masked(text: str) -> None:
         assert secret not in out
 
 
-def test_access_log_is_the_route_template_only() -> None:
-    """uvicorn's access log (raw path and query) is off; the middleware logs the template."""
+def test_access_log_is_the_route_template_only(monkeypatch: pytest.MonkeyPatch) -> None:
+    """uvicorn's access log (raw path and query) is off; the middleware logs the template.
+    The API image runs the launcher (collections_copilot.api.serve), which starts uvicorn."""
     from pathlib import Path
 
+    from collections_copilot.api import serve
+    from collections_copilot.config import Settings
+
     dockerfile = Path("docker/python.Dockerfile").read_text()
-    assert "--no-access-log" in dockerfile
+    assert 'CMD ["python", "-m", "collections_copilot.api.serve"]' in dockerfile
+    calls: list[dict[str, object]] = []
+    monkeypatch.setattr(serve.uvicorn, "run", lambda target, **kw: calls.append(kw))
+    serve.main(Settings(api_workers=1))
+    assert calls[0]["access_log"] is False

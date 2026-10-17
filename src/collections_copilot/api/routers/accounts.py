@@ -16,6 +16,9 @@ from collections_copilot.db.repositories import Repos
 
 router = APIRouter(prefix="/api/v1", tags=["accounts"])
 
+# Cases in the detail payload; the open case is always the newest (one open case per account).
+ACCOUNT_HISTORY_LIMIT = 20
+
 
 @router.get("/accounts/{account_id}", response_model=AccountDetail)
 async def get_account(
@@ -50,7 +53,11 @@ async def get_account(
         aging=views.aging(invoices, today),
         invoices=[views.invoice_out(i, today) for i in invoices],
         notes=[views.note_out(n) for n in await repos.notes.for_account(tenant, account.id)],
-        cases=[views.case_summary(c) for c in await repos.cases.for_account(tenant, account.id)],
+        cases=[
+            views.case_summary(c)
+            for c in await repos.cases.for_account(tenant, account.id, ACCOUNT_HISTORY_LIMIT)
+        ],
+        cases_total=await repos.cases.count_for_account(tenant, account.id),
         messages=[
             views.message_out(m) for m in await repos.messages.for_account(tenant, account.id)
         ],

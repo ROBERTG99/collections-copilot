@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import uuid
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import httpx
 import pytest
 
+from collections_copilot.api.routers.accounts import ACCOUNT_HISTORY_LIMIT
+from collections_copilot.db.repositories import Repos
 from collections_copilot.scoring.priority import inputs_from, score
 from tests.factories import make_account, make_tenant
 
@@ -123,6 +126,30 @@ async def test_account_detail_and_tenant_isolation(
     other = await make_tenant(sessionmaker)
     resp = await client.get(f"/api/v1/accounts/{aid}", headers=auth("analyst", tenant_id=other))
     assert resp.status_code == 404
+
+
+async def test_account_detail_bounds_the_case_history(
+    client: httpx.AsyncClient, sessionmaker: Any, tenant: uuid.UUID, auth: Any
+) -> None:
+    """NFR-1: the detail payload must not grow with years of history; the open case is the
+    newest (one open case per account), so it is always in the window."""
+    aid = await make_account(sessionmaker, tenant, invoices=[{"amount_cents": 5_000}])
+    start = datetime(2026, 1, 1, tzinfo=UTC)
+    async with sessionmaker() as s, s.begin():
+        cases = Repos(s).cases
+        for day in range(30):
+            await cases.create(tenant, aid, status="closed", created_at=start + timedelta(days=day))
+        open_case = await cases.create(
+            tenant, aid, status="awaiting_approval", created_at=start + timedelta(days=40)
+        )
+    resp = await client.get(f"/api/v1/accounts/{aid}", headers=auth("analyst"))
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert len(body["cases"]) == ACCOUNT_HISTORY_LIMIT == 20
+    assert body["cases_total"] == 31
+    assert body["cases"][0]["id"] == str(open_case.id)
+    created = [c["created_at"] for c in body["cases"]]
+    assert created == sorted(created, reverse=True)
 
 
 async def test_create_cases_enqueues_and_dedupes(

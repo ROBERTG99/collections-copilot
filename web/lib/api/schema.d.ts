@@ -420,7 +420,9 @@ export interface paths {
         /**
          * Mcpgw Approval
          * @description mcp-gateway held a ledger write for approval: link it to our promise and tell a
-         *     supervisor. Signed with HMAC-SHA256 over the raw body (`X-MCPGW-Signature: sha256=...`).
+         *     supervisor. Signed with HMAC-SHA256 over `{timestamp}.{raw body}` (`X-MCPGW-Timestamp`,
+         *     `X-MCPGW-Signature: sha256=...`); a timestamp more than 5 minutes off is refused, so a
+         *     captured event cannot be replayed later.
          */
         post: operations["mcpgw_approval_api_v1_webhooks_mcpgw_approvals_post"];
         delete?: never;
@@ -506,6 +508,8 @@ export interface components {
             aging: components["schemas"]["AgingBuckets"];
             /** Cases */
             cases: components["schemas"]["CaseSummary"][];
+            /** Cases Total */
+            cases_total: number;
             /** Contact Flag */
             contact_flag: string | null;
             /** Currency */
