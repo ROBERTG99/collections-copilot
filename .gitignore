@@ -35,6 +35,7 @@ test-results/
 .evalgate/
 evals/reports/*.json
 !evals/reports/baseline.json
+!evals/reports/live.json
 deploy/data/
 *.egg-info/
 .hypothesis/

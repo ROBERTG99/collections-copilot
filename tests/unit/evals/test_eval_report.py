@@ -100,3 +100,19 @@ async def test_errored_runs_never_become_the_baseline(
     assert created
     assert (tmp_path / "baseline.json").exists()
     assert not runs[0].check.passed
+
+
+async def test_tone_rubric_loads_and_offline_calibration_is_reported() -> None:
+    from evalgate.loader import load_rubric
+
+    from collections_copilot.evals import judge
+
+    rubric = load_rubric(judge.RUBRIC)
+    assert rubric.route == "judge_tone"
+    assert rubric.thresholds.agreement_min == 0.8
+    result = await judge.calibrate_tone("test")
+    assert result.n == 40
+    assert 0.0 <= result.agreement <= 1.0
+    section = er.tone_section(result, mode="offline")
+    assert "informational" in section
+    assert f"{result.agreement:.4f}" in section

@@ -61,7 +61,26 @@ Live numbers come only from `make eval-live` (real models, within `LIVE_EVAL_BUD
 
 ## Judge calibration
 
-`tone_calibration.v1` measures the tone judge (`prompts/judge_tone.v1.md`) against labels by construction with `evalgate calibrate --rubric evals/rubrics/tone.yaml`. The gate (agreement ≥ 0.8) applies to the live judge only; the offline judge is a keyword stub and its agreement is reported for information.
+`tone_calibration.v1` (40 dev, 40 test drafts, half good and half built to break one rule) measures the tone judge (`prompts/judge_tone.v1.md`) against labels by construction:
+
+```bash
+uv run evalgate calibrate --rubric evals/rubrics/tone.yaml \
+  --labels evals/datasets/tone_calibration.v1.jsonl \
+  --judge collections_copilot.evals.judge:judge_tone --split test
+```
+
+The rubric's gate (agreement ≥ 0.8, kappa ≥ 0.6) applies to the live judge only. Offline the judge is FakeLLM's keyword stub, which recognises explicit threats but not shaming, false urgency or misleading terms; `make eval` reports its agreement for information.
+
+## Live evals
+
+`make eval-live` (`scripts/eval_live.py`) needs `ANTHROPIC_API_KEY`; without it, it prints that live evals were not run and exits 0. With a key it:
+
+1. prints the estimated cost per suite (3,000 input and 1,500 output tokens per model call, priced from `src/collections_copilot/llm/pricing.yaml`);
+2. runs the test splits in the order replies, tone, compliance, NBA (cheapest first), one case at a time, and never starts a case the rest of `LIVE_EVAL_BUDGET_USD` (default 2) may not cover; after the first case the observed cost per case replaces the estimate;
+3. gates every suite that finished (the same thresholds, plus NBA cost per account ≤ USD 0.02 and tone agreement ≥ 0.8); a suite stopped by the budget is reported as such and not gated;
+4. writes `evals/reports/live.json` (committed); the next `make eval` puts it in the live section of `evals/REPORT.md`, labelled live, with date, models and cost.
+
+`make record-fixtures` does the same and also saves every response under `tests/fixtures/llm/cassettes/`, which FakeLLM replays offline, so offline runs then measure recorded real-model output.
 
 ## Needs the maintainer
 

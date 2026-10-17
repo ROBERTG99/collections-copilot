@@ -18,6 +18,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
+from evalgate.calibrate import CalibrationResult
 from evalgate.gate import check
 from evalgate.loader import load_suite
 from evalgate.models import CheckResult, Report, Suite
@@ -132,6 +133,20 @@ def _dev_rows(runs: list[SuiteRun]) -> list[str]:
     return rows
 
 
+def tone_section(result: CalibrationResult, *, mode: str) -> str:
+    """Judge calibration on tone_calibration.v1 (the gate is live only)."""
+    return "\n".join(
+        [
+            f"## Tone judge calibration ({GATED_SPLIT} split, mode {mode}, informational)",
+            "",
+            f"`evals/rubrics/tone.yaml` against labels by construction: {result.n} drafts, "
+            f"agreement {result.agreement:.4f}, Cohen's kappa {result.kappa:.4f}. The ≥ 0.8 "
+            "agreement gate applies to the live judge only: offline, the judge is FakeLLM's "
+            "keyword stub, which only recognises explicit threats.",
+        ]
+    )
+
+
 def render(
     runs: list[SuiteRun],
     *,
@@ -233,7 +248,17 @@ def main(argv: list[str] | None = None) -> int:
             names, mode=args.mode, with_dev=not args.no_dev, update_baseline=args.update_baseline
         )
     )
-    REPORT_MD.write_text(render(runs, live_section=None))
+    from collections_copilot.evals import judge, live  # live imports this module
+
+    tone = asyncio.run(judge.calibrate_tone(GATED_SPLIT))
+    summary = live.load_summary()
+    REPORT_MD.write_text(
+        render(
+            runs,
+            live_section=live.render_summary(summary) if summary else None,
+            extra_sections=[tone_section(tone, mode="offline")],
+        )
+    )
     for run in runs:
         status = "PASS" if run.check.passed else "FAIL"
         print(f"{run.name}: {status} ({run.report.n_cases} {GATED_SPLIT} cases)")

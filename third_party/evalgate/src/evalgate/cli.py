@@ -9,12 +9,13 @@ from pathlib import Path
 
 import typer
 
+from evalgate.calibrate import calibrate as run_calibrate
 from evalgate.gate import check as run_check
 from evalgate.gate import sha256_file
-from evalgate.loader import InvalidInputError, load_suite
+from evalgate.loader import InvalidInputError, load_labels, load_rubric, load_suite
 from evalgate.models import Report
 from evalgate.report import render_markdown
-from evalgate.runner import run_suite
+from evalgate.runner import _import, run_suite
 
 app = typer.Typer(add_completion=False, help="evalgate (subset vendored by collections-copilot)")
 
@@ -91,6 +92,46 @@ def report(
         items.append((r, run_check(r, sha256_file(p), base)))
     md.write_text(render_markdown(items))
     typer.echo(json.dumps({"written": str(md)}))
+
+
+@app.command()
+def calibrate(
+    rubric: Path = typer.Option(..., "--rubric"),
+    labels: Path = typer.Option(..., "--labels"),
+    judge: str = typer.Option(..., "--judge", help="module:function taking a label row"),
+    split: str | None = typer.Option(None, "--split"),
+) -> None:
+    """Agreement and Cohen's kappa between a judge and labelled items (exit 1 below threshold)."""
+    try:
+        r = load_rubric(rubric)
+        rows = load_labels(labels, split)
+    except InvalidInputError as exc:
+        typer.echo(f"invalid input: {exc}", err=True)
+        raise typer.Exit(2) from exc
+    sys.path.insert(0, str(Path.cwd()))
+    fn = _import(judge)
+
+    async def predict() -> dict[str, int | str]:
+        out: dict[str, int | str] = {}
+        for row in rows:
+            value = fn(row)
+            out[row.id] = await value if asyncio.iscoroutine(value) else value
+        return out
+
+    predictions = asyncio.run(predict())
+    result = run_calibrate(r, rows, lambda row: predictions[row.id])
+    typer.echo(
+        json.dumps(
+            {
+                "rubric": r.name,
+                "n": result.n,
+                "agreement": result.agreement,
+                "kappa": result.kappa,
+                "passed": result.passed,
+            }
+        )
+    )
+    raise typer.Exit(0 if result.passed else 1)
 
 
 def main() -> None:
