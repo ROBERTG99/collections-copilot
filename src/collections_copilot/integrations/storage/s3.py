@@ -29,6 +29,22 @@ class ObjectStore(Protocol):
     async def delete(self, key: str) -> None: ...
 
 
+READ_CHUNK = 64 * 1024
+
+
+async def read_capped(stream: Any, max_bytes: int, key: str = "") -> bytes:
+    """The whole body, reading until EOF: one read() returns what the network has delivered so
+    far, which can be less than asked for. Raises once more than max_bytes arrive."""
+    chunks: list[bytes] = []
+    total = 0
+    while chunk := await stream.read(READ_CHUNK):
+        total += len(chunk)
+        if total > max_bytes:
+            raise ObjectTooLargeError(key)
+        chunks.append(chunk)
+    return b"".join(chunks)
+
+
 class S3ObjectStore:
     def __init__(
         self,
@@ -105,10 +121,7 @@ class S3ObjectStore:
         except Exception as exc:
             raise ObjectTooLargeError(key) from exc
         async with obj["Body"] as stream:
-            data: bytes = await stream.read(max_bytes + 1)
-        if len(data) > max_bytes:
-            raise ObjectTooLargeError(key)
-        return data
+            return await read_capped(stream, max_bytes, key)
 
     async def delete(self, key: str) -> None:
         await self._client.delete_object(Bucket=self.bucket, Key=key)

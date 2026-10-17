@@ -42,3 +42,13 @@ async def test_presigned_put_then_read(endpoint: str) -> None:
         await store.delete("x.csv")
         with pytest.raises(ObjectNotFoundError):
             await store.get_bytes("x.csv", 10)
+
+
+async def test_large_objects_are_read_whole(endpoint: str) -> None:
+    """The body arrives in several network chunks; get_bytes must return every byte."""
+    data = bytes(range(256)) * 4096  # 1 MiB
+    async with S3ObjectStore(f"contract-{uuid.uuid4().hex[:8]}", "us-east-1", endpoint) as store:
+        await store.ensure_bucket()
+        await store.put_bytes("uploads/big.csv", data)
+        for _ in range(5):
+            assert await store.get_bytes("uploads/big.csv", len(data)) == data

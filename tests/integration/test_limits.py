@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import json
+import time
 import uuid
 from collections.abc import Iterator
 from typing import Any
 
 import httpx
 import pytest
+import time_machine
 
 from tests.factories import make_account
 
@@ -17,11 +19,17 @@ pytestmark = pytest.mark.integration
 
 @pytest.fixture
 def low_rate_limit(api_app: Any) -> Iterator[int]:
+    """Limit 5 per minute, with the clock held inside one window: the limiter counts per
+    calendar minute, so a test crossing a minute boundary would start a fresh bucket. The clock
+    never goes back (tokens carry the real iat); near a window's end it moves to the next one."""
     settings = api_app.state.settings
     saved = settings.rate_limit_per_minute
     settings.rate_limit_per_minute = 5
+    now = time.time()
+    held = now if now % 60 < 50 else (now // 60 + 1) * 60 + 1
     try:
-        yield 5
+        with time_machine.travel(held, tick=False):
+            yield 5
     finally:
         settings.rate_limit_per_minute = saved
 
