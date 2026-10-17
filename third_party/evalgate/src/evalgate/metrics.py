@@ -10,7 +10,7 @@ import json
 import re
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, TypeVar
 
 from evalgate.models import DatasetRow, MetricSpec, TargetResult
 
@@ -30,10 +30,13 @@ _CASE: dict[str, CaseMetricFn] = {}
 _CORPUS: dict[str, CorpusMetricFn] = {}
 
 
-def metric(name: str, level: str = "case") -> Callable[[Any], Any]:
+F = TypeVar("F", bound=Callable[..., Any])
+
+
+def metric(name: str, level: str = "case") -> Callable[[F], F]:
     """Register a custom metric: ``@evalgate.metric("name")``."""
 
-    def deco(fn: Any) -> Any:
+    def deco(fn: F) -> F:
         if level == "corpus":
             _CORPUS[name] = fn
         else:
