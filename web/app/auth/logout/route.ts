@@ -12,5 +12,5 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
   await clearSession();
   const query = new URLSearchParams({ client_id: cfg.clientId, logout_uri: `${cfg.publicUrl}/` });
-  return NextResponse.redirect(`${cfg.oidcPublicIssuer}/logout?${query.toString()}`, 303);
+  return NextResponse.redirect(`${cfg.endpoints.logout}?${query.toString()}`, 303);
 }

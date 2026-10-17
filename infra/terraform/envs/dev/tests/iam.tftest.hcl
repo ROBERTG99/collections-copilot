@@ -1,0 +1,169 @@
+# Least privilege (T-46).
+#
+# Documented exceptions to "no wildcard actions or resources":
+#   1. KMS key policies grant "kms:*" on "*" (this key) to the account root: the standard key
+#      policy that keeps the key manageable; IAM then decides who may use it.
+#   2. The S3 bucket policy denies "s3:*" to everyone without TLS (a Deny, not a grant).
+#   3. AWS-managed policies attached by ARN: AmazonECSTaskExecutionRolePolicy (it includes
+#      ecr:GetAuthorizationToken on "*", which ECR requires), ReadOnlyAccess for the plan-only
+#      GitHub role, and AmazonRDSEnhancedMonitoringRole for RDS enhanced monitoring.
+# Every other statement names its actions and resources.
+
+mock_provider "aws" {
+  mock_data "aws_caller_identity" {
+    defaults = { account_id = "123456789012" }
+  }
+  mock_data "aws_region" {
+    defaults = { region = "us-east-1", name = "us-east-1" }
+  }
+  mock_data "aws_availability_zones" {
+    defaults = { names = ["us-east-1a", "us-east-1b", "us-east-1c"] }
+  }
+  # Well-formed ARNs and ids for computed attributes the provider validates downstream.
+  mock_resource "aws_kms_key" {
+    defaults = { arn = "arn:aws:kms:us-east-1:123456789012:key/00000000-0000-0000-0000-000000000001", key_id = "00000000-0000-0000-0000-000000000001" }
+  }
+  mock_resource "aws_iam_role" {
+    defaults = { arn = "arn:aws:iam::123456789012:role/mock" }
+  }
+  mock_resource "aws_lb" {
+    defaults = { arn = "arn:aws:elasticloadbalancing:us-east-1:123456789012:loadbalancer/app/mock/0123456789abcdef", arn_suffix = "app/mock/0123456789abcdef", dns_name = "mock.us-east-1.elb.amazonaws.com" }
+  }
+  mock_resource "aws_lb_target_group" {
+    defaults = { arn = "arn:aws:elasticloadbalancing:us-east-1:123456789012:targetgroup/mock/0123456789abcdef" }
+  }
+  mock_resource "aws_lb_listener" {
+    defaults = { arn = "arn:aws:elasticloadbalancing:us-east-1:123456789012:listener/app/mock/0123456789abcdef/0123456789abcdef" }
+  }
+  mock_resource "aws_cloudwatch_log_group" {
+    defaults = { arn = "arn:aws:logs:us-east-1:123456789012:log-group:mock" }
+  }
+  mock_resource "aws_sns_topic" {
+    defaults = { arn = "arn:aws:sns:us-east-1:123456789012:mock" }
+  }
+  mock_resource "aws_cognito_user_pool" {
+    defaults = { id = "us-east-1_Mock12345", arn = "arn:aws:cognito-idp:us-east-1:123456789012:userpool/us-east-1_Mock12345" }
+  }
+  mock_resource "aws_ecs_cluster" {
+    defaults = { arn = "arn:aws:ecs:us-east-1:123456789012:cluster/mock" }
+  }
+  mock_resource "aws_ecs_task_definition" {
+    defaults = { arn = "arn:aws:ecs:us-east-1:123456789012:task-definition/mock:1" }
+  }
+  mock_resource "aws_service_discovery_http_namespace" {
+    defaults = { arn = "arn:aws:servicediscovery:us-east-1:123456789012:namespace/ns-mock" }
+  }
+  mock_resource "aws_sqs_queue" {
+    defaults = { arn = "arn:aws:sqs:us-east-1:123456789012:mock", url = "https://sqs.us-east-1.amazonaws.com/123456789012/mock" }
+  }
+  mock_resource "aws_secretsmanager_secret" {
+    defaults = { arn = "arn:aws:secretsmanager:us-east-1:123456789012:secret:mock-AbCdEf" }
+  }
+  mock_resource "aws_s3_bucket" {
+    defaults = { arn = "arn:aws:s3:::mock-bucket" }
+  }
+  mock_resource "aws_iam_openid_connect_provider" {
+    defaults = { arn = "arn:aws:iam::123456789012:oidc-provider/token.actions.githubusercontent.com" }
+  }
+  mock_resource "aws_ecr_repository" {
+    defaults = { arn = "arn:aws:ecr:us-east-1:123456789012:repository/mock", repository_url = "123456789012.dkr.ecr.us-east-1.amazonaws.com/mock" }
+  }
+  mock_resource "aws_wafv2_web_acl" {
+    defaults = { arn = "arn:aws:wafv2:us-east-1:123456789012:regional/webacl/mock/00000000-0000-0000-0000-000000000003" }
+  }
+  mock_resource "aws_db_instance" {
+    defaults = { arn = "arn:aws:rds:us-east-1:123456789012:db:mock", endpoint = "mock.abc.us-east-1.rds.amazonaws.com:5432" }
+  }
+}
+
+# The signing key must be told apart from the data key.
+override_resource {
+  target = module.kms.aws_kms_key.signing
+  values = {
+    arn    = "arn:aws:kms:us-east-1:123456789012:key/00000000-0000-0000-0000-000000000002"
+    key_id = "00000000-0000-0000-0000-000000000002"
+  }
+}
+
+variables {
+  image_tag       = "0.1.0"
+  certificate_arn = "arn:aws:acm:us-east-1:123456789012:certificate/00000000-0000-0000-0000-000000000000"
+  alarm_email     = "alerts@example.com"
+}
+
+run "no_wildcards_outside_the_exception_list" {
+  command = apply
+
+  assert {
+    condition = alltrue(flatten([
+      for name, doc in merge(module.iam.policy_documents, module.network.policy_documents, module.github_oidc.policy_documents) : [
+        for st in jsondecode(doc).Statement : st.Effect != "Allow" || (
+          !anytrue([for a in flatten([st.Action]) : a == "*" || endswith(a, ":*")]) &&
+          !contains(flatten([st.Resource]), "*")
+        )
+      ]
+    ]))
+    error_message = "An identity policy grants a wildcard action or resource outside the documented exceptions."
+  }
+  assert {
+    condition = alltrue(flatten([
+      for name, doc in module.kms.key_policies : [
+        for st in jsondecode(doc).Statement : !contains(flatten([st.Action]), "kms:*") || st.Principal == { AWS = "arn:aws:iam::123456789012:root" }
+      ]
+    ]))
+    error_message = "Only the account root may hold kms:* in a key policy (exception 1)."
+  }
+  assert {
+    condition = alltrue([
+      for st in jsondecode(module.s3.policy_documents.uploads_bucket).Statement : st.Effect == "Deny"
+    ])
+    error_message = "The bucket policy may only deny (exception 2)."
+  }
+  assert {
+    condition = toset(concat(module.iam.managed_policy_arns, module.github_oidc.managed_policy_arns, module.rds.managed_policy_arns)) == toset([
+      "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy",
+      "arn:aws:iam::aws:policy/ReadOnlyAccess",
+      "arn:aws:iam::aws:policy/service-role/AmazonRDSEnhancedMonitoringRole",
+    ])
+    error_message = "Only the documented AWS-managed policies may be attached (exception 3)."
+  }
+}
+
+run "bedrock_and_signing_are_scoped" {
+  command = apply
+
+  assert {
+    condition = alltrue(flatten([
+      for st in jsondecode(module.iam.policy_documents["task-worker"]).Statement : [
+        for r in flatten([st.Resource]) : anytrue([for id in var.bedrock_model_ids : endswith(r, "/${id}")])
+      ] if contains(flatten([st.Action]), "bedrock:InvokeModel")
+    ]))
+    error_message = "bedrock:InvokeModel must be limited to the configured model ids."
+  }
+  assert {
+    condition = alltrue(flatten([
+      for name, doc in module.iam.policy_documents : [
+        for st in jsondecode(doc).Statement : flatten([st.Resource]) == [module.kms.signing_key_arn] && name == "task-worker"
+        if contains(flatten([st.Action]), "kms:Sign")
+      ]
+    ]))
+    error_message = "kms:Sign is granted only to the worker and only on the signing key."
+  }
+  assert {
+    condition     = length([for name, doc in module.iam.policy_documents : name if strcontains(doc, "bedrock:")]) == 1
+    error_message = "Only the worker may call Bedrock."
+  }
+  assert {
+    condition     = !contains(keys(module.iam.policy_documents), "task-web")
+    error_message = "The web BFF calls no AWS API and gets no permissions."
+  }
+}
+
+run "github_plan_role_is_main_only" {
+  command = apply
+
+  assert {
+    condition     = jsondecode(module.github_oidc.trust_policy).Statement[0].Condition.StringEquals["token.actions.githubusercontent.com:sub"] == "repo:ROBERTG99/collections-copilot:ref:refs/heads/main"
+    error_message = "Only main of ROBERTG99/collections-copilot may assume the plan role."
+  }
+}

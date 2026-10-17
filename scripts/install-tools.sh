@@ -18,6 +18,7 @@ GITLEAKS_VERSION=8.30.1
 SYFT_VERSION=1.54.1
 CHECKOV_VERSION=3.3.29
 PRE_COMMIT_VERSION=4.7.0
+AWS_PROVIDER_VERSION=6.68.0
 
 OS="$(uname -s | tr '[:upper:]' '[:lower:]')"   # linux | darwin
 ARCH="$(uname -m)"
@@ -88,6 +89,15 @@ fi
 if have uv; then
   have checkov || { log "checkov $CHECKOV_VERSION"; uv tool install --quiet "checkov==${CHECKOV_VERSION}"; }
   have pre-commit || { log "pre-commit $PRE_COMMIT_VERSION"; uv tool install --quiet "pre-commit==${PRE_COMMIT_VERSION}"; }
+fi
+
+# The AWS provider in Terraform's implicit local mirror, so `terraform init` works offline
+# (registry.terraform.io is blocked in the cloud container; releases.hashicorp.com is not).
+PROVIDER_DIR="$HOME/.terraform.d/plugins/registry.terraform.io/hashicorp/aws/${AWS_PROVIDER_VERSION}/${OS}_${ARCH}"
+if [ ! -d "$PROVIDER_DIR" ]; then
+  log "terraform provider hashicorp/aws $AWS_PROVIDER_VERSION"
+  fetch "https://releases.hashicorp.com/terraform-provider-aws/${AWS_PROVIDER_VERSION}/terraform-provider-aws_${AWS_PROVIDER_VERSION}_${OS}_${ARCH}.zip" "$TMP/provider.zip"
+  mkdir -p "$PROVIDER_DIR" && unzip -oq "$TMP/provider.zip" -d "$PROVIDER_DIR"
 fi
 
 log "done; ensure $BIN is on PATH"

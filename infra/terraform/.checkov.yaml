@@ -1,0 +1,9 @@
+# checkov for infra/terraform (scripts/tf.sh, scripts/security.sh). Every skip is inline next to
+# its resource with the reason (`#checkov:skip=ID:reason`); none are global.
+framework:
+  - terraform
+skip-path:
+  - \.terraform
+compact: true
+quiet: true
+skip-download: true

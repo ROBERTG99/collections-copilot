@@ -33,7 +33,7 @@ export function authorizeUrl(
     code_challenge: params.challenge,
     code_challenge_method: "S256",
   });
-  return `${cfg.oidcPublicIssuer}/authorize?${query.toString()}`;
+  return `${cfg.endpoints.authorize}?${query.toString()}`;
 }
 
 type TokenResponse = {
@@ -63,7 +63,7 @@ export function sessionFromTokens(tokens: TokenResponse, previousRefresh?: strin
 }
 
 async function tokenRequest(cfg: WebConfig, body: Record<string, string>): Promise<TokenResponse> {
-  const resp = await fetch(`${cfg.oidcIssuer}/token`, {
+  const resp = await fetch(cfg.endpoints.token, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({ client_id: cfg.clientId, ...body }),
@@ -78,10 +78,10 @@ const jwksByIssuer = new Map<string, ReturnType<typeof createRemoteJWKSet>>();
 /** The ID token from the code exchange must be signed by the issuer, be for this client, and
  * carry the nonce sent with the authorization request (replayed or injected codes fail). */
 export async function verifyIdToken(cfg: WebConfig, idToken: string, nonce: string): Promise<void> {
-  let jwks = jwksByIssuer.get(cfg.oidcIssuer);
+  let jwks = jwksByIssuer.get(cfg.endpoints.jwks);
   if (!jwks) {
-    jwks = createRemoteJWKSet(new URL(`${cfg.oidcIssuer}/.well-known/jwks.json`));
-    jwksByIssuer.set(cfg.oidcIssuer, jwks);
+    jwks = createRemoteJWKSet(new URL(cfg.endpoints.jwks));
+    jwksByIssuer.set(cfg.endpoints.jwks, jwks);
   }
   const { payload } = await jwtVerify(idToken, jwks, {
     audience: cfg.clientId,

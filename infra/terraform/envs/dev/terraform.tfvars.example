@@ -1,0 +1,11 @@
+# Copy to terraform.tfvars and replace every value. Dummy values only; never commit real ones.
+aws_region         = "us-east-1"
+project            = "collections-copilot"
+environment        = "dev"
+image_tag          = "0.1.0"
+certificate_arn    = "arn:aws:acm:us-east-1:123456789012:certificate/00000000-0000-0000-0000-000000000000"
+public_hostname    = "collections.example.com"
+alarm_email        = "alerts@example.com"
+monthly_budget_usd = 150
+bedrock_model_ids  = ["anthropic.claude-haiku-5-5", "anthropic.claude-opus-5-5"]
+worker_max_tasks   = 10

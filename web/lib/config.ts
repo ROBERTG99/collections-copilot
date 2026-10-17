@@ -7,6 +7,8 @@ export type WebConfig = {
   clientId: string;
   publicUrl: string;
   secureCookies: boolean;
+  /** dev-oidc serves them under its issuers; Cognito's hosted UI uses another host. */
+  endpoints: { authorize: string; token: string; jwks: string; logout: string };
 };
 
 export function webConfig(env: NodeJS.ProcessEnv = process.env): WebConfig {
@@ -21,7 +23,18 @@ export function webConfig(env: NodeJS.ProcessEnv = process.env): WebConfig {
   ) {
     throw new Error("WEB_SESSION_SECRET must be set to a real secret in production");
   }
+  const strip = (url: string) => url.replace(/\/$/, "");
+  const oidcIssuer = strip(env.WEB_OIDC_ISSUER ?? "http://localhost:8345");
+  const oidcPublicIssuer = strip(
+    env.WEB_OIDC_PUBLIC_ISSUER ?? env.WEB_OIDC_ISSUER ?? "http://localhost:8345",
+  );
   return {
+    endpoints: {
+      authorize: env.WEB_OIDC_AUTHORIZE_URL ?? `${oidcPublicIssuer}/authorize`,
+      token: env.WEB_OIDC_TOKEN_URL ?? `${oidcIssuer}/token`,
+      jwks: env.WEB_OIDC_JWKS_URL ?? `${oidcIssuer}/.well-known/jwks.json`,
+      logout: env.WEB_OIDC_LOGOUT_URL ?? `${oidcPublicIssuer}/logout`,
+    },
     sessionSecret: secret,
     apiBaseUrl: (env.WEB_API_BASE_URL ?? "http://localhost:8310").replace(/\/$/, ""),
     oidcIssuer: (env.WEB_OIDC_ISSUER ?? "http://localhost:8345").replace(/\/$/, ""),
