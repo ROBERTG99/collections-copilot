@@ -12,7 +12,11 @@ export type WebConfig = {
 export function webConfig(env: NodeJS.ProcessEnv = process.env): WebConfig {
   const publicUrl = env.WEB_PUBLIC_URL ?? "http://localhost:8300";
   const secret = env.WEB_SESSION_SECRET ?? "";
-  if (env.NODE_ENV === "production" && secret.startsWith("dev-only") && env.WEB_ALLOW_DEV_SECRET !== "true") {
+  if (
+    env.NODE_ENV === "production" &&
+    secret.startsWith("dev-only") &&
+    env.WEB_ALLOW_DEV_SECRET !== "true"
+  ) {
     throw new Error("WEB_SESSION_SECRET must be set to a real secret in production");
   }
   return {
