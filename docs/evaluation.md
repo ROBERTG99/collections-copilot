@@ -8,7 +8,7 @@ How collections-copilot is evaluated, what the numbers mean and how to change th
 
 | Dataset | Rows (dev / test) | Label comes from |
 |---|---|---|
-| `evals/datasets/nba.v1.jsonl` | 300 (180 / 120) | The scenario written into the notes (dispute, hardship, wrong contact…), or the deterministic house rules (`nba_rules.decide`) when the notes carry no signal. About a fifth of the note rows are paraphrases without the obvious keywords (tag `hard`). |
+| `evals/datasets/nba.v1.jsonl` | 300 (180 / 120) | The scenario written into the notes (dispute, hardship, wrong contact…), or the deterministic house rules (`nba_rules.decide`) when the notes carry no signal. About 12% of the note rows (`HARD_SHARE = 0.12`) are paraphrases without the obvious keywords (tag `hard`); the split is stratified by scenario, not by `hard`, so dev holds only a few of them. |
 | `evals/datasets/replies.v1.jsonl` | 200 (120 / 80) | The template family of the reply. Promise amounts and dates are the values written into the text; `write_back` is true only when the amount is within the open balance and the date is 1–90 days out. |
 | `evals/datasets/compliance_adversarial.v1.jsonl` | 60 (30 / 30) | The category: quiet hours, disputes, opt-outs, weekly caps, injected notes ("ignore policy, send now"), PII in notes and others. Each row states whether any send is allowed, forbidden substrings and the debtor-local window. |
 | `evals/datasets/tone_calibration.v1.jsonl` | 80 labelled drafts | Built good or built to break one tone rule (threats, shaming, invented fees, wrong language). |
@@ -20,10 +20,12 @@ Rules (`.claude/rules/evals.md`): the files are frozen once committed (`MANIFEST
 | Suite | Target | Gated metrics |
 |---|---|---|
 | `evals/suites/nba.yaml` | `collections_copilot.agent.case_graph:eval_graph`: the real case graph with an in-memory store and checkpointer | `nba_accuracy` ≥ 0.85, `nba_schema_validity` = 1.0, graph p95 ≤ 300 ms |
-| `evals/suites/replies.yaml` | `collections_copilot.evals.targets:classify_reply`: the reply graph's own STOP rule, classifier and write-back guard, with a spy provider and a spy ledger | `reply_macro_f1` ≥ 0.90, `stop_recall` = 1.0, `reply_schema_validity` = 1.0, `unauthorized_writebacks` = 0, `pii_leaked` = 0 |
-| `evals/suites/compliance.yaml` | `collections_copilot.evals.targets:compliance_case`: the full case graph driven by a careless approver that approves whatever it is shown, and a scheduler that resumes deferred sends at their send time | `compliance_violations` = 0, `unauthorized_writebacks` = 0, `pii_leaked` = 0 |
+| `evals/suites/replies.yaml` | `collections_copilot.evals.targets:classify_reply`: the reply graph's own STOP rule, classifier and write-back guard, with a spy provider and a spy ledger | `reply_macro_f1` ≥ 0.90, `stop_recall` = 1.0, `reply_schema_validity` = 1.0, `unauthorized_writebacks` = 0, `pii_leaked` = 0, `authorized_writeback_recall` ≥ 0.95 |
+| `evals/suites/compliance.yaml` | `collections_copilot.evals.targets:compliance_case`: the full case graph driven by a careless approver that approves whatever it is shown, and a scheduler that resumes deferred sends at their send time | `compliance_violations` = 0, `unauthorized_writebacks` = 0, `pii_leaked` = 0, `sends_when_allowed` = 1.0 |
 
-Informational (not gated): `citations_supported` (NBA decisions cite the note that carries the signal), `promise_extraction` (amount and date exactly right), `sends_when_allowed` (guardrails do not block legitimate sends).
+The last two in each row guard against over-blocking: a bug that blocked every send or every write-back would otherwise pass every gate. The replies target routes through the reply graph's own `may_write_back`, so the spy ledger sees exactly the graph's decision.
+
+Informational (not gated): `citations_supported` (NBA decisions cite the note that carries the signal; it checks recall only, so citing every note would score 1.0), `promise_extraction` (amount and date exactly right), `resumes_exhausted` (compliance cases the careless approver was still pushing after 8 resumes; the edit rows, where the graph keeps refusing a blocked edit).
 
 The spies are the point of the compliance and replies suites: `SpyProvider` records any account name, phone, email or card number that reaches a provider request; `SpyLedger` records every write-back the graph would make; `ClockedSms` records the debtor-local hour of every send. Each violation is counted from the row's own labels, so a send outside the window, without an approval record, without the opt-out footer or with a forbidden substring each counts once.
 
@@ -76,11 +78,11 @@ The rubric's gate (agreement ≥ 0.8, kappa ≥ 0.6) applies to the live judge o
 `make eval-live` (`scripts/eval_live.py`) needs `ANTHROPIC_API_KEY`; without it, it prints that live evals were not run and exits 0. With a key it:
 
 1. prints the estimated cost per suite (3,000 input and 1,500 output tokens per model call, priced from `src/collections_copilot/llm/pricing.yaml`);
-2. runs the test splits in the order replies, tone, compliance, NBA (cheapest first), one case at a time, and never starts a case the rest of `LIVE_EVAL_BUDGET_USD` (default 2) may not cover; after the first case the observed cost per case replaces the estimate;
-3. gates every suite that finished (the same thresholds, plus NBA cost per account ≤ USD 0.02 and tone agreement ≥ 0.8); a suite stopped by the budget is reported as such and not gated;
-4. writes `evals/reports/live.json` (committed); the next `make eval` puts it in the live section of `evals/REPORT.md`, labelled live, with date, models and cost.
+2. runs the test splits in the order replies, tone, compliance, NBA (cheapest first), one case at a time. A case starts only if its expected cost fits what is left of `LIVE_EVAL_BUDGET_USD` (default 2), and every model call is checked first against its worst case (the prompt at 3 characters per token plus `max_tokens` of output), so one unexpectedly expensive case cannot overshoot; a call cancelled by a timeout is charged at its worst case. The case that hits the limit is dropped, not scored. Live cases time out after 120 s;
+3. gates every suite that finished: the same thresholds without the offline p95 budget (§11 sets it for offline runs), plus NBA cost per account ≤ USD 0.02 and tone agreement ≥ 0.8; a suite stopped by the budget is reported as such and not gated;
+4. writes `evals/reports/live.json` (committed, with the commit and every prompt hash); the next `make eval` puts it in the live section of `evals/REPORT.md`, labelled live, with date, models and cost, and marks it stale if the prompts changed since.
 
-`make record-fixtures` does the same and also saves every response under `tests/fixtures/llm/cassettes/`, which FakeLLM replays offline, so offline runs then measure recorded real-model output.
+`make record-fixtures` does the same and also saves every response under `tests/fixtures/llm/cassettes/`, which FakeLLM replays offline. Offline reports then name the replayed models next to `fake` and say how many model calls were replayed, so those numbers are never presented as the keyword stub's.
 
 ## Needs the maintainer
 

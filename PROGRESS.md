@@ -18,64 +18,39 @@ chore: configure commit attribution
 
 ## Session handoff (resume here)
 
-State on 2026-10-17 (about 02:00 UTC), branch `feat/serene-gates-04qt5s`, pushed:
+State on 2026-10-17 (about 15:30 UTC), branch `feat/serene-gates-04qt5s`:
 
-- **Done:** M0 to M4 (T-01 to T-38), with every milestone review's blockers and majors fixed (see "Milestone reviews"), and T-39 (eval datasets, frozen and committed in `882a5b8`).
-- **In progress: T-40** (suites, custom metrics, gate, report). Already committed (`feat(evals): add suites, custom metrics and targets`):
-  - `evals/suites/{nba,replies,compliance}.yaml` (concurrency 1, so latency is per case);
-  - `src/collections_copilot/evals/metrics.py`: `reply_macro_f1`, `stop_recall`, `compliance_violations`, `sends_when_allowed`, `unauthorized_writebacks`, `pii_leaked`, `promise_extraction`, `citations_supported`;
-  - `src/collections_copilot/evals/targets.py`: `classify_reply` (the reply graph's own `classify_text` and `promise_problems`, with a spy provider and a spy ledger); `compliance_case` (the full case graph with a careless approver that approves or edits whatever it is given, and a scheduler that resumes deferred sends at their send time);
-  - `tests/unit/evals/test_metrics.py`, passing.
-
-  **Dev-split results** (offline, FakeLLM), the only split looked at so far:
+- **Done:** M0 to M5 (T-01 to T-41) and T-42 (M6 telemetry). Every milestone review's blockers and majors are fixed (see "Milestone reviews").
+- **Open gate:** `make eval` exits 1 on one gate only, `reply_macro_f1` on the replies test split (0.8917 < 0.90, offline, FakeLLM). Dev is 1.0; 7 of the 9 test misses are reworded `hard` rows, and dev has almost none of them. The fix within the rules needs the maintainer: recorded live cassettes (`make record-fixtures` with a key) or an approved `replies.v2` with dev and test built from disjoint paraphrase templates. Do not read failing test rows or lower the threshold (docs/KNOWN_LIMITATIONS.md, docs/DECISIONS.md).
+- **Offline eval numbers now** (`evals/REPORT.md`, test split):
 
   | Suite | Result |
   |---|---|
-  | nba | accuracy 0.933, schema 1.0, citations 0.85, p95 42 ms |
-  | replies | macro-F1 0.944, STOP recall 1.0, schema 1.0, unauthorized write-backs 0, PII 0, promise extraction 0.84 |
+  | nba | accuracy 0.975, schema 1.0, citations 0.943, p95 ~45 ms |
+  | replies | macro-F1 0.8917 (FAIL), STOP recall 1.0, write-backs 0, PII 0, authorized write-back recall 1.0 |
   | compliance | violations 0, write-backs 0, PII 0, allowed sends 1.0 |
 
-  **Still to do for T-40:**
-  1. `scripts/eval_report.py` (`make eval`). It must:
-     - import `collections_copilot.evals.metrics` so the custom metrics register;
-     - run each suite on the test split (dev for information);
-     - fill `models`, `prompt_hashes` (from `collections_copilot.agent.prompts.load_prompt(...).sha256`) and `mode`;
-     - write `evals/reports/<suite>.json`, plus `evals/reports/baseline.json` the first time;
-     - gate with `evalgate.gate.check` (max regression 1 pp), and exit 1 on any gate failure;
-     - render `evals/REPORT.md` with `evalgate.report.render_markdown`, stating the mode of every number.
-  2. A `calibrate` command or helper for `tone_calibration.v1` (offline judge = FakeLLM `judge_tone`, informational; the gate ≥ 0.8 is live only).
-  3. `docs/evaluation.md`.
-  4. Record the T-40 evidence.
-
-  **Then:**
-  - **T-41:** `evals/rubrics/tone.yaml`, `scripts/eval_live.py` with `LIVE_EVAL_BUDGET_USD` and `tests/unit/evals/test_budget_guard.py::test_stops_at_budget`. `make eval-live` without a key exits 0, saying live evals were not run.
-  - The M5 reviews (`reviewer` and `eval-analyst`).
-  - Then M6 to M9. `scripts/security.sh` is still missing; the web Dockerfile and a `web` compose service are not built yet. The standalone server is `web/.next/standalone/web/server.js`, because the workspace root is the repo; static files go to `.next/standalone/web/.next/static`.
-- **Known broken check:** the root script `pnpm run lint:md` runs `markdownlint-cli2` with no globs and no config, so it prints its help and exits 2; with globs, the default MD013 (80 columns) fails every existing doc. Before `make lint` can pass, add `.markdownlint-cli2.jsonc` (globs, ignore `node_modules`/`.next`, MD013 off or relaxed for tables) in M6.
-- **Running the web console locally:** `cd web && pnpm exec playwright test` builds and starts the standalone server itself, or run `pnpm dev` against the compose stack. Sign in at `http://localhost:8300` as `ana.analyst`.
-- **Still referenced but not built:**
-  - `/.well-known/agent-jwks.json` on the API (KMS signing, AWS only);
-  - Makefile scripts: `time_up.sh`, `bench.sh`, `security.sh`, `tf.sh`, `verify_clean.sh`, `eval_report.py`, `eval_live.py`, `gen_docs.py`, `coverage_gate.py`.
+- **Next:** T-43 (`docs/security.md` STRIDE and OWASP LLM Top 10, `scripts/security.sh` for `make security`; `tests/unit/test_log_redaction.py` already exists and passes, written first and committed with T-42), then M6 reviews (`reviewer`, `security-auditor`), then M7 (T-44 web Dockerfile and `web` compose service, `compose.test.yaml`, `scripts/time_up.sh`; T-45/T-46 Terraform; T-47 k6 and batch-400 perf; T-48 workflows and actionlint), M8 (demo, docs) and M9.
+- **Known broken check:** `pnpm run lint:md` runs `markdownlint-cli2` with no globs and no config (prints help, exits 2). Add `.markdownlint-cli2.jsonc` (globs, ignore `node_modules`/`.next`, MD013 off or relaxed for tables) before `make lint` can pass.
+- **Observability:** `make observability` builds the images and starts the stack with Jaeger (8392), Prometheus (8390) and Grafana (8391, anonymous viewer) and trace export on. API metrics are at `/metrics/`, the worker's at `:8311/metrics`.
+- **Still referenced but not built:** `/.well-known/agent-jwks.json` on the API (KMS signing, AWS only); Makefile scripts `time_up.sh`, `bench.sh`, `security.sh`, `tf.sh`, `verify_clean.sh`, `gen_docs.py`, `coverage_gate.py`; the §14 Langfuse profile (docs/KNOWN_LIMITATIONS.md).
 
 How to resume in a fresh container:
 
 1. Re-read `docs/specs/000-build-spec.md` (= `BUILD.md`), this file, `docs/DECISIONS.md` and `git log --oneline -40`.
 2. The SessionStart hook (`.claude/hooks/session_start.sh`) starts dockerd with the `mirror.gcr.io` registry mirror, installs tools, and runs `uv sync` and `pnpm install`. Run it by hand if needed: `CLAUDE_CODE_REMOTE=true .claude/hooks/session_start.sh`.
-3. `docker compose up -d --wait --build` (12 services, including dev-oidc and debtor-sim), then `docker compose run --rm seed`. On "no space left on device", run `docker builder prune -af` (this freed 18 GB here).
+3. `make deps-up` for host integration tests, or `docker compose up -d --wait --build` for the full stack (add `--profile observability`, or use `make observability`), then `docker compose run --rm seed`. On "no space left on device", run `docker builder prune -af`.
 4. Checks:
    - `make check-fast`
    - `uv run pytest tests/integration tests/contract -m "not docker" -q`
-   - `uv run pytest tests/integration -m docker -q` with the stack up
+   - `uv run pytest tests/integration -m docker -q` with the full stack up and rebuilt (the demo client honours 429 `Retry-After`; do not hammer the API with the same persona just before)
+   - `make eval` (exits 1 on the known replies gap only)
    - `cd web && pnpm run typecheck && pnpm exec vitest run && pnpm run lint && pnpm run format:check`
-   - e2e: `cd web && pnpm exec playwright test`, with the API and worker images rebuilt after backend changes. It needs a seeded account inside its 08:00–21:00 window; about 04:00–06:00 UTC there is none (docs/KNOWN_LIMITATIONS.md).
-5. Commit only after `make check-fast` passes (use `&&`, never `;` or a pipe), and only write evidence after the full run has finished (mistakes 1, 10, 11 and 13 below).
-6. **Eval datasets are frozen.** Never edit `evals/datasets/*` (the guard hook blocks it). Tune only on the dev split, and never lower a suite threshold.
+   - e2e: `cd web && pnpm exec playwright test` (needs a seeded account inside its 08:00–21:00 window; none about 04:00–06:00 UTC).
+5. Commit only after `make check-fast` passes (use `&&`, never `;` or a pipe), and only write evidence after the full run has finished.
+6. **Eval datasets are frozen.** Never edit `evals/datasets/*`. Tune only on the dev split; run the test split once per change; never lower a suite threshold. `--update-baseline` only after reviewing why the numbers moved.
 
-Verification at this handoff:
-- `make check-fast` passes.
-- web Vitest: 14 passed; `tsc`, eslint and prettier clean.
-- Integration tests touched by the M4 fixes: rbac, approval flow, reply graph, queue, limits and Schemathesis all pass.
-- e2e: queue, approval, replies-promises, ops and a11y → 25 passed in two consecutive runs (01:58 UTC); screenshots → 9 passed (`docs/images` regenerated).
+Verification at this handoff: `make check-fast`, integration + contract (not docker), docker-marked integration, `tests/unit/evals` (28 passed) and web Vitest (16) all pass; `make observability` showed data in Grafana.
 
 ## Milestone reviews
 
@@ -85,6 +60,7 @@ Verification at this handoff:
 | M1 | `reviewer`: "fix first" (2 blockers: the amount and link checks failed open; 3 majors) | Fixed in `594268f`. Re-review found one more amount hole (numeric invoice numbers masking amounts), fixed in `4d66bc4`; every other item resolved. Remaining minors are in docs/KNOWN_LIMITATIONS.md. |
 | M3 | `reviewer`: "ship" (2 majors: one failing follow-up stalled the scheduler; admins could not record opt-outs; 16 minors). `compliance-reviewer`: "fix first" (1 major: inbound SMS routed to a tenant by phone alone with one shared sending number). `security-auditor`: "fix first" (4 majors: the same routing issue; dev secret defaults with no production guard; webhook lookups and audit writes before the signature check; rate-limit and idempotency keys from unverified tokens) | Fixed with tests in `a106007`: STOP applies in every tenant that texted or holds the number (one confirmation) and other replies are routed only when exactly one tenant matches; production refuses dev secrets and a non-HTTPS issuer; signatures are checked before any lookup, bad-signature audits are throttled and carry no attacker values; limits key on the verified (tenant, sub) else the client IP, webhooks are IP-limited, 401/403/429 are never stored and the idempotency pending marker lives 60 s; scheduler rows back off and are cancelled after 5 attempts, tasks are enqueued after the commit, stale queued cases and received replies are swept, scores refresh daily; opt-outs allowed for every role; `LeaderLock` invalidates its connection; ID tokens rejected, JWKS replaced on refresh; dev-oidc redirect/logout allowlists, direct tokens off by default; audit redaction covers NANP and Spanish local numbers; status callbacks store no phone numbers; SSE ends at token expiry; promise approval refuses when nothing is open. Recorded, not fixed: per-tenant sending numbers (docs/KNOWN_LIMITATIONS.md), SSE stream caps per user (pool capped at 200), gateway HMAC without a timestamp (replays deduplicated by `approval_id`). |
 | M4 | `ux-reviewer`: "fix first" (3 blockers, all in the approval drawer: the Idempotency-Key without the body locked edits for 24 h after one refused edit and approve was enabled for unchecked text; no focus management for a modal; send time in the browser zone and "immediately" before any check. 14 majors). `reviewer` with the BFF security audit: "fix first" (7 majors: reclassifying an unprocessed reply drove its side effects; the same key lock; batch approve missing; date-only values a day early west of UTC; the FR-14 e2e compared only some cards; token refresh raced on single-use refresh tokens with no recovery; e2e not hermetic and the 43-passed evidence did not reproduce) | Fixed with tests in the M4 fix commit. Drawer: a native modal `<dialog>` that returns focus to its trigger; each check is tied to the text it checked; the key is derived from the decision content; the send time is shown in the debtor's zone and the analyst's; post-check errors show a retry; 422 violations are listed; a newer draft shows a notice; closing with an unsaved edit asks first. Reply corrections are stored next to the model label (409 `not_processed` before the graph ran), and replies show model, rule or analyst. Batch approve (≤ 50) on the queue, with a review list of every exact SMS and per-item results. Promises: account and case columns and a ledger-write preview before approval. Contrast tokens for the Template chip and control borders; per-page titles; `aria-current` nav; actionable empty states; retries on action errors; deduplicated progress; phone cards with selection and compliance; audit CSV of all rows with formulas neutralised; error boundary. BFF: single-flight refresh, `/auth/refresh` and `returnTo` on expiry, ID-token signature and nonce checked, OIDC cookie deleted on its path, logout same-origin only, `server-only` guards. e2e: no sleeps (`expect.poll`), accounts chosen by local time, a11y at 375/768/1280 and dark mode plus the Template chip, drawer edit mode and the sign-in screen, focus trap and focus return, all FR-14 cards compared. Recorded, not fixed: docs/KNOWN_LIMITATIONS.md (e2e time window, refresh map per BFF process, logout does not revoke the refresh token, rules-based NBA chip). |
+| M5 | `reviewer`: "ship" (no blocker; 4 majors: the live budget could be overshot by one expensive case; live NBA always failed the offline p95 budget; the replies target copied the reply graph's routing; offline reports would call replayed cassettes `fake`; 12 minors). `eval-analyst`: wrong-contact NBA category had no rule (9/9 dev misses), dev has almost no `hard` rows, over-blocking was never gated, REPORT provenance gaps. | All 4 majors fixed (per-call worst-case budget check, cancelled calls charged, live gate without p95 and 120 s timeout, shared `may_write_back`/`route_after_classify`, replay counter labelling models). Minors fixed: tone budget per suite, approval checked by draft version, `resumes_exhausted` reported, blank line before headings, `-dirty` commit stamps, baseline and dataset provenance, live summary commit and prompt hashes with a stale flag, "no live run is recorded" wording, baseline required under `CI`, task-local provider wrappers, FakeLLM thresholds pinned to `nba_rules`. Analyst: NBA wrong-contact, contested-charge and staged-payment rules (dev 0.933 → 0.994, test 0.892 → 0.975, run once); `sends_when_allowed` gated at 1.0 and `authorized_writeback_recall` ≥ 0.95 added. Not done: `replies.v2`/`nba.v2` and cassettes (maintainer), citation precision metric (follow-up). |
 | M2 | Re-review (`compliance-reviewer`, after the fixes): no blocker; 2 majors (STOP phrasings still reached the model; the 7-day cap ignored sends with an unknown outcome) and 7 minors, fixed in `af9bdec` with tests, except the race-free check-to-send (the window between the claim and the provider call remains; the claim now re-checks under the case lock) and the scheduler liveness (T-30). First review: `compliance-reviewer`: 1 blocker (the send used stale invoice facts and ignored case and draft status), 3 majors. `reviewer`: "fix first" (1 blocker: auto-approval treated unknown currencies as USD; 7 majors; 13 minors) | Blockers and majors fixed with regression tests in `db35812` (fresh send snapshot, stored approval record for the exact version on every path, stored draft body, no reopening closed cases, currency fail-closed) and `45221cf` (idempotent reply handlers, stored STOP confirmation, wider and narrower STOP rules, promise row lock, Twilio retry only when the request surely failed, per-case advisory lock, resume kind required, `retry_write_back` wired). Minors fixed in the next commit, except contact-name redaction (no contact field exists; docs/KNOWN_LIMITATIONS.md). |
 
 ## Agent mistakes caught (for docs/ai-development.md)
@@ -103,6 +79,11 @@ Verification at this handoff:
 12. **A patch helper left a module function inside a class.** Moving `DbCaseStore._facts` to a public `load_facts` with a scripted edit first produced a function wedged between methods (caught by reading the file before committing; mypy also flagged it). Structural moves are done with a read of the region first.
 13. **e2e evidence that did not reproduce.** T-38 recorded 43 passed twice, but the suite depended on the wall clock (accounts inside their contact window), on accounts earlier runs had not consumed, and on a shared 120/min budget; the M4 reviewers got failures. The helpers now pick accounts by local time, never reuse one, and poll instead of sleeping; the remaining time-window gap is recorded.
 14. **A scripted multi-file patch stopped halfway.** Writing into a directory that did not exist raised after four of seven files were written; the remaining files were written after checking which ones had landed.
+
+15. **Verified against stale images.** `make observability` ran `docker compose up` without `--build`, so the API and worker ran the previous images and Grafana showed no data; the target now passes `--build`.
+16. **Built on top before fixing review majors again.** T-42 started while the M5 reviews were still running; the M5 majors were fixed before T-43 (same pattern as mistake 9).
+17. **Own traffic tripped the rate limiter.** Load generated by hand to check Grafana used the same persona as the docker-marked tests, which then failed with 429; the demo client now honours `Retry-After` and polls once a second.
+18. **A heredoc wrote literal `\n` into DECISIONS.md.** A quoted heredoc kept `"\\n"` escapes; caught by reading the table back, then repaired.
 
 ## Tasks
 

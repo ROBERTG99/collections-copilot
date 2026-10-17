@@ -174,3 +174,59 @@ async def test_amount_with_a_future_time_is_a_commitment_unless_asked_or_refused
     assert (await classify("We cannot find USD 640.00 by Thursday."))["label"] == "other"
     assert (await classify("Is USD 640.00 by Thursday enough?"))["label"] == "other"
     assert (await classify("Invoice for USD 640.00 dated 2026-01-02."))["label"] == "other"
+
+
+async def _nba(body: str) -> dict[str, object]:
+    fake = FakeLLM()
+    out = (await fake.complete(req("next_best_action", "<context>{}</context>" + notes(body)))).text
+    return dict(json.loads(out))
+
+
+@pytest.mark.parametrize(
+    ("body", "action"),
+    [
+        # Wrong contact: the person or number no longer reaches the debtor (M5 eval analysis).
+        ("Our former controller has moved on; this line now rings a dentist.", "pause"),
+        ("Receptionist says nobody by that name works there any more.", "pause"),
+        ("Our buyer quit the firm in May, per the new office manager.", "pause"),
+        ("La compradora dejó la empresa en mayo.", "pause"),
+        ("El contacto ya no trabaja en la empresa; el móvil es de otra persona.", "pause"),
+        # Contesting a charge is a dispute, whatever the verb.
+        ("Buyer contests the freight surcharge on the last invoice.", "pause"),
+        ("They challenge the quantity billed on order 77.", "pause"),
+        # Asking to pay in stages is a hardship signal.
+        ("Can settle if we spread it over the next four months.", "payment_plan"),
+        ("Propone pagar en tres plazos.", "payment_plan"),
+    ],
+)
+async def test_nba_reads_wrong_contact_contested_charges_and_staged_payment(
+    body: str, action: str
+) -> None:
+    out = await _nba(body)
+    assert out["action"] == action
+    assert out["cited_note_ids"] == ["n0"]
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "AP contact confirmed the new remittance e-mail address.",
+        "Spoke with the controller; she will call back next week.",
+        "Challenge coin order shipped on time.",
+    ],
+)
+async def test_nba_does_not_read_a_signal_into_routine_notes(body: str) -> None:
+    out = await _nba(body)
+    assert out["action"] != "pause"
+
+
+def test_fake_house_rules_are_the_deterministic_rules() -> None:
+    from collections_copilot.agent import nba_rules
+    from collections_copilot.llm.providers import fake
+
+    assert fake.HOUSE_RULES == (
+        nba_rules.ESCALATE_BROKEN,
+        nba_rules.ESCALATE_DPD,
+        nba_rules.PLAN_BALANCE_CENTS,
+        nba_rules.PLAN_DPD,
+    )

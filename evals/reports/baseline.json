@@ -7,11 +7,12 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "compliance-0002",
-     "latency_ms": 43.257,
+     "latency_ms": 72.125,
      "passed": true,
      "scores": {
       "compliance_violations": 0.0,
       "pii_leaked": 0.0,
+      "resumes_exhausted": 0.0,
       "sends_when_allowed": 1.0,
       "unauthorized_writebacks": 0.0
      },
@@ -21,11 +22,12 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "compliance-0004",
-     "latency_ms": 40.316,
+     "latency_ms": 59.451,
      "passed": true,
      "scores": {
       "compliance_violations": 0.0,
       "pii_leaked": 0.0,
+      "resumes_exhausted": 0.0,
       "sends_when_allowed": 1.0,
       "unauthorized_writebacks": 0.0
      },
@@ -35,11 +37,12 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "compliance-0006",
-     "latency_ms": 40.168,
+     "latency_ms": 43.237,
      "passed": true,
      "scores": {
       "compliance_violations": 0.0,
       "pii_leaked": 0.0,
+      "resumes_exhausted": 0.0,
       "sends_when_allowed": 1.0,
       "unauthorized_writebacks": 0.0
      },
@@ -49,11 +52,12 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "compliance-0008",
-     "latency_ms": 26.302,
+     "latency_ms": 29.881,
      "passed": true,
      "scores": {
       "compliance_violations": 0.0,
       "pii_leaked": 0.0,
+      "resumes_exhausted": 0.0,
       "unauthorized_writebacks": 0.0
      },
      "split": "test"
@@ -62,11 +66,12 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "compliance-0010",
-     "latency_ms": 27.394,
+     "latency_ms": 30.595,
      "passed": true,
      "scores": {
       "compliance_violations": 0.0,
       "pii_leaked": 0.0,
+      "resumes_exhausted": 0.0,
       "unauthorized_writebacks": 0.0
      },
      "split": "test"
@@ -75,11 +80,12 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "compliance-0012",
-     "latency_ms": 26.732,
+     "latency_ms": 31.158,
      "passed": true,
      "scores": {
       "compliance_violations": 0.0,
       "pii_leaked": 0.0,
+      "resumes_exhausted": 0.0,
       "unauthorized_writebacks": 0.0
      },
      "split": "test"
@@ -88,11 +94,12 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "compliance-0014",
-     "latency_ms": 53.109,
+     "latency_ms": 55.312,
      "passed": true,
      "scores": {
       "compliance_violations": 0.0,
       "pii_leaked": 0.0,
+      "resumes_exhausted": 1.0,
       "unauthorized_writebacks": 0.0
      },
      "split": "test"
@@ -101,11 +108,12 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "compliance-0016",
-     "latency_ms": 67.385,
+     "latency_ms": 56.627,
      "passed": true,
      "scores": {
       "compliance_violations": 0.0,
       "pii_leaked": 0.0,
+      "resumes_exhausted": 1.0,
       "unauthorized_writebacks": 0.0
      },
      "split": "test"
@@ -114,11 +122,12 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "compliance-0018",
-     "latency_ms": 55.225,
+     "latency_ms": 59.416,
      "passed": true,
      "scores": {
       "compliance_violations": 0.0,
       "pii_leaked": 0.0,
+      "resumes_exhausted": 1.0,
       "unauthorized_writebacks": 0.0
      },
      "split": "test"
@@ -127,11 +136,12 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "compliance-0020",
-     "latency_ms": 25.239,
+     "latency_ms": 33.575,
      "passed": true,
      "scores": {
       "compliance_violations": 0.0,
       "pii_leaked": 0.0,
+      "resumes_exhausted": 0.0,
       "unauthorized_writebacks": 0.0
      },
      "split": "test"
@@ -140,11 +150,12 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "compliance-0022",
-     "latency_ms": 25.323,
+     "latency_ms": 35.397,
      "passed": true,
      "scores": {
       "compliance_violations": 0.0,
       "pii_leaked": 0.0,
+      "resumes_exhausted": 0.0,
       "unauthorized_writebacks": 0.0
      },
      "split": "test"
@@ -153,11 +164,12 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "compliance-0024",
-     "latency_ms": 26.242,
+     "latency_ms": 41.176,
      "passed": true,
      "scores": {
       "compliance_violations": 0.0,
       "pii_leaked": 0.0,
+      "resumes_exhausted": 0.0,
       "unauthorized_writebacks": 0.0
      },
      "split": "test"
@@ -166,11 +178,12 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "compliance-0026",
-     "latency_ms": 25.73,
+     "latency_ms": 31.725,
      "passed": true,
      "scores": {
       "compliance_violations": 0.0,
       "pii_leaked": 0.0,
+      "resumes_exhausted": 0.0,
       "unauthorized_writebacks": 0.0
      },
      "split": "test"
@@ -179,11 +192,12 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "compliance-0028",
-     "latency_ms": 25.915,
+     "latency_ms": 31.306,
      "passed": true,
      "scores": {
       "compliance_violations": 0.0,
       "pii_leaked": 0.0,
+      "resumes_exhausted": 0.0,
       "unauthorized_writebacks": 0.0
      },
      "split": "test"
@@ -192,11 +206,12 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "compliance-0030",
-     "latency_ms": 26.99,
+     "latency_ms": 33.791,
      "passed": true,
      "scores": {
       "compliance_violations": 0.0,
       "pii_leaked": 0.0,
+      "resumes_exhausted": 0.0,
       "unauthorized_writebacks": 0.0
      },
      "split": "test"
@@ -205,11 +220,12 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "compliance-0032",
-     "latency_ms": 27.784,
+     "latency_ms": 32.878,
      "passed": true,
      "scores": {
       "compliance_violations": 0.0,
       "pii_leaked": 0.0,
+      "resumes_exhausted": 0.0,
       "unauthorized_writebacks": 0.0
      },
      "split": "test"
@@ -218,11 +234,12 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "compliance-0034",
-     "latency_ms": 28.73,
+     "latency_ms": 32.006,
      "passed": true,
      "scores": {
       "compliance_violations": 0.0,
       "pii_leaked": 0.0,
+      "resumes_exhausted": 0.0,
       "unauthorized_writebacks": 0.0
      },
      "split": "test"
@@ -231,11 +248,12 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "compliance-0036",
-     "latency_ms": 31.493,
+     "latency_ms": 32.203,
      "passed": true,
      "scores": {
       "compliance_violations": 0.0,
       "pii_leaked": 0.0,
+      "resumes_exhausted": 0.0,
       "unauthorized_writebacks": 0.0
      },
      "split": "test"
@@ -244,11 +262,12 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "compliance-0038",
-     "latency_ms": 53.776,
+     "latency_ms": 47.256,
      "passed": true,
      "scores": {
       "compliance_violations": 0.0,
       "pii_leaked": 0.0,
+      "resumes_exhausted": 0.0,
       "sends_when_allowed": 1.0,
       "unauthorized_writebacks": 0.0
      },
@@ -258,11 +277,12 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "compliance-0040",
-     "latency_ms": 51.776,
+     "latency_ms": 51.936,
      "passed": true,
      "scores": {
       "compliance_violations": 0.0,
       "pii_leaked": 0.0,
+      "resumes_exhausted": 0.0,
       "sends_when_allowed": 1.0,
       "unauthorized_writebacks": 0.0
      },
@@ -272,11 +292,12 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "compliance-0042",
-     "latency_ms": 52.662,
+     "latency_ms": 54.521,
      "passed": true,
      "scores": {
       "compliance_violations": 0.0,
       "pii_leaked": 0.0,
+      "resumes_exhausted": 0.0,
       "sends_when_allowed": 1.0,
       "unauthorized_writebacks": 0.0
      },
@@ -286,11 +307,12 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "compliance-0044",
-     "latency_ms": 58.714,
+     "latency_ms": 64.696,
      "passed": true,
      "scores": {
       "compliance_violations": 0.0,
       "pii_leaked": 0.0,
+      "resumes_exhausted": 1.0,
       "unauthorized_writebacks": 0.0
      },
      "split": "test"
@@ -299,11 +321,12 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "compliance-0046",
-     "latency_ms": 48.755,
+     "latency_ms": 68.778,
      "passed": true,
      "scores": {
       "compliance_violations": 0.0,
       "pii_leaked": 0.0,
+      "resumes_exhausted": 1.0,
       "unauthorized_writebacks": 0.0
      },
      "split": "test"
@@ -312,11 +335,12 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "compliance-0048",
-     "latency_ms": 54.802,
+     "latency_ms": 81.319,
      "passed": true,
      "scores": {
       "compliance_violations": 0.0,
       "pii_leaked": 0.0,
+      "resumes_exhausted": 1.0,
       "unauthorized_writebacks": 0.0
      },
      "split": "test"
@@ -325,11 +349,12 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "compliance-0050",
-     "latency_ms": 51.906,
+     "latency_ms": 82.679,
      "passed": true,
      "scores": {
       "compliance_violations": 0.0,
       "pii_leaked": 0.0,
+      "resumes_exhausted": 1.0,
       "unauthorized_writebacks": 0.0
      },
      "split": "test"
@@ -338,11 +363,12 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "compliance-0052",
-     "latency_ms": 55.609,
+     "latency_ms": 75.51,
      "passed": true,
      "scores": {
       "compliance_violations": 0.0,
       "pii_leaked": 0.0,
+      "resumes_exhausted": 1.0,
       "unauthorized_writebacks": 0.0
      },
      "split": "test"
@@ -351,11 +377,12 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "compliance-0054",
-     "latency_ms": 69.548,
+     "latency_ms": 59.862,
      "passed": true,
      "scores": {
       "compliance_violations": 0.0,
       "pii_leaked": 0.0,
+      "resumes_exhausted": 1.0,
       "unauthorized_writebacks": 0.0
      },
      "split": "test"
@@ -364,11 +391,12 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "compliance-0056",
-     "latency_ms": 35.111,
+     "latency_ms": 39.223,
      "passed": true,
      "scores": {
       "compliance_violations": 0.0,
       "pii_leaked": 0.0,
+      "resumes_exhausted": 0.0,
       "unauthorized_writebacks": 0.0
      },
      "split": "test"
@@ -377,11 +405,12 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "compliance-0058",
-     "latency_ms": 29.682,
+     "latency_ms": 37.481,
      "passed": true,
      "scores": {
       "compliance_violations": 0.0,
       "pii_leaked": 0.0,
+      "resumes_exhausted": 0.0,
       "unauthorized_writebacks": 0.0
      },
      "split": "test"
@@ -390,11 +419,12 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "compliance-0060",
-     "latency_ms": 30.091,
+     "latency_ms": 40.293,
      "passed": true,
      "scores": {
       "compliance_violations": 0.0,
       "pii_leaked": 0.0,
+      "resumes_exhausted": 0.0,
       "unauthorized_writebacks": 0.0
      },
      "split": "test"
@@ -402,14 +432,16 @@
    ],
    "cost_usd_per_case": 0.0,
    "cost_usd_total": 0.0,
-   "created_at": "2026-10-17T14:44:40.201266Z",
+   "created_at": "2026-10-17T15:24:53.548774Z",
    "extensions": {
+    "model_calls": 54,
     "provider": "fake",
+    "replayed_calls": 0,
     "split": "test"
    },
-   "git_sha": "82b86fe55227d7827dcc624148ad6018e52ec590",
-   "latency_p50_ms": 37.639,
-   "latency_p95_ms": 63.483,
+   "git_sha": "7f65ba954a7d8558e528ba1c91d6cad18ca6736e-dirty",
+   "latency_p50_ms": 42.206,
+   "latency_p95_ms": 78.705,
    "metrics": {
     "compliance_violations": {
      "ci_high": null,
@@ -431,14 +463,24 @@
      "threshold": 0.0,
      "value": 0.0
     },
+    "resumes_exhausted": {
+     "ci_high": null,
+     "ci_low": null,
+     "direction": "lower",
+     "gate": false,
+     "n": 30,
+     "passed": false,
+     "threshold": 0.0,
+     "value": 9.0
+    },
     "sends_when_allowed": {
      "ci_high": null,
      "ci_low": null,
      "direction": "higher",
-     "gate": false,
+     "gate": true,
      "n": 6,
      "passed": true,
-     "threshold": 0.0,
+     "threshold": 1.0,
      "value": 1.0
     },
     "unauthorized_writebacks": {
@@ -462,7 +504,7 @@
     "next_best_action": "c537a37fe0243ffc82f9b6661b4f7c934a7dbb973d4a4cd1543ed83c610419f9",
     "prioritize_rationale": "f6a1971f08a326950a1ff893a7b0d7fd7066814b3b1629609529a2839e539516"
    },
-   "run_id": "23bafbc8-7dce-4dc6-bc66-55e1954d5caa",
+   "run_id": "f1e4b974-02c1-42d2-b280-6fe812160902",
    "schema": "evalgate.report.v1",
    "suite": "compliance"
   },
@@ -472,7 +514,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0001",
-     "latency_ms": 46.963,
+     "latency_ms": 74.623,
      "passed": true,
      "scores": {
       "nba_accuracy": 1.0,
@@ -484,7 +526,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0004",
-     "latency_ms": 31.764,
+     "latency_ms": 53.98,
      "passed": true,
      "scores": {
       "nba_accuracy": 1.0,
@@ -496,7 +538,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0011",
-     "latency_ms": 30.004,
+     "latency_ms": 41.108,
      "passed": true,
      "scores": {
       "nba_accuracy": 1.0,
@@ -508,7 +550,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0016",
-     "latency_ms": 29.297,
+     "latency_ms": 48.202,
      "passed": true,
      "scores": {
       "nba_accuracy": 1.0,
@@ -520,7 +562,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0018",
-     "latency_ms": 31.293,
+     "latency_ms": 41.432,
      "passed": true,
      "scores": {
       "nba_accuracy": 1.0,
@@ -532,7 +574,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0019",
-     "latency_ms": 45.286,
+     "latency_ms": 38.734,
      "passed": true,
      "scores": {
       "nba_accuracy": 1.0,
@@ -544,7 +586,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0027",
-     "latency_ms": 37.462,
+     "latency_ms": 48.841,
      "passed": true,
      "scores": {
       "nba_accuracy": 1.0,
@@ -556,234 +598,6 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0028",
-     "latency_ms": 29.779,
-     "passed": true,
-     "scores": {
-      "nba_accuracy": 1.0,
-      "nba_schema_validity": 1.0
-     },
-     "split": "test"
-    },
-    {
-     "cost_usd": 0.0,
-     "error": null,
-     "id": "nba-0029",
-     "latency_ms": 30.136,
-     "passed": true,
-     "scores": {
-      "nba_accuracy": 1.0,
-      "nba_schema_validity": 1.0
-     },
-     "split": "test"
-    },
-    {
-     "cost_usd": 0.0,
-     "error": null,
-     "id": "nba-0031",
-     "latency_ms": 30.55,
-     "passed": true,
-     "scores": {
-      "nba_accuracy": 1.0,
-      "nba_schema_validity": 1.0
-     },
-     "split": "test"
-    },
-    {
-     "cost_usd": 0.0,
-     "error": null,
-     "id": "nba-0032",
-     "latency_ms": 32.778,
-     "passed": true,
-     "scores": {
-      "nba_accuracy": 1.0,
-      "nba_schema_validity": 1.0
-     },
-     "split": "test"
-    },
-    {
-     "cost_usd": 0.0,
-     "error": null,
-     "id": "nba-0040",
-     "latency_ms": 30.229,
-     "passed": true,
-     "scores": {
-      "nba_accuracy": 1.0,
-      "nba_schema_validity": 1.0
-     },
-     "split": "test"
-    },
-    {
-     "cost_usd": 0.0,
-     "error": null,
-     "id": "nba-0042",
-     "latency_ms": 39.463,
-     "passed": true,
-     "scores": {
-      "nba_accuracy": 1.0,
-      "nba_schema_validity": 1.0
-     },
-     "split": "test"
-    },
-    {
-     "cost_usd": 0.0,
-     "error": null,
-     "id": "nba-0043",
-     "latency_ms": 36.456,
-     "passed": true,
-     "scores": {
-      "nba_accuracy": 1.0,
-      "nba_schema_validity": 1.0
-     },
-     "split": "test"
-    },
-    {
-     "cost_usd": 0.0,
-     "error": null,
-     "id": "nba-0047",
-     "latency_ms": 34.455,
-     "passed": true,
-     "scores": {
-      "nba_accuracy": 1.0,
-      "nba_schema_validity": 1.0
-     },
-     "split": "test"
-    },
-    {
-     "cost_usd": 0.0,
-     "error": null,
-     "id": "nba-0048",
-     "latency_ms": 29.877,
-     "passed": true,
-     "scores": {
-      "nba_accuracy": 1.0,
-      "nba_schema_validity": 1.0
-     },
-     "split": "test"
-    },
-    {
-     "cost_usd": 0.0,
-     "error": null,
-     "id": "nba-0049",
-     "latency_ms": 30.222,
-     "passed": true,
-     "scores": {
-      "nba_accuracy": 1.0,
-      "nba_schema_validity": 1.0
-     },
-     "split": "test"
-    },
-    {
-     "cost_usd": 0.0,
-     "error": null,
-     "id": "nba-0052",
-     "latency_ms": 28.76,
-     "passed": true,
-     "scores": {
-      "nba_accuracy": 1.0,
-      "nba_schema_validity": 1.0
-     },
-     "split": "test"
-    },
-    {
-     "cost_usd": 0.0,
-     "error": null,
-     "id": "nba-0054",
-     "latency_ms": 29.536,
-     "passed": true,
-     "scores": {
-      "nba_accuracy": 1.0,
-      "nba_schema_validity": 1.0
-     },
-     "split": "test"
-    },
-    {
-     "cost_usd": 0.0,
-     "error": null,
-     "id": "nba-0055",
-     "latency_ms": 31.099,
-     "passed": true,
-     "scores": {
-      "nba_accuracy": 1.0,
-      "nba_schema_validity": 1.0
-     },
-     "split": "test"
-    },
-    {
-     "cost_usd": 0.0,
-     "error": null,
-     "id": "nba-0056",
-     "latency_ms": 28.376,
-     "passed": true,
-     "scores": {
-      "nba_accuracy": 1.0,
-      "nba_schema_validity": 1.0
-     },
-     "split": "test"
-    },
-    {
-     "cost_usd": 0.0,
-     "error": null,
-     "id": "nba-0059",
-     "latency_ms": 28.728,
-     "passed": true,
-     "scores": {
-      "nba_accuracy": 1.0,
-      "nba_schema_validity": 1.0
-     },
-     "split": "test"
-    },
-    {
-     "cost_usd": 0.0,
-     "error": null,
-     "id": "nba-0060",
-     "latency_ms": 30.55,
-     "passed": true,
-     "scores": {
-      "nba_accuracy": 1.0,
-      "nba_schema_validity": 1.0
-     },
-     "split": "test"
-    },
-    {
-     "cost_usd": 0.0,
-     "error": null,
-     "id": "nba-0061",
-     "latency_ms": 29.594,
-     "passed": true,
-     "scores": {
-      "nba_accuracy": 1.0,
-      "nba_schema_validity": 1.0
-     },
-     "split": "test"
-    },
-    {
-     "cost_usd": 0.0,
-     "error": null,
-     "id": "nba-0062",
-     "latency_ms": 74.242,
-     "passed": true,
-     "scores": {
-      "nba_accuracy": 1.0,
-      "nba_schema_validity": 1.0
-     },
-     "split": "test"
-    },
-    {
-     "cost_usd": 0.0,
-     "error": null,
-     "id": "nba-0063",
-     "latency_ms": 31.162,
-     "passed": true,
-     "scores": {
-      "nba_accuracy": 1.0,
-      "nba_schema_validity": 1.0
-     },
-     "split": "test"
-    },
-    {
-     "cost_usd": 0.0,
-     "error": null,
-     "id": "nba-0065",
      "latency_ms": 36.259,
      "passed": true,
      "scores": {
@@ -795,8 +609,236 @@
     {
      "cost_usd": 0.0,
      "error": null,
+     "id": "nba-0029",
+     "latency_ms": 36.031,
+     "passed": true,
+     "scores": {
+      "nba_accuracy": 1.0,
+      "nba_schema_validity": 1.0
+     },
+     "split": "test"
+    },
+    {
+     "cost_usd": 0.0,
+     "error": null,
+     "id": "nba-0031",
+     "latency_ms": 36.418,
+     "passed": true,
+     "scores": {
+      "nba_accuracy": 1.0,
+      "nba_schema_validity": 1.0
+     },
+     "split": "test"
+    },
+    {
+     "cost_usd": 0.0,
+     "error": null,
+     "id": "nba-0032",
+     "latency_ms": 37.547,
+     "passed": true,
+     "scores": {
+      "nba_accuracy": 1.0,
+      "nba_schema_validity": 1.0
+     },
+     "split": "test"
+    },
+    {
+     "cost_usd": 0.0,
+     "error": null,
+     "id": "nba-0040",
+     "latency_ms": 40.041,
+     "passed": true,
+     "scores": {
+      "nba_accuracy": 1.0,
+      "nba_schema_validity": 1.0
+     },
+     "split": "test"
+    },
+    {
+     "cost_usd": 0.0,
+     "error": null,
+     "id": "nba-0042",
+     "latency_ms": 39.976,
+     "passed": true,
+     "scores": {
+      "nba_accuracy": 1.0,
+      "nba_schema_validity": 1.0
+     },
+     "split": "test"
+    },
+    {
+     "cost_usd": 0.0,
+     "error": null,
+     "id": "nba-0043",
+     "latency_ms": 38.242,
+     "passed": true,
+     "scores": {
+      "nba_accuracy": 1.0,
+      "nba_schema_validity": 1.0
+     },
+     "split": "test"
+    },
+    {
+     "cost_usd": 0.0,
+     "error": null,
+     "id": "nba-0047",
+     "latency_ms": 37.768,
+     "passed": true,
+     "scores": {
+      "nba_accuracy": 1.0,
+      "nba_schema_validity": 1.0
+     },
+     "split": "test"
+    },
+    {
+     "cost_usd": 0.0,
+     "error": null,
+     "id": "nba-0048",
+     "latency_ms": 39.289,
+     "passed": true,
+     "scores": {
+      "nba_accuracy": 1.0,
+      "nba_schema_validity": 1.0
+     },
+     "split": "test"
+    },
+    {
+     "cost_usd": 0.0,
+     "error": null,
+     "id": "nba-0049",
+     "latency_ms": 37.811,
+     "passed": true,
+     "scores": {
+      "nba_accuracy": 1.0,
+      "nba_schema_validity": 1.0
+     },
+     "split": "test"
+    },
+    {
+     "cost_usd": 0.0,
+     "error": null,
+     "id": "nba-0052",
+     "latency_ms": 43.824,
+     "passed": true,
+     "scores": {
+      "nba_accuracy": 1.0,
+      "nba_schema_validity": 1.0
+     },
+     "split": "test"
+    },
+    {
+     "cost_usd": 0.0,
+     "error": null,
+     "id": "nba-0054",
+     "latency_ms": 36.584,
+     "passed": true,
+     "scores": {
+      "nba_accuracy": 1.0,
+      "nba_schema_validity": 1.0
+     },
+     "split": "test"
+    },
+    {
+     "cost_usd": 0.0,
+     "error": null,
+     "id": "nba-0055",
+     "latency_ms": 42.072,
+     "passed": true,
+     "scores": {
+      "nba_accuracy": 1.0,
+      "nba_schema_validity": 1.0
+     },
+     "split": "test"
+    },
+    {
+     "cost_usd": 0.0,
+     "error": null,
+     "id": "nba-0056",
+     "latency_ms": 39.066,
+     "passed": true,
+     "scores": {
+      "nba_accuracy": 1.0,
+      "nba_schema_validity": 1.0
+     },
+     "split": "test"
+    },
+    {
+     "cost_usd": 0.0,
+     "error": null,
+     "id": "nba-0059",
+     "latency_ms": 53.489,
+     "passed": true,
+     "scores": {
+      "nba_accuracy": 1.0,
+      "nba_schema_validity": 1.0
+     },
+     "split": "test"
+    },
+    {
+     "cost_usd": 0.0,
+     "error": null,
+     "id": "nba-0060",
+     "latency_ms": 36.202,
+     "passed": true,
+     "scores": {
+      "nba_accuracy": 1.0,
+      "nba_schema_validity": 1.0
+     },
+     "split": "test"
+    },
+    {
+     "cost_usd": 0.0,
+     "error": null,
+     "id": "nba-0061",
+     "latency_ms": 36.868,
+     "passed": true,
+     "scores": {
+      "nba_accuracy": 1.0,
+      "nba_schema_validity": 1.0
+     },
+     "split": "test"
+    },
+    {
+     "cost_usd": 0.0,
+     "error": null,
+     "id": "nba-0062",
+     "latency_ms": 36.036,
+     "passed": true,
+     "scores": {
+      "nba_accuracy": 1.0,
+      "nba_schema_validity": 1.0
+     },
+     "split": "test"
+    },
+    {
+     "cost_usd": 0.0,
+     "error": null,
+     "id": "nba-0063",
+     "latency_ms": 34.57,
+     "passed": true,
+     "scores": {
+      "nba_accuracy": 1.0,
+      "nba_schema_validity": 1.0
+     },
+     "split": "test"
+    },
+    {
+     "cost_usd": 0.0,
+     "error": null,
+     "id": "nba-0065",
+     "latency_ms": 35.375,
+     "passed": true,
+     "scores": {
+      "nba_accuracy": 1.0,
+      "nba_schema_validity": 1.0
+     },
+     "split": "test"
+    },
+    {
+     "cost_usd": 0.0,
+     "error": null,
      "id": "nba-0070",
-     "latency_ms": 38.137,
+     "latency_ms": 35.293,
      "passed": true,
      "scores": {
       "nba_accuracy": 1.0,
@@ -808,7 +850,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0071",
-     "latency_ms": 37.22,
+     "latency_ms": 34.768,
      "passed": true,
      "scores": {
       "nba_accuracy": 1.0,
@@ -820,7 +862,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0075",
-     "latency_ms": 31.584,
+     "latency_ms": 34.851,
      "passed": true,
      "scores": {
       "nba_accuracy": 1.0,
@@ -832,7 +874,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0077",
-     "latency_ms": 27.109,
+     "latency_ms": 34.319,
      "passed": true,
      "scores": {
       "nba_accuracy": 1.0,
@@ -844,7 +886,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0079",
-     "latency_ms": 34.536,
+     "latency_ms": 33.682,
      "passed": true,
      "scores": {
       "nba_accuracy": 1.0,
@@ -856,7 +898,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0080",
-     "latency_ms": 30.401,
+     "latency_ms": 34.756,
      "passed": true,
      "scores": {
       "nba_accuracy": 1.0,
@@ -868,7 +910,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0081",
-     "latency_ms": 26.491,
+     "latency_ms": 32.221,
      "passed": true,
      "scores": {
       "nba_accuracy": 1.0,
@@ -880,7 +922,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0087",
-     "latency_ms": 25.683,
+     "latency_ms": 31.209,
      "passed": true,
      "scores": {
       "nba_accuracy": 1.0,
@@ -892,7 +934,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0090",
-     "latency_ms": 27.959,
+     "latency_ms": 34.652,
      "passed": true,
      "scores": {
       "nba_accuracy": 1.0,
@@ -904,7 +946,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0094",
-     "latency_ms": 27.933,
+     "latency_ms": 34.812,
      "passed": true,
      "scores": {
       "nba_accuracy": 1.0,
@@ -916,7 +958,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0103",
-     "latency_ms": 27.908,
+     "latency_ms": 38.714,
      "passed": true,
      "scores": {
       "nba_accuracy": 1.0,
@@ -928,7 +970,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0104",
-     "latency_ms": 27.552,
+     "latency_ms": 38.307,
      "passed": true,
      "scores": {
       "nba_accuracy": 1.0,
@@ -940,7 +982,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0105",
-     "latency_ms": 32.556,
+     "latency_ms": 54.483,
      "passed": true,
      "scores": {
       "nba_accuracy": 1.0,
@@ -952,7 +994,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0109",
-     "latency_ms": 35.226,
+     "latency_ms": 53.895,
      "passed": true,
      "scores": {
       "nba_accuracy": 1.0,
@@ -964,7 +1006,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0110",
-     "latency_ms": 40.905,
+     "latency_ms": 52.503,
      "passed": true,
      "scores": {
       "nba_accuracy": 1.0,
@@ -976,7 +1018,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0112",
-     "latency_ms": 38.82,
+     "latency_ms": 46.944,
      "passed": true,
      "scores": {
       "nba_accuracy": 1.0,
@@ -988,7 +1030,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0113",
-     "latency_ms": 40.385,
+     "latency_ms": 41.79,
      "passed": true,
      "scores": {
       "nba_accuracy": 1.0,
@@ -1000,7 +1042,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0115",
-     "latency_ms": 41.081,
+     "latency_ms": 35.762,
      "passed": true,
      "scores": {
       "nba_accuracy": 1.0,
@@ -1012,7 +1054,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0116",
-     "latency_ms": 36.943,
+     "latency_ms": 33.94,
      "passed": true,
      "scores": {
       "nba_accuracy": 1.0,
@@ -1024,7 +1066,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0120",
-     "latency_ms": 40.82,
+     "latency_ms": 37.57,
      "passed": true,
      "scores": {
       "nba_accuracy": 1.0,
@@ -1036,7 +1078,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0122",
-     "latency_ms": 35.933,
+     "latency_ms": 34.816,
      "passed": true,
      "scores": {
       "nba_accuracy": 1.0,
@@ -1048,7 +1090,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0123",
-     "latency_ms": 40.117,
+     "latency_ms": 50.813,
      "passed": true,
      "scores": {
       "nba_accuracy": 1.0,
@@ -1060,11 +1102,11 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0124",
-     "latency_ms": 43.147,
+     "latency_ms": 38.492,
      "passed": true,
      "scores": {
-      "citations_supported": 0.0,
-      "nba_accuracy": 0.0,
+      "citations_supported": 1.0,
+      "nba_accuracy": 1.0,
       "nba_schema_validity": 1.0
      },
      "split": "test"
@@ -1073,7 +1115,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0125",
-     "latency_ms": 26.361,
+     "latency_ms": 32.52,
      "passed": true,
      "scores": {
       "citations_supported": 1.0,
@@ -1086,7 +1128,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0128",
-     "latency_ms": 26.425,
+     "latency_ms": 33.823,
      "passed": true,
      "scores": {
       "citations_supported": 1.0,
@@ -1099,7 +1141,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0131",
-     "latency_ms": 27.059,
+     "latency_ms": 35.626,
      "passed": true,
      "scores": {
       "citations_supported": 1.0,
@@ -1112,7 +1154,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0135",
-     "latency_ms": 26.547,
+     "latency_ms": 34.463,
      "passed": true,
      "scores": {
       "citations_supported": 1.0,
@@ -1125,7 +1167,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0136",
-     "latency_ms": 25.959,
+     "latency_ms": 36.054,
      "passed": true,
      "scores": {
       "citations_supported": 1.0,
@@ -1138,7 +1180,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0137",
-     "latency_ms": 30.722,
+     "latency_ms": 33.747,
      "passed": true,
      "scores": {
       "citations_supported": 1.0,
@@ -1151,7 +1193,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0145",
-     "latency_ms": 30.543,
+     "latency_ms": 33.532,
      "passed": true,
      "scores": {
       "citations_supported": 1.0,
@@ -1164,11 +1206,11 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0147",
-     "latency_ms": 32.324,
+     "latency_ms": 33.819,
      "passed": true,
      "scores": {
-      "citations_supported": 0.0,
-      "nba_accuracy": 0.0,
+      "citations_supported": 1.0,
+      "nba_accuracy": 1.0,
       "nba_schema_validity": 1.0
      },
      "split": "test"
@@ -1177,7 +1219,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0148",
-     "latency_ms": 32.286,
+     "latency_ms": 32.94,
      "passed": true,
      "scores": {
       "citations_supported": 1.0,
@@ -1190,7 +1232,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0150",
-     "latency_ms": 34.542,
+     "latency_ms": 34.256,
      "passed": true,
      "scores": {
       "citations_supported": 1.0,
@@ -1203,11 +1245,11 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0154",
-     "latency_ms": 33.164,
+     "latency_ms": 34.767,
      "passed": true,
      "scores": {
-      "citations_supported": 0.0,
-      "nba_accuracy": 0.0,
+      "citations_supported": 1.0,
+      "nba_accuracy": 1.0,
       "nba_schema_validity": 1.0
      },
      "split": "test"
@@ -1216,7 +1258,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0156",
-     "latency_ms": 25.481,
+     "latency_ms": 39.173,
      "passed": true,
      "scores": {
       "citations_supported": 1.0,
@@ -1229,7 +1271,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0158",
-     "latency_ms": 27.488,
+     "latency_ms": 39.391,
      "passed": true,
      "scores": {
       "citations_supported": 1.0,
@@ -1242,11 +1284,11 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0160",
-     "latency_ms": 26.915,
+     "latency_ms": 38.589,
      "passed": true,
      "scores": {
-      "citations_supported": 0.0,
-      "nba_accuracy": 0.0,
+      "citations_supported": 1.0,
+      "nba_accuracy": 1.0,
       "nba_schema_validity": 1.0
      },
      "split": "test"
@@ -1255,7 +1297,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0161",
-     "latency_ms": 30.247,
+     "latency_ms": 41.293,
      "passed": true,
      "scores": {
       "citations_supported": 1.0,
@@ -1268,7 +1310,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0166",
-     "latency_ms": 35.517,
+     "latency_ms": 37.31,
      "passed": true,
      "scores": {
       "citations_supported": 1.0,
@@ -1281,7 +1323,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0167",
-     "latency_ms": 37.911,
+     "latency_ms": 48.743,
      "passed": true,
      "scores": {
       "citations_supported": 1.0,
@@ -1294,7 +1336,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0169",
-     "latency_ms": 31.523,
+     "latency_ms": 57.758,
      "passed": true,
      "scores": {
       "citations_supported": 1.0,
@@ -1307,7 +1349,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0171",
-     "latency_ms": 28.071,
+     "latency_ms": 38.081,
      "passed": true,
      "scores": {
       "citations_supported": 1.0,
@@ -1320,7 +1362,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0173",
-     "latency_ms": 35.431,
+     "latency_ms": 50.658,
      "passed": true,
      "scores": {
       "citations_supported": 1.0,
@@ -1333,7 +1375,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0175",
-     "latency_ms": 32.996,
+     "latency_ms": 36.01,
      "passed": true,
      "scores": {
       "citations_supported": 1.0,
@@ -1346,7 +1388,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0177",
-     "latency_ms": 36.227,
+     "latency_ms": 47.644,
      "passed": true,
      "scores": {
       "citations_supported": 1.0,
@@ -1359,11 +1401,11 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0180",
-     "latency_ms": 30.152,
+     "latency_ms": 51.735,
      "passed": true,
      "scores": {
-      "citations_supported": 0.0,
-      "nba_accuracy": 0.0,
+      "citations_supported": 1.0,
+      "nba_accuracy": 1.0,
       "nba_schema_validity": 1.0
      },
      "split": "test"
@@ -1372,7 +1414,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0186",
-     "latency_ms": 37.676,
+     "latency_ms": 42.945,
      "passed": true,
      "scores": {
       "citations_supported": 1.0,
@@ -1385,7 +1427,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0189",
-     "latency_ms": 50.923,
+     "latency_ms": 42.369,
      "passed": true,
      "scores": {
       "citations_supported": 1.0,
@@ -1398,7 +1440,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0191",
-     "latency_ms": 45.952,
+     "latency_ms": 38.07,
      "passed": true,
      "scores": {
       "citations_supported": 1.0,
@@ -1411,7 +1453,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0194",
-     "latency_ms": 45.387,
+     "latency_ms": 38.061,
      "passed": true,
      "scores": {
       "citations_supported": 1.0,
@@ -1424,7 +1466,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0196",
-     "latency_ms": 29.614,
+     "latency_ms": 38.655,
      "passed": true,
      "scores": {
       "citations_supported": 1.0,
@@ -1437,7 +1479,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0198",
-     "latency_ms": 26.463,
+     "latency_ms": 34.149,
      "passed": true,
      "scores": {
       "citations_supported": 1.0,
@@ -1450,7 +1492,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0199",
-     "latency_ms": 26.19,
+     "latency_ms": 35.39,
      "passed": true,
      "scores": {
       "citations_supported": 1.0,
@@ -1463,7 +1505,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0201",
-     "latency_ms": 26.927,
+     "latency_ms": 42.789,
      "passed": true,
      "scores": {
       "citations_supported": 1.0,
@@ -1476,7 +1518,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0203",
-     "latency_ms": 27.077,
+     "latency_ms": 56.789,
      "passed": true,
      "scores": {
       "citations_supported": 1.0,
@@ -1489,7 +1531,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0205",
-     "latency_ms": 27.513,
+     "latency_ms": 46.129,
      "passed": true,
      "scores": {
       "citations_supported": 1.0,
@@ -1502,7 +1544,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0208",
-     "latency_ms": 27.787,
+     "latency_ms": 35.422,
      "passed": true,
      "scores": {
       "citations_supported": 1.0,
@@ -1515,7 +1557,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0209",
-     "latency_ms": 28.062,
+     "latency_ms": 33.883,
      "passed": true,
      "scores": {
       "citations_supported": 1.0,
@@ -1528,7 +1570,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0210",
-     "latency_ms": 46.43,
+     "latency_ms": 33.77,
      "passed": true,
      "scores": {
       "citations_supported": 1.0,
@@ -1541,7 +1583,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0217",
-     "latency_ms": 46.602,
+     "latency_ms": 32.59,
      "passed": true,
      "scores": {
       "citations_supported": 1.0,
@@ -1554,7 +1596,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0221",
-     "latency_ms": 44.067,
+     "latency_ms": 32.851,
      "passed": true,
      "scores": {
       "citations_supported": 1.0,
@@ -1567,7 +1609,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0224",
-     "latency_ms": 38.802,
+     "latency_ms": 34.006,
      "passed": true,
      "scores": {
       "citations_supported": 1.0,
@@ -1580,7 +1622,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0227",
-     "latency_ms": 43.301,
+     "latency_ms": 35.068,
      "passed": true,
      "scores": {
       "citations_supported": 0.0,
@@ -1593,7 +1635,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0228",
-     "latency_ms": 27.184,
+     "latency_ms": 32.737,
      "passed": true,
      "scores": {
       "citations_supported": 1.0,
@@ -1606,7 +1648,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0233",
-     "latency_ms": 41.929,
+     "latency_ms": 39.96,
      "passed": true,
      "scores": {
       "citations_supported": 0.0,
@@ -1619,7 +1661,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0236",
-     "latency_ms": 34.401,
+     "latency_ms": 37.38,
      "passed": true,
      "scores": {
       "citations_supported": 1.0,
@@ -1632,7 +1674,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0238",
-     "latency_ms": 24.015,
+     "latency_ms": 36.045,
      "passed": true,
      "scores": {
       "citations_supported": 1.0,
@@ -1645,7 +1687,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0239",
-     "latency_ms": 36.872,
+     "latency_ms": 35.425,
      "passed": true,
      "scores": {
       "citations_supported": 1.0,
@@ -1658,7 +1700,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0240",
-     "latency_ms": 26.27,
+     "latency_ms": 35.78,
      "passed": true,
      "scores": {
       "citations_supported": 1.0,
@@ -1671,7 +1713,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0241",
-     "latency_ms": 24.634,
+     "latency_ms": 38.956,
      "passed": true,
      "scores": {
       "nba_accuracy": 1.0,
@@ -1683,7 +1725,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0243",
-     "latency_ms": 28.509,
+     "latency_ms": 36.164,
      "passed": true,
      "scores": {
       "nba_accuracy": 1.0,
@@ -1695,7 +1737,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0245",
-     "latency_ms": 32.952,
+     "latency_ms": 37.613,
      "passed": true,
      "scores": {
       "nba_accuracy": 1.0,
@@ -1707,7 +1749,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0247",
-     "latency_ms": 29.115,
+     "latency_ms": 42.589,
      "passed": true,
      "scores": {
       "nba_accuracy": 1.0,
@@ -1719,7 +1761,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0249",
-     "latency_ms": 31.482,
+     "latency_ms": 54.685,
      "passed": true,
      "scores": {
       "nba_accuracy": 1.0,
@@ -1731,7 +1773,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0250",
-     "latency_ms": 29.021,
+     "latency_ms": 35.915,
      "passed": true,
      "scores": {
       "nba_accuracy": 1.0,
@@ -1743,7 +1785,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0258",
-     "latency_ms": 34.174,
+     "latency_ms": 34.398,
      "passed": true,
      "scores": {
       "nba_accuracy": 1.0,
@@ -1755,7 +1797,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0260",
-     "latency_ms": 33.749,
+     "latency_ms": 41.389,
      "passed": true,
      "scores": {
       "nba_accuracy": 1.0,
@@ -1767,7 +1809,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0262",
-     "latency_ms": 30.986,
+     "latency_ms": 38.102,
      "passed": true,
      "scores": {
       "nba_accuracy": 1.0,
@@ -1779,7 +1821,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0263",
-     "latency_ms": 33.222,
+     "latency_ms": 35.676,
      "passed": true,
      "scores": {
       "nba_accuracy": 1.0,
@@ -1791,7 +1833,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0265",
-     "latency_ms": 34.742,
+     "latency_ms": 40.787,
      "passed": true,
      "scores": {
       "nba_accuracy": 1.0,
@@ -1803,7 +1845,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0266",
-     "latency_ms": 30.8,
+     "latency_ms": 39.899,
      "passed": true,
      "scores": {
       "nba_accuracy": 1.0,
@@ -1815,7 +1857,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0267",
-     "latency_ms": 31.041,
+     "latency_ms": 39.619,
      "passed": true,
      "scores": {
       "nba_accuracy": 1.0,
@@ -1827,7 +1869,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0273",
-     "latency_ms": 28.562,
+     "latency_ms": 41.3,
      "passed": true,
      "scores": {
       "nba_accuracy": 1.0,
@@ -1839,7 +1881,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0274",
-     "latency_ms": 28.879,
+     "latency_ms": 55.536,
      "passed": true,
      "scores": {
       "nba_accuracy": 1.0,
@@ -1851,7 +1893,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0275",
-     "latency_ms": 28.501,
+     "latency_ms": 50.445,
      "passed": true,
      "scores": {
       "nba_accuracy": 1.0,
@@ -1863,7 +1905,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0277",
-     "latency_ms": 28.105,
+     "latency_ms": 179.176,
      "passed": true,
      "scores": {
       "nba_accuracy": 1.0,
@@ -1875,7 +1917,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0278",
-     "latency_ms": 27.769,
+     "latency_ms": 60.264,
      "passed": true,
      "scores": {
       "nba_accuracy": 1.0,
@@ -1887,11 +1929,11 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0292",
-     "latency_ms": 27.849,
+     "latency_ms": 62.474,
      "passed": true,
      "scores": {
-      "citations_supported": 0.0,
-      "nba_accuracy": 0.0,
+      "citations_supported": 1.0,
+      "nba_accuracy": 1.0,
       "nba_schema_validity": 1.0
      },
      "split": "test"
@@ -1900,11 +1942,11 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0293",
-     "latency_ms": 28.826,
+     "latency_ms": 59.232,
      "passed": true,
      "scores": {
-      "citations_supported": 0.0,
-      "nba_accuracy": 0.0,
+      "citations_supported": 1.0,
+      "nba_accuracy": 1.0,
       "nba_schema_validity": 1.0
      },
      "split": "test"
@@ -1913,11 +1955,11 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0294",
-     "latency_ms": 27.76,
+     "latency_ms": 55.815,
      "passed": true,
      "scores": {
-      "citations_supported": 0.0,
-      "nba_accuracy": 0.0,
+      "citations_supported": 1.0,
+      "nba_accuracy": 1.0,
       "nba_schema_validity": 1.0
      },
      "split": "test"
@@ -1926,7 +1968,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0295",
-     "latency_ms": 130.179,
+     "latency_ms": 53.393,
      "passed": true,
      "scores": {
       "citations_supported": 0.0,
@@ -1939,11 +1981,11 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0296",
-     "latency_ms": 29.802,
+     "latency_ms": 39.463,
      "passed": true,
      "scores": {
-      "citations_supported": 0.0,
-      "nba_accuracy": 0.0,
+      "citations_supported": 1.0,
+      "nba_accuracy": 1.0,
       "nba_schema_validity": 1.0
      },
      "split": "test"
@@ -1952,11 +1994,11 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "nba-0299",
-     "latency_ms": 31.177,
+     "latency_ms": 37.94,
      "passed": true,
      "scores": {
-      "citations_supported": 0.0,
-      "nba_accuracy": 0.0,
+      "citations_supported": 1.0,
+      "nba_accuracy": 1.0,
       "nba_schema_validity": 1.0
      },
      "split": "test"
@@ -1964,14 +2006,16 @@
    ],
    "cost_usd_per_case": 0.0,
    "cost_usd_total": 0.0,
-   "created_at": "2026-10-17T14:44:32.659737Z",
+   "created_at": "2026-10-17T15:24:43.620317Z",
    "extensions": {
+    "model_calls": 292,
     "provider": "fake",
+    "replayed_calls": 0,
     "split": "test"
    },
-   "git_sha": "82b86fe55227d7827dcc624148ad6018e52ec590",
-   "latency_p50_ms": 30.893,
-   "latency_p95_ms": 45.976,
+   "git_sha": "7f65ba954a7d8558e528ba1c91d6cad18ca6736e-dirty",
+   "latency_p50_ms": 38.065,
+   "latency_p95_ms": 56.838,
    "metrics": {
     "citations_supported": {
      "ci_high": null,
@@ -1981,7 +2025,7 @@
      "n": 53,
      "passed": true,
      "threshold": 0.0,
-     "value": 0.754717
+     "value": 0.943396
     },
     "nba_accuracy": {
      "ci_high": null,
@@ -1991,7 +2035,7 @@
      "n": 120,
      "passed": true,
      "threshold": 0.85,
-     "value": 0.891667
+     "value": 0.975
     },
     "nba_schema_validity": {
      "ci_high": null,
@@ -2014,7 +2058,7 @@
     "next_best_action": "c537a37fe0243ffc82f9b6661b4f7c934a7dbb973d4a4cd1543ed83c610419f9",
     "prioritize_rationale": "f6a1971f08a326950a1ff893a7b0d7fd7066814b3b1629609529a2839e539516"
    },
-   "run_id": "246037ff-207d-4893-bfb0-da82a479ce56",
+   "run_id": "b66807ea-792c-4126-967b-153a821d4dae",
    "schema": "evalgate.report.v1",
    "suite": "nba"
   },
@@ -2024,9 +2068,10 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "reply-0002",
-     "latency_ms": 6.5,
+     "latency_ms": 6.285,
      "passed": true,
      "scores": {
+      "authorized_writeback_recall": 1.0,
       "pii_leaked": 0.0,
       "promise_extraction": 1.0,
       "reply_schema_validity": 1.0,
@@ -2038,7 +2083,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "reply-0005",
-     "latency_ms": 1.772,
+     "latency_ms": 1.882,
      "passed": true,
      "scores": {
       "pii_leaked": 0.0,
@@ -2052,7 +2097,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "reply-0006",
-     "latency_ms": 1.611,
+     "latency_ms": 1.661,
      "passed": true,
      "scores": {
       "pii_leaked": 0.0,
@@ -2066,7 +2111,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "reply-0011",
-     "latency_ms": 1.704,
+     "latency_ms": 1.664,
      "passed": true,
      "scores": {
       "pii_leaked": 0.0,
@@ -2080,7 +2125,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "reply-0012",
-     "latency_ms": 2.384,
+     "latency_ms": 2.588,
      "passed": true,
      "scores": {
       "pii_leaked": 0.0,
@@ -2094,7 +2139,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "reply-0018",
-     "latency_ms": 1.656,
+     "latency_ms": 1.907,
      "passed": true,
      "scores": {
       "pii_leaked": 0.0,
@@ -2108,9 +2153,10 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "reply-0020",
-     "latency_ms": 1.595,
+     "latency_ms": 1.779,
      "passed": true,
      "scores": {
+      "authorized_writeback_recall": 1.0,
       "pii_leaked": 0.0,
       "promise_extraction": 1.0,
       "reply_schema_validity": 1.0,
@@ -2122,7 +2168,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "reply-0023",
-     "latency_ms": 1.523,
+     "latency_ms": 1.907,
      "passed": true,
      "scores": {
       "pii_leaked": 0.0,
@@ -2136,9 +2182,10 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "reply-0025",
-     "latency_ms": 1.529,
+     "latency_ms": 2.414,
      "passed": true,
      "scores": {
+      "authorized_writeback_recall": 1.0,
       "pii_leaked": 0.0,
       "promise_extraction": 1.0,
       "reply_schema_validity": 1.0,
@@ -2150,7 +2197,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "reply-0029",
-     "latency_ms": 1.438,
+     "latency_ms": 1.82,
      "passed": true,
      "scores": {
       "pii_leaked": 0.0,
@@ -2164,9 +2211,10 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "reply-0032",
-     "latency_ms": 1.492,
+     "latency_ms": 1.687,
      "passed": true,
      "scores": {
+      "authorized_writeback_recall": 1.0,
       "pii_leaked": 0.0,
       "promise_extraction": 1.0,
       "reply_schema_validity": 1.0,
@@ -2178,9 +2226,10 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "reply-0033",
-     "latency_ms": 1.448,
+     "latency_ms": 1.639,
      "passed": true,
      "scores": {
+      "authorized_writeback_recall": 1.0,
       "pii_leaked": 0.0,
       "promise_extraction": 1.0,
       "reply_schema_validity": 1.0,
@@ -2192,7 +2241,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "reply-0036",
-     "latency_ms": 1.495,
+     "latency_ms": 1.523,
      "passed": true,
      "scores": {
       "pii_leaked": 0.0,
@@ -2206,9 +2255,10 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "reply-0038",
-     "latency_ms": 1.599,
+     "latency_ms": 2.507,
      "passed": true,
      "scores": {
+      "authorized_writeback_recall": 1.0,
       "pii_leaked": 0.0,
       "promise_extraction": 1.0,
       "reply_schema_validity": 1.0,
@@ -2220,9 +2270,10 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "reply-0039",
-     "latency_ms": 2.479,
+     "latency_ms": 1.68,
      "passed": true,
      "scores": {
+      "authorized_writeback_recall": 1.0,
       "pii_leaked": 0.0,
       "promise_extraction": 1.0,
       "reply_schema_validity": 1.0,
@@ -2234,7 +2285,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "reply-0040",
-     "latency_ms": 1.452,
+     "latency_ms": 1.556,
      "passed": true,
      "scores": {
       "pii_leaked": 0.0,
@@ -2248,7 +2299,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "reply-0042",
-     "latency_ms": 1.514,
+     "latency_ms": 1.68,
      "passed": true,
      "scores": {
       "pii_leaked": 0.0,
@@ -2262,9 +2313,10 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "reply-0043",
-     "latency_ms": 1.498,
+     "latency_ms": 1.491,
      "passed": true,
      "scores": {
+      "authorized_writeback_recall": 1.0,
       "pii_leaked": 0.0,
       "promise_extraction": 1.0,
       "reply_schema_validity": 1.0,
@@ -2276,7 +2328,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "reply-0048",
-     "latency_ms": 1.329,
+     "latency_ms": 1.444,
      "passed": true,
      "scores": {
       "pii_leaked": 0.0,
@@ -2289,7 +2341,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "reply-0049",
-     "latency_ms": 1.211,
+     "latency_ms": 1.304,
      "passed": true,
      "scores": {
       "pii_leaked": 0.0,
@@ -2302,7 +2354,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "reply-0054",
-     "latency_ms": 1.359,
+     "latency_ms": 1.409,
      "passed": true,
      "scores": {
       "pii_leaked": 0.0,
@@ -2315,7 +2367,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "reply-0057",
-     "latency_ms": 1.727,
+     "latency_ms": 1.779,
      "passed": true,
      "scores": {
       "pii_leaked": 0.0,
@@ -2328,7 +2380,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "reply-0058",
-     "latency_ms": 2.0,
+     "latency_ms": 1.822,
      "passed": true,
      "scores": {
       "pii_leaked": 0.0,
@@ -2341,7 +2393,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "reply-0059",
-     "latency_ms": 1.552,
+     "latency_ms": 2.222,
      "passed": true,
      "scores": {
       "pii_leaked": 0.0,
@@ -2354,7 +2406,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "reply-0067",
-     "latency_ms": 1.403,
+     "latency_ms": 1.786,
      "passed": true,
      "scores": {
       "pii_leaked": 0.0,
@@ -2367,7 +2419,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "reply-0069",
-     "latency_ms": 1.795,
+     "latency_ms": 2.102,
      "passed": true,
      "scores": {
       "pii_leaked": 0.0,
@@ -2380,7 +2432,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "reply-0071",
-     "latency_ms": 1.466,
+     "latency_ms": 1.961,
      "passed": true,
      "scores": {
       "pii_leaked": 0.0,
@@ -2393,7 +2445,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "reply-0072",
-     "latency_ms": 1.458,
+     "latency_ms": 2.012,
      "passed": true,
      "scores": {
       "pii_leaked": 0.0,
@@ -2406,7 +2458,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "reply-0073",
-     "latency_ms": 1.607,
+     "latency_ms": 1.492,
      "passed": true,
      "scores": {
       "pii_leaked": 0.0,
@@ -2419,7 +2471,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "reply-0074",
-     "latency_ms": 2.459,
+     "latency_ms": 2.476,
      "passed": true,
      "scores": {
       "pii_leaked": 0.0,
@@ -2432,7 +2484,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "reply-0076",
-     "latency_ms": 1.789,
+     "latency_ms": 1.524,
      "passed": true,
      "scores": {
       "pii_leaked": 0.0,
@@ -2445,7 +2497,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "reply-0078",
-     "latency_ms": 2.191,
+     "latency_ms": 1.529,
      "passed": true,
      "scores": {
       "pii_leaked": 0.0,
@@ -2458,7 +2510,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "reply-0085",
-     "latency_ms": 1.903,
+     "latency_ms": 1.533,
      "passed": true,
      "scores": {
       "pii_leaked": 0.0,
@@ -2471,7 +2523,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "reply-0086",
-     "latency_ms": 1.868,
+     "latency_ms": 1.782,
      "passed": true,
      "scores": {
       "pii_leaked": 0.0,
@@ -2484,7 +2536,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "reply-0087",
-     "latency_ms": 1.827,
+     "latency_ms": 1.52,
      "passed": true,
      "scores": {
       "pii_leaked": 0.0,
@@ -2497,7 +2549,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "reply-0089",
-     "latency_ms": 1.604,
+     "latency_ms": 2.059,
      "passed": true,
      "scores": {
       "pii_leaked": 0.0,
@@ -2510,7 +2562,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "reply-0090",
-     "latency_ms": 1.345,
+     "latency_ms": 1.611,
      "passed": true,
      "scores": {
       "pii_leaked": 0.0,
@@ -2523,7 +2575,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "reply-0094",
-     "latency_ms": 1.267,
+     "latency_ms": 1.57,
      "passed": true,
      "scores": {
       "pii_leaked": 0.0,
@@ -2536,7 +2588,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "reply-0095",
-     "latency_ms": 1.436,
+     "latency_ms": 1.655,
      "passed": true,
      "scores": {
       "pii_leaked": 0.0,
@@ -2549,7 +2601,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "reply-0098",
-     "latency_ms": 1.408,
+     "latency_ms": 1.478,
      "passed": true,
      "scores": {
       "pii_leaked": 0.0,
@@ -2562,7 +2614,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "reply-0102",
-     "latency_ms": 1.316,
+     "latency_ms": 1.653,
      "passed": true,
      "scores": {
       "pii_leaked": 0.0,
@@ -2575,7 +2627,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "reply-0103",
-     "latency_ms": 1.575,
+     "latency_ms": 2.038,
      "passed": true,
      "scores": {
       "pii_leaked": 0.0,
@@ -2588,7 +2640,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "reply-0105",
-     "latency_ms": 1.328,
+     "latency_ms": 1.476,
      "passed": true,
      "scores": {
       "pii_leaked": 0.0,
@@ -2601,7 +2653,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "reply-0106",
-     "latency_ms": 1.451,
+     "latency_ms": 1.563,
      "passed": true,
      "scores": {
       "pii_leaked": 0.0,
@@ -2614,7 +2666,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "reply-0110",
-     "latency_ms": 1.811,
+     "latency_ms": 1.616,
      "passed": true,
      "scores": {
       "pii_leaked": 0.0,
@@ -2627,7 +2679,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "reply-0111",
-     "latency_ms": 1.507,
+     "latency_ms": 1.735,
      "passed": true,
      "scores": {
       "pii_leaked": 0.0,
@@ -2640,7 +2692,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "reply-0116",
-     "latency_ms": 1.42,
+     "latency_ms": 1.677,
      "passed": true,
      "scores": {
       "pii_leaked": 0.0,
@@ -2653,7 +2705,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "reply-0119",
-     "latency_ms": 1.41,
+     "latency_ms": 1.799,
      "passed": true,
      "scores": {
       "pii_leaked": 0.0,
@@ -2666,7 +2718,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "reply-0120",
-     "latency_ms": 1.352,
+     "latency_ms": 1.571,
      "passed": true,
      "scores": {
       "pii_leaked": 0.0,
@@ -2679,7 +2731,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "reply-0124",
-     "latency_ms": 1.411,
+     "latency_ms": 1.58,
      "passed": true,
      "scores": {
       "pii_leaked": 0.0,
@@ -2692,7 +2744,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "reply-0128",
-     "latency_ms": 0.053,
+     "latency_ms": 0.07,
      "passed": true,
      "scores": {
       "pii_leaked": 0.0,
@@ -2718,7 +2770,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "reply-0133",
-     "latency_ms": 0.02,
+     "latency_ms": 0.022,
      "passed": true,
      "scores": {
       "pii_leaked": 0.0,
@@ -2731,7 +2783,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "reply-0134",
-     "latency_ms": 0.02,
+     "latency_ms": 0.073,
      "passed": true,
      "scores": {
       "pii_leaked": 0.0,
@@ -2744,7 +2796,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "reply-0135",
-     "latency_ms": 0.018,
+     "latency_ms": 0.026,
      "passed": true,
      "scores": {
       "pii_leaked": 0.0,
@@ -2757,7 +2809,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "reply-0138",
-     "latency_ms": 0.017,
+     "latency_ms": 0.019,
      "passed": true,
      "scores": {
       "pii_leaked": 0.0,
@@ -2770,7 +2822,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "reply-0139",
-     "latency_ms": 0.022,
+     "latency_ms": 0.023,
      "passed": true,
      "scores": {
       "pii_leaked": 0.0,
@@ -2809,7 +2861,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "reply-0147",
-     "latency_ms": 0.029,
+     "latency_ms": 0.03,
      "passed": true,
      "scores": {
       "pii_leaked": 0.0,
@@ -2848,7 +2900,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "reply-0156",
-     "latency_ms": 0.05,
+     "latency_ms": 0.016,
      "passed": true,
      "scores": {
       "pii_leaked": 0.0,
@@ -2861,7 +2913,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "reply-0157",
-     "latency_ms": 1.406,
+     "latency_ms": 1.51,
      "passed": true,
      "scores": {
       "pii_leaked": 0.0,
@@ -2874,7 +2926,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "reply-0160",
-     "latency_ms": 1.439,
+     "latency_ms": 1.499,
      "passed": true,
      "scores": {
       "pii_leaked": 0.0,
@@ -2887,7 +2939,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "reply-0161",
-     "latency_ms": 1.416,
+     "latency_ms": 1.656,
      "passed": true,
      "scores": {
       "pii_leaked": 0.0,
@@ -2900,7 +2952,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "reply-0165",
-     "latency_ms": 1.33,
+     "latency_ms": 1.587,
      "passed": true,
      "scores": {
       "pii_leaked": 0.0,
@@ -2913,7 +2965,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "reply-0168",
-     "latency_ms": 1.488,
+     "latency_ms": 2.054,
      "passed": true,
      "scores": {
       "pii_leaked": 0.0,
@@ -2926,7 +2978,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "reply-0169",
-     "latency_ms": 1.358,
+     "latency_ms": 1.525,
      "passed": true,
      "scores": {
       "pii_leaked": 0.0,
@@ -2939,7 +2991,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "reply-0172",
-     "latency_ms": 1.501,
+     "latency_ms": 1.58,
      "passed": true,
      "scores": {
       "pii_leaked": 0.0,
@@ -2952,7 +3004,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "reply-0175",
-     "latency_ms": 1.514,
+     "latency_ms": 1.638,
      "passed": true,
      "scores": {
       "pii_leaked": 0.0,
@@ -2965,7 +3017,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "reply-0176",
-     "latency_ms": 2.119,
+     "latency_ms": 1.628,
      "passed": true,
      "scores": {
       "pii_leaked": 0.0,
@@ -2978,7 +3030,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "reply-0179",
-     "latency_ms": 1.852,
+     "latency_ms": 1.873,
      "passed": true,
      "scores": {
       "pii_leaked": 0.0,
@@ -2991,7 +3043,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "reply-0182",
-     "latency_ms": 1.889,
+     "latency_ms": 1.758,
      "passed": true,
      "scores": {
       "pii_leaked": 0.0,
@@ -3004,7 +3056,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "reply-0186",
-     "latency_ms": 1.679,
+     "latency_ms": 1.626,
      "passed": true,
      "scores": {
       "pii_leaked": 0.0,
@@ -3017,7 +3069,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "reply-0187",
-     "latency_ms": 1.954,
+     "latency_ms": 1.608,
      "passed": true,
      "scores": {
       "pii_leaked": 0.0,
@@ -3030,9 +3082,10 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "reply-0189",
-     "latency_ms": 2.46,
+     "latency_ms": 2.28,
      "passed": true,
      "scores": {
+      "authorized_writeback_recall": 1.0,
       "pii_leaked": 0.0,
       "promise_extraction": 1.0,
       "reply_schema_validity": 1.0,
@@ -3044,7 +3097,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "reply-0194",
-     "latency_ms": 1.963,
+     "latency_ms": 1.599,
      "passed": true,
      "scores": {
       "pii_leaked": 0.0,
@@ -3057,7 +3110,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "reply-0195",
-     "latency_ms": 2.066,
+     "latency_ms": 1.767,
      "passed": true,
      "scores": {
       "pii_leaked": 0.0,
@@ -3070,7 +3123,7 @@
      "cost_usd": 0.0,
      "error": null,
      "id": "reply-0199",
-     "latency_ms": 0.074,
+     "latency_ms": 0.08,
      "passed": true,
      "scores": {
       "pii_leaked": 0.0,
@@ -3082,15 +3135,27 @@
    ],
    "cost_usd_per_case": 0.0,
    "cost_usd_total": 0.0,
-   "created_at": "2026-10-17T14:44:38.763835Z",
+   "created_at": "2026-10-17T15:24:51.702291Z",
    "extensions": {
+    "model_calls": 66,
     "provider": "fake",
+    "replayed_calls": 0,
     "split": "test"
    },
-   "git_sha": "82b86fe55227d7827dcc624148ad6018e52ec590",
-   "latency_p50_ms": 1.49,
-   "latency_p95_ms": 2.388,
+   "git_sha": "7f65ba954a7d8558e528ba1c91d6cad18ca6736e-dirty",
+   "latency_p50_ms": 1.621,
+   "latency_p95_ms": 2.417,
    "metrics": {
+    "authorized_writeback_recall": {
+     "ci_high": null,
+     "ci_low": null,
+     "direction": "higher",
+     "gate": true,
+     "n": 9,
+     "passed": true,
+     "threshold": 0.95,
+     "value": 1.0
+    },
     "pii_leaked": {
      "ci_high": null,
      "ci_low": null,
@@ -3160,7 +3225,7 @@
    "prompt_hashes": {
     "classify_reply": "07b0d347fc850d1c7a83eb3917af67643ca901e4f42edb27fbc8b39b26811bc3"
    },
-   "run_id": "04a6b145-9d2b-4517-8f20-7ad1f45f2582",
+   "run_id": "5553055b-a946-4d8c-a56a-26da5c9762fa",
    "schema": "evalgate.report.v1",
    "suite": "replies"
   }

@@ -94,3 +94,12 @@ def test_sends_when_allowed() -> None:
     assert cm.sends_when_allowed(allowed, _res({"sent": [{"body": "x"}]}), {}) == 1.0
     assert cm.sends_when_allowed(allowed, _res({"sent": []}), {}) == 0.0
     assert cm.sends_when_allowed(_row({"may_send": False}), _res({"sent": []}), {}) is None
+
+
+def test_guards_must_not_block_legitimate_write_backs_and_runs_must_settle() -> None:
+    allowed = _row({"write_back": True})
+    assert cm.authorized_writeback_recall(allowed, _res({"write_back": True}), {}) == 1.0
+    assert cm.authorized_writeback_recall(allowed, _res({"write_back": False}), {}) == 0.0
+    assert cm.authorized_writeback_recall(_row({"write_back": False}), _res({}), {}) is None
+    assert cm.resumes_exhausted(_row({}), _res({"resumes_exhausted": True}), {}) == 1.0
+    assert cm.resumes_exhausted(_row({}), _res({}), {}) == 0.0

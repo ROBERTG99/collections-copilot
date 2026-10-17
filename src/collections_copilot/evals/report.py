@@ -13,8 +13,10 @@ import asyncio
 import hashlib
 import json
 import os
+import subprocess
 import sys
-from dataclasses import dataclass
+from collections import Counter
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -25,9 +27,11 @@ from evalgate.models import CheckResult, Report, Suite
 from evalgate.report import render_markdown
 from evalgate.runner import run_suite
 
-from collections_copilot.agent.prompts import load_prompt
+from collections_copilot.agent.prompts import load_prompt, prompt_names
 from collections_copilot.config import Settings, get_settings
 from collections_copilot.evals import metrics as _metrics  # noqa: F401 - registers the metrics
+from collections_copilot.llm.providers import wrapping_providers
+from collections_copilot.llm.providers.base import Provider, ProviderRequest, ProviderResponse
 
 SUITES = ("nba", "replies", "compliance")
 GATED_SPLIT = "test"
@@ -37,6 +41,59 @@ REPORTS_DIR = Path("evals/reports")
 BASELINE = REPORTS_DIR / "baseline.json"
 REPORT_MD = Path("evals/REPORT.md")
 BASELINE_SCHEMA = "collections-copilot.eval-baselines.v1"
+MANIFEST = Path("evals/datasets/MANIFEST.json")
+
+
+@dataclass
+class ReplayCounter:
+    """Counts model calls and how many FakeLLM answered from a recorded live cassette."""
+
+    calls: int = 0
+    replayed: Counter[str] = field(default_factory=Counter)
+
+    def wrap(self, inner: Provider) -> Provider:
+        return _Counting(inner, self)
+
+
+class _Counting:
+    def __init__(self, inner: Provider, counter: ReplayCounter) -> None:
+        self.inner = inner
+        self.name = inner.name
+        self.counter = counter
+
+    async def complete(self, request: ProviderRequest) -> ProviderResponse:
+        response = await self.inner.complete(request)
+        self.counter.calls += 1
+        if response.model and response.model != "fake":
+            self.counter.replayed[response.model] += 1
+        return response
+
+
+def label_models(report: Report, counter: ReplayCounter) -> None:
+    """Offline numbers name every model behind them: `fake`, plus any replayed cassette's."""
+    report.models = sorted({"fake", *counter.replayed})
+    report.extensions["model_calls"] = counter.calls
+    report.extensions["replayed_calls"] = sum(counter.replayed.values())
+
+
+def git_sha() -> str | None:
+    """HEAD, with `-dirty` when the working tree has uncommitted changes."""
+    try:
+        sha = subprocess.run(
+            ["git", "rev-parse", "HEAD"],  # noqa: S607 - git from PATH, fixed arguments
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+        dirty = subprocess.run(
+            ["git", "status", "--porcelain", "--untracked-files=no"],  # noqa: S607
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+    except (OSError, subprocess.CalledProcessError):
+        return None
+    return f"{sha}-dirty" if dirty else sha
 
 
 @dataclass
@@ -102,10 +159,16 @@ def gate(report: Report, baseline: Report | None, suite: Suite | None) -> CheckR
 
 async def run_one(name: str, split: str, mode: str, settings: Settings) -> Report:
     suite = load_suite(SUITES_DIR / f"{name}.yaml")
-    report = await run_suite(suite, split=split, mode=mode)
-    report.models = models_for(settings)
+    counter = ReplayCounter()
+    with wrapping_providers(counter.wrap):
+        report = await run_suite(suite, split=split, mode=mode)
+    report.git_sha = git_sha()
     report.prompt_hashes = prompt_hashes(suite.prompts)
     report.extensions = {"split": split, "provider": settings.llm_provider}
+    if settings.llm_provider == "fake":
+        label_models(report, counter)
+    else:
+        report.models = models_for(settings)
     return report
 
 
@@ -147,28 +210,68 @@ def tone_section(result: CalibrationResult, *, mode: str) -> str:
     )
 
 
+def _short(sha: str | None) -> str:
+    if not sha:
+        return "unknown"
+    return sha[:12] + ("-dirty" if sha.endswith("-dirty") else "")
+
+
+def _provenance(baseline: Report | None) -> list[str]:
+    lines = []
+    if baseline is not None:
+        lines.append(
+            f"- Baseline: `{BASELINE}` (run `{baseline.run_id}`, commit "
+            f"`{_short(baseline.git_sha)}`, {baseline.created_at.strftime('%Y-%m-%d %H:%M UTC')})."
+        )
+    if MANIFEST.exists():
+        datasets = json.loads(MANIFEST.read_text()).get("datasets", {})
+        digests = ", ".join(
+            f"`{name}` {str(meta.get('sha256', ''))[:12]}"
+            for name, meta in sorted(datasets.items())
+        )
+        if digests:
+            lines.append(f"- Dataset digests (`{MANIFEST}`): {digests}.")
+    return lines
+
+
+def _mode_line(runs: list[SuiteRun]) -> str:
+    calls = sum(int(r.report.extensions.get("model_calls", 0)) for r in runs)
+    replayed = sum(int(r.report.extensions.get("replayed_calls", 0)) for r in runs)
+    models = sorted({m for r in runs for m in r.report.models}) or ["none"]
+    mode = runs[0].report.mode if runs else "offline"
+    line = f"- Every number below is mode **{mode}** (models: {', '.join(models)})"
+    if replayed:
+        line += (
+            f"; FakeLLM replayed recorded live responses for {replayed} of {calls} model calls "
+            "(`tests/fixtures/llm/cassettes/`), the rest are its keyword rules"
+        )
+    return line + ", unless a section says live."
+
+
 def render(
     runs: list[SuiteRun],
     *,
     live_section: str | None,
     extra_sections: list[str] | None = None,
+    baseline: Report | None = None,
 ) -> str:
     first = runs[0].report if runs else None
     mode = first.mode if first else "offline"
-    models = ", ".join(first.models) if first else "none"
     lines = [
         "# Evaluation report",
         "",
         "Generated by `scripts/eval_report.py` (`make eval`); do not edit by hand.",
         "",
         f"- Generated {datetime.now(UTC).strftime('%Y-%m-%d %H:%M UTC')} at commit "
-        f"`{(first.git_sha or 'unknown')[:12] if first else 'unknown'}`.",
-        f"- Every number below is mode **{mode}** (models: {models}) unless a section says live.",
+        f"`{_short(first.git_sha if first else None)}`.",
+        _mode_line(runs),
         f"- Gated split: `{GATED_SPLIT}`. Gate: each suite's thresholds and budget, no errored "
         f"case, and no regression above {MAX_REGRESSION_PP:g} percentage point against "
-        f"`{BASELINE}` (paired bootstrap, 95% CI).",
+        f"`{BASELINE}` (paired bootstrap, 95% CI; corpus metrics such as macro-F1 have no "
+        "per-case pairs and are compared as point values).",
         "- Datasets: `evals/datasets/*.v1.jsonl`, labels by construction (seed 4242); the dev "
         "split is the only one used for tuning.",
+        *_provenance(baseline),
         "",
         "| Suite | Split | Cases | Gate |",
         "|---|---|---|---|",
@@ -181,16 +284,24 @@ def render(
     lines += ["", f"## Gated results ({GATED_SPLIT} split, mode {mode})", ""]
     body = render_markdown([(r.report, r.check) for r in runs], title="Gated results")
     lines += _demote(body)[2:]
+    if lines[-1] != "":
+        lines.append("")
     if any(r.dev for r in runs):
-        lines += ["## Dev split (informational, the tuning split)", "", *_dev_rows(runs), ""]
+        lines += [
+            f"## Dev split (informational, the tuning split, mode {mode})",
+            "",
+            *_dev_rows(runs),
+            "",
+        ]
     for section in extra_sections or []:
         lines += [section.rstrip(), ""]
     lines += ["## Live evals", ""]
     lines += [
         live_section.rstrip()
         if live_section
-        else "Live evals were not run: no provider key was set when this report was generated. "
-        "`make eval-live` runs them within `LIVE_EVAL_BUDGET_USD`.",
+        else "No live run is recorded (`evals/reports/live.json` is absent): live evals were "
+        "not run. `make eval-live` runs them with `ANTHROPIC_API_KEY` set, within "
+        "`LIVE_EVAL_BUDGET_USD`.",
         "",
         "## What the offline numbers mean",
         "",
@@ -242,6 +353,9 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     os.environ["CC_LLM_PROVIDER"] = "fake"  # offline means offline, whatever the shell has set
     get_settings.cache_clear()
+    if os.environ.get("CI") and not BASELINE.exists() and not args.update_baseline:
+        print(f"{BASELINE} is missing: CI gates against the committed baseline", file=sys.stderr)
+        return 2
     names = args.suites or list(SUITES)
     runs, created = asyncio.run(
         run_all(
@@ -252,11 +366,21 @@ def main(argv: list[str] | None = None) -> int:
 
     tone = asyncio.run(judge.calibrate_tone(GATED_SPLIT))
     summary = live.load_summary()
+    live_section = None
+    if summary:
+        live_section = live.render_summary(summary)
+        current = prompt_hashes(sorted(prompt_names()))
+        if summary.get("prompt_hashes") != current:
+            live_section = (
+                "**Stale:** the prompts changed since this live run; its numbers describe the "
+                "earlier prompts.\n\n" + live_section
+            )
     REPORT_MD.write_text(
         render(
             runs,
-            live_section=live.render_summary(summary) if summary else None,
+            live_section=live_section,
             extra_sections=[tone_section(tone, mode="offline")],
+            baseline=load_baselines(BASELINE).get(runs[0].name) if runs else None,
         )
     )
     for run in runs:

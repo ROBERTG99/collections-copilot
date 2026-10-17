@@ -25,6 +25,7 @@ from evalgate.loader import load_dataset, load_labels, load_rubric, load_suite
 from evalgate.models import DatasetRow, Report, Suite, TargetResult
 from evalgate.runner import build_report, langgraph_target, python_target
 
+from collections_copilot.agent.prompts import prompt_names
 from collections_copilot.config import Settings, get_settings
 from collections_copilot.evals import judge
 from collections_copilot.evals import report as offline
@@ -40,6 +41,7 @@ LIVE_SUMMARY = offline.REPORTS_DIR / "live.json"
 SUMMARY_SCHEMA = "collections-copilot.live-evals.v1"
 DEFAULT_BUDGET_USD = 2.0
 COST_PER_ACCOUNT_MAX_USD = 0.02  # §11, live only: the NBA suite's cost per case
+LIVE_TIMEOUT_S = 120.0  # real models with adaptive thinking; the suites' 30 s is for offline
 # Cheapest first, so a small budget still measures something.
 ORDER = ("replies", "tone", "compliance", "nba")
 CALLS_PER_CASE = {
@@ -53,12 +55,41 @@ CALLS_PER_CASE = {
 TOKENS_PER_CALL = (3_000, 1_500)
 
 
+class BudgetExhaustedError(RuntimeError):
+    """A provider call could cost more than what is left of LIVE_EVAL_BUDGET_USD."""
+
+
+@dataclass
+class BudgetGuard:
+    limit_usd: float
+    spent_usd: float = 0.0
+
+    def can_afford(self, cost: float) -> bool:
+        return self.spent_usd + cost <= self.limit_usd + 1e-12
+
+    def charge(self, cost: float) -> None:
+        self.spent_usd += cost
+
+
 @dataclass
 class Meter:
-    """Cost of every provider response, in USD."""
+    """Cost of every provider response, in USD. With a guard, every call is checked first."""
 
     cost_usd: float = 0.0
     calls: int = 0
+    guard: BudgetGuard | None = None
+
+    def add(self, cost: float) -> None:
+        self.cost_usd += cost
+        self.calls += 1
+        if self.guard is not None:
+            self.guard.charge(cost)
+
+
+def worst_case_usd(request: ProviderRequest) -> float:
+    """Upper bound for one call: the prompt at 3 characters per token, plus max_tokens out."""
+    tokens_in = (len(request.system) + len(request.user)) // 3 + 1
+    return estimate_usd(request.model, tokens_in, request.max_tokens)
 
 
 class _Metered:
@@ -69,9 +100,16 @@ class _Metered:
         self.record_dir = record_dir
 
     async def complete(self, request: ProviderRequest) -> ProviderResponse:
-        response = await self.inner.complete(request)
-        self.meter.calls += 1
-        self.meter.cost_usd += cost_usd(response.model or request.model, response.usage)
+        worst = worst_case_usd(request)
+        guard = self.meter.guard
+        if guard is not None and not guard.can_afford(worst):
+            raise BudgetExhaustedError(f"a {request.route} call may cost up to USD {worst:.4f}")
+        try:
+            response = await self.inner.complete(request)
+        except asyncio.CancelledError:
+            self.meter.add(worst)  # cancelled mid-flight (timeout) but possibly billed
+            raise
+        self.meter.add(cost_usd(response.model or request.model, response.usage))
         if self.record_dir is not None:
             path = self.record_dir / request.route / f"{FakeLLM.request_key(request)}.json"
             path.parent.mkdir(parents=True, exist_ok=True)
@@ -95,16 +133,13 @@ def wrap_provider(inner: Provider, *, meter: Meter, record_dir: Path | None = No
     return _Metered(inner, meter, record_dir)
 
 
-@dataclass
-class BudgetGuard:
-    limit_usd: float
-    spent_usd: float = 0.0
-
-    def can_afford(self, cost: float) -> bool:
-        return self.spent_usd + cost <= self.limit_usd + 1e-12
-
-    def charge(self, cost: float) -> None:
-        self.spent_usd += cost
+def _exhausted(exc: BaseException) -> bool:
+    seen: BaseException | None = exc
+    while seen is not None:
+        if isinstance(seen, BudgetExhaustedError):
+            return True
+        seen = seen.__cause__ or seen.__context__
+    return False
 
 
 @dataclass
@@ -121,9 +156,17 @@ async def run_budgeted(
     guard: BudgetGuard,
     per_case_estimate_usd: float,
     meter: Meter | None = None,
+    timeout_s: float | None = None,
 ) -> LiveRun:
-    """Run cases one by one; never start a case the remaining budget may not cover."""
+    """Run cases one by one and stop at the budget.
+
+    A case starts only if the expected cost of a case fits what is left. With a metered
+    provider (`meter.guard is guard`) every model call is also checked against its worst case
+    before it is sent, so the budget holds even when one case costs far more than expected; the
+    case that hit the limit is dropped, not scored.
+    """
     results: list[tuple[DatasetRow, TargetResult, str | None]] = []
+    metered = meter is not None and meter.guard is guard
     spent = 0.0
     stopped = False
     for row in rows:
@@ -134,19 +177,35 @@ async def run_budgeted(
         before = meter.cost_usd if meter else 0.0
         started = time.perf_counter()
         try:
-            res = await asyncio.wait_for(target(row.input), suite.timeout_s)
+            res = await asyncio.wait_for(target(row.input), timeout_s or suite.timeout_s)
             err = None
         except Exception as exc:  # a failing case never aborts the run
+            if _exhausted(exc):
+                stopped = True
+                break
             res, err = TargetResult(output={}), f"{type(exc).__name__}: {exc}"
         res.latency_ms = res.latency_ms or (time.perf_counter() - started) * 1000
         if meter is not None:  # graph targets do not report cost themselves
             res.cost_usd = max(res.cost_usd, meter.cost_usd - before)
-        guard.charge(res.cost_usd)
+        if not metered:
+            guard.charge(res.cost_usd)
         spent += res.cost_usd
         results.append((row, res, err))
     report = build_report(suite, results, mode="live")
     report.extensions["stopped_at_budget"] = stopped
     return LiveRun(report, stopped)
+
+
+def live_failures(name: str, report: Report, suite: Suite, stopped: bool) -> list[str]:
+    """Live gate: the suite's thresholds without its offline latency budget (§11: "graph p95
+    offline ≤ 300 ms"), plus NBA cost per account ≤ USD 0.02. A stopped suite is not gated."""
+    if stopped:
+        return []
+    failures = offline.gate(report, None, suite.model_copy(update={"budget": None})).failures
+    reasons = [f"{f.metric}: {f.reason}" for f in failures]
+    if name == "nba" and report.cost_usd_per_case > COST_PER_ACCOUNT_MAX_USD:
+        reasons.append("cost_usd_per_case: budget_cost")
+    return reasons
 
 
 def per_case_estimate(name: str, settings: Settings) -> float:
@@ -175,14 +234,19 @@ async def _tone(guard: BudgetGuard, meter: Meter, split: str, estimate: float) -
     gw = judge.gateway()
     predictions: dict[str, int] = {}
     stopped = False
+    start = meter.cost_usd  # this suite's own spend, not earlier suites'
     for row in labels:
         done = len(predictions)
-        if not guard.can_afford(max(estimate, meter.cost_usd / done if done else 0.0)):
+        if not guard.can_afford(max(estimate, (meter.cost_usd - start) / done if done else 0.0)):
             stopped = True
             break
-        before = meter.cost_usd
-        predictions[row.id] = await judge.judge_tone(row, gw)
-        guard.charge(meter.cost_usd - before)
+        try:
+            predictions[row.id] = await judge.judge_tone(row, gw)
+        except Exception as exc:
+            if not _exhausted(exc):
+                raise
+            stopped = True
+            break
     judged = [row for row in labels if row.id in predictions]
     result = calibrate(rubric, judged, lambda row: predictions[row.id])
     return {
@@ -198,10 +262,12 @@ async def run_live(
     names: list[str], split: str, guard: BudgetGuard, *, record: bool
 ) -> dict[str, Any]:
     settings = get_settings()
-    meter = Meter()
+    meter = Meter(guard=guard)  # every model call is checked against the budget first
     summary: dict[str, Any] = {
         "schema": SUMMARY_SCHEMA,
         "date": datetime.now(UTC).isoformat(timespec="seconds"),
+        "git_sha": offline.git_sha(),
+        "prompt_hashes": offline.prompt_hashes(sorted(prompt_names())),
         "provider": settings.llm_provider,
         "models": offline.models_for(settings),
         "split": split,
@@ -217,15 +283,13 @@ async def run_live(
                 continue
             suite = load_suite(offline.SUITES_DIR / f"{name}.yaml")
             rows = load_dataset(suite.dataset, split)
-            run = await run_budgeted(suite, rows, _target(suite), guard, estimate, meter)
+            run = await run_budgeted(
+                suite, rows, _target(suite), guard, estimate, meter, timeout_s=LIVE_TIMEOUT_S
+            )
             rep = run.report
             rep.models = offline.models_for(settings)
             rep.prompt_hashes = offline.prompt_hashes(suite.prompts)
-            failures = [] if run.stopped_at_budget else offline.gate(rep, None, suite).failures
-            reasons = [f"{f.metric}: {f.reason}" for f in failures]
-            over = rep.cost_usd_per_case > COST_PER_ACCOUNT_MAX_USD
-            if name == "nba" and not run.stopped_at_budget and over:
-                reasons.append("cost_usd_per_case: budget_cost")
+            reasons = live_failures(name, rep, suite, run.stopped_at_budget)
             summary["suites"][name] = {
                 "n_cases": rep.n_cases,
                 "of": len(rows),
@@ -236,6 +300,8 @@ async def run_live(
                 "latency_p95_ms": rep.latency_p95_ms,
                 "passed": not run.stopped_at_budget and not reasons,
                 "failures": reasons,
+                # Reported for partial runs too; gated only when the suite finished.
+                "cost_gate_usd_per_case": COST_PER_ACCOUNT_MAX_USD if name == "nba" else None,
             }
     summary["spent_usd"] = round(guard.spent_usd, 6)
     return summary

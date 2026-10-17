@@ -44,9 +44,10 @@ def render_markdown(
                 "|---|---|---|---|---|---|",
             ]
             for c in chk.comparisons:
+                ci = f"[{c.ci_low_pp:+.2f}, {c.ci_high_pp:+.2f}]" if c.n_paired else "n/a"
                 lines.append(
                     f"| `{c.metric}` | {_fmt(c.baseline)} | {_fmt(c.candidate)} | "
-                    f"{c.delta_pp:+.2f} | [{c.ci_low_pp:+.2f}, {c.ci_high_pp:+.2f}] | {c.n_paired} |"
+                    f"{c.delta_pp:+.2f} | {ci} | {c.n_paired} |"
                 )
         if chk and chk.failures:
             lines += ["", "Failures:", ""]

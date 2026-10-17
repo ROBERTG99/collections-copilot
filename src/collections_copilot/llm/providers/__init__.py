@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
+from contextvars import ContextVar
 from pathlib import Path
 
 from collections_copilot.config import Settings
@@ -11,23 +12,26 @@ from collections_copilot.llm.providers.base import Provider
 from collections_copilot.llm.providers.fake import FakeLLM
 
 CASSETTES = Path(__file__).resolve().parents[4] / "tests" / "fixtures" / "llm" / "cassettes"
-_WRAPPERS: list[Callable[[Provider], Provider]] = []
+_WRAPPERS: ContextVar[tuple[Callable[[Provider], Provider], ...]] = ContextVar(
+    "cc_provider_wrappers", default=()
+)
 
 
 @contextmanager
 def wrapping_providers(wrap: Callable[[Provider], Provider]) -> Iterator[None]:
-    """Wrap every provider built inside the block (live evals meter cost and record cassettes)."""
-    _WRAPPERS.append(wrap)
+    """Wrap every provider built inside the block, in this task only (evals meter cost, record
+    cassettes and count replays)."""
+    token = _WRAPPERS.set((*_WRAPPERS.get(), wrap))
     try:
         yield
     finally:
-        _WRAPPERS.remove(wrap)
+        _WRAPPERS.reset(token)
 
 
 def build_provider(settings: Settings) -> Provider:
     """CC_LLM_PROVIDER: fake (default, offline), anthropic (Claude API) or bedrock (Mantle)."""
     provider = _build(settings)
-    for wrap in _WRAPPERS:
+    for wrap in _WRAPPERS.get():
         provider = wrap(provider)
     return provider
 

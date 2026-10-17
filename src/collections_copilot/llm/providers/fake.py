@@ -41,6 +41,23 @@ NBA_KEYWORDS: list[tuple[str, list[str]]] = [
             r"dañad",
             r"cobr\w+ dos veces",
             r"nota de cr[eé]dito",
+            # Contesting a charge (shared with the reply route's dispute vocabulary).
+            r"\bcontest(?:s|ed|ing)?\b",
+            r"\bchalleng(?:e|es|ed|ing) the\b",
+            r"\bobjects? to the (?:charge|invoice|amount|price)",
+            r"impugn",
+            r"no reconoce",
+            # Wrong contact: the person or number no longer reaches the debtor.
+            r"wrong (?:contact|number|person)",
+            r"(?:nobody|no one) (?:here )?(?:by|with|called) that name",
+            r"no longer (?:works?|at|with)",
+            r"\b(?:has|have) moved on\b",
+            r"\b(?:left|quit) the (?:company|business|firm)",
+            r"dej[oó] la empresa",
+            r"(?:line|number|phone) (?:now )?(?:rings|belongs to|reaches)",
+            r"n[uú]mero equivocado",
+            r"ya no trabaja",
+            r"(?:es|pertenece a) (?:de )?otra persona",
         ],
     ),
     (
@@ -82,9 +99,18 @@ NBA_KEYWORDS: list[tuple[str, list[str]]] = [
             r"cuotas",
             r"plan de pagos",
             r"caja est[aá] ajustada",
+            # Paying in stages.
+            r"instal+ments?",
+            r"\b(?:in|en) (?:two|three|four|five|six|several|\d+|dos|tres|cuatro|cinco|seis|varios) "
+            r"(?:parts|payments|instal+ments|plazos|partes|pagos)\b",
+            r"\bspread (?:it|the balance|the payments?) over\b",
+            r"\ba plazos\b",
         ],
     ),
 ]
+# The deterministic house rules (agent/nba_rules.py; a unit test keeps them equal):
+# escalate at ≥ 2 broken promises and ≥ 120 days, a plan at ≥ USD 10,000.00 and ≥ 90 days.
+HOUSE_RULES = (2, 120, 1_000_000, 90)
 REPLY_KEYWORDS: list[tuple[str, list[str]]] = [
     ("stop", [r"^\s*(stop|unsubscribe|cancel|end|quit|baja|parar|alto)\s*[.!]*\s*$"]),
     (
@@ -296,9 +322,10 @@ def _nba(ctx: dict[str, Any], notes: list[tuple[str, str]]) -> dict[str, Any]:
     broken = int(ctx.get("broken_promises_90d", 0))
     dpd = int(ctx.get("max_days_past_due", 0))
     balance = int(ctx.get("open_balance_cents", 0))
-    if broken >= 2 and dpd >= 120:
+    min_broken, escalate_dpd, plan_balance, plan_dpd = HOUSE_RULES
+    if broken >= min_broken and dpd >= escalate_dpd:
         action, why = "escalate", "Repeated broken promises on a long-overdue balance."
-    elif balance >= 1_000_000 and dpd >= 90:
+    elif balance >= plan_balance and dpd >= plan_dpd:
         action, why = "payment_plan", "A large balance overdue for 90+ days suits a payment plan."
     else:
         action, why = "remind", "No blocking signal in the notes; a reminder is appropriate."

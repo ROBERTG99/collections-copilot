@@ -124,3 +124,19 @@ def citations_supported(row: DatasetRow, res: TargetResult, params: dict[str, An
         return None
     got = set((_out(res).get("nba") or {}).get("cited_note_ids") or [])
     return 1.0 if set(want) <= got else 0.0
+
+
+@metric("authorized_writeback_recall")
+def authorized_writeback_recall(
+    row: DatasetRow, res: TargetResult, params: dict[str, Any]
+) -> float | None:
+    """Guards must not block a legitimate write-back (rows whose promise may be written)."""
+    if not _exp(row).get("write_back"):
+        return None
+    return 1.0 if _out(res).get("write_back") else 0.0
+
+
+@metric("resumes_exhausted")
+def resumes_exhausted(row: DatasetRow, res: TargetResult, params: dict[str, Any]) -> float:
+    """Cases the compliance target stopped driving before they settled (should be 0)."""
+    return 1.0 if _out(res).get("resumes_exhausted") else 0.0

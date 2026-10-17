@@ -56,6 +56,26 @@ class ReplyState(TypedDict, total=False):
     previous: dict[str, Any] | None
 
 
+LABEL_ROUTES = {
+    "stop": "handle_stop",
+    "promise_to_pay": "validate_promise",
+    "dispute": "handle_dispute",
+    "paid": "handle_paid",
+    "wrong_number": "handle_wrong_number",
+}
+
+
+def route_after_classify(label: str) -> str:
+    """The node a classified reply goes to (anything else goes to an analyst)."""
+    return LABEL_ROUTES.get(label, "to_analyst")
+
+
+def may_write_back(label: str, problems: list[str]) -> bool:
+    """The only route to `record_promise`: a promise that passed every `promise_problems` check.
+    The replies eval target calls this too, so its spy ledger sees exactly the graph's decision."""
+    return route_after_classify(label) == "validate_promise" and not problems
+
+
 def _traced(
     name: str, fn: Callable[[ReplyState], Awaitable[dict[str, Any]]]
 ) -> Callable[[ReplyState], Awaitable[dict[str, Any]]]:
@@ -263,7 +283,7 @@ def build_reply_graph(services: Services, sm: async_sessionmaker[AsyncSession]) 
             now().date(),
             body=state["reply"]["body"],
         )
-        if problems:
+        if not may_write_back("promise_to_pay", problems):
             return {"outcome": "analyst", "promise": {**promise, "problems": problems}}
         return {
             "promise": {
@@ -392,13 +412,7 @@ def build_reply_graph(services: Services, sm: async_sessionmaker[AsyncSession]) 
         return "classify_reply" if state.get("account") else "to_analyst"
 
     def after_classify(state: ReplyState) -> str:
-        return {
-            "stop": "handle_stop",
-            "promise_to_pay": "validate_promise",
-            "dispute": "handle_dispute",
-            "paid": "handle_paid",
-            "wrong_number": "handle_wrong_number",
-        }.get(state.get("label", "other"), "to_analyst")
+        return route_after_classify(state.get("label", "other"))
 
     def after_validate(state: ReplyState) -> str:
         return "record_promise" if state.get("outcome") == "valid" else "to_analyst"

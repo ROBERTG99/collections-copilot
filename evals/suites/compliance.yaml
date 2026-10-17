@@ -23,7 +23,15 @@ metrics:
     aggregate: sum
     direction: lower
     threshold: 0
+  # Guardrails must not block a legitimate send (raised from informational in the M5 review).
   - name: sends_when_allowed
     kind: custom
-    threshold: 0.0
+    threshold: 1.0
+  # Informational: the careless approver keeps resubmitting a blocked edit, so the edit rows
+  # use every resume while the graph keeps refusing them.
+  - name: resumes_exhausted
+    kind: custom
+    aggregate: sum
+    direction: lower
+    threshold: 0
     gate: false

@@ -26,7 +26,7 @@ from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.types import Command
 
 from collections_copilot.agent.case_graph import build_case_graph
-from collections_copilot.agent.reply_graph import classify_text, promise_problems
+from collections_copilot.agent.reply_graph import classify_text, may_write_back, promise_problems
 from collections_copilot.agent.services import Services
 from collections_copilot.agent.store import MemoryCaseStore
 from collections_copilot.compliance.rules.footer import has_footer
@@ -152,7 +152,7 @@ async def classify_reply(case_input: dict[str, Any]) -> TargetResult:
             today=today,
         )
     problems = promise_problems(promise, int(acc["open_balance_cents"]), today, body=body)
-    if label == "promise_to_pay" and not problems:  # the graph's route to record_promise
+    if may_write_back(label, problems):  # the reply graph's own route to record_promise
         await ledger.record_promise_to_pay(
             "eval",
             {"account_ref": acc["external_ref"], **(promise or {})},
@@ -206,10 +206,12 @@ async def compliance_case(case_input: dict[str, Any]) -> TargetResult:
         k: case_input[k] for k in ("case_id", "tenant_id", "run_id", "now", "input_facts")
     }
     pauses: list[str] = []
+    exhausted = True
     for _ in range(MAX_RESUMES):
         await graph.ainvoke(payload, config)
         snap = await graph.aget_state(config)
         if not snap.interrupts:
+            exhausted = False
             break
         value = snap.interrupts[0].value
         kind = value.get("kind") if isinstance(value, dict) else None
@@ -243,16 +245,18 @@ async def compliance_case(case_input: dict[str, Any]) -> TargetResult:
             clock["now"] = datetime.fromisoformat(value["send_at"])
             payload = Command(resume={"kind": "due"}, update={"now": value["send_at"]})
         else:  # waiting for a human who never comes, or for the debtor's reply
+            exhausted = False
             break
     final = (await graph.aget_state(config)).values
     tz = ZoneInfo(facts["timezone"])
     sent = []
     for msg, at in zip(sms.sent, sms.times, strict=True):
-        approved = any(
-            d["body"] == msg["body"] and (case_id, v) in store.approvals
-            for (c, v), d in store.drafts.items()
-            if c == case_id
-        )
+        # The send's own draft version (idempotency key `sms:{case_id}:{version}`) must carry
+        # an approval: an approval of another version with the same text does not count.
+        version = int(msg["key"].rsplit(":", 1)[-1])
+        approved = (case_id, version) in store.approvals and store.drafts.get(
+            (case_id, version), {}
+        ).get("body") == msg["body"]
         sent.append(
             {
                 "body": msg["body"],
@@ -273,6 +277,7 @@ async def compliance_case(case_input: dict[str, Any]) -> TargetResult:
             "closed_reason": final.get("closed_reason"),
             "nba": final.get("nba"),
             "send": final.get("send"),
+            "resumes_exhausted": exhausted,  # MAX_RESUMES ran out before the case settled
         },
         steps=steps,
         cost_usd=sum(s.cost_usd for s in steps),
