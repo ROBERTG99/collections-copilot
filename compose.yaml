@@ -194,6 +194,30 @@ services:
       elasticmq: { condition: service_healthy }
       migrate: { condition: service_completed_successfully }
 
+  web:
+    # Console and BFF (production build). The browser reaches dev-oidc on localhost:8345; the BFF
+    # exchanges codes and fetches keys over the compose network.
+    build:
+      context: .
+      dockerfile: web/Dockerfile
+      target: web
+      network: host
+      args:
+        HTTPS_PROXY: "${HTTPS_PROXY:-}"
+    image: collections-copilot/web:dev
+    environment:
+      WEB_SESSION_SECRET: "${WEB_SESSION_SECRET:-dev-only-session-secret-change-me-32bytes!!}"
+      WEB_ALLOW_DEV_SECRET: "true"
+      WEB_API_BASE_URL: http://api:8310
+      WEB_OIDC_ISSUER: http://dev-oidc:8345
+      WEB_OIDC_PUBLIC_ISSUER: http://localhost:8345
+      WEB_OIDC_CLIENT_ID: cc-web
+      WEB_PUBLIC_URL: http://localhost:8300
+    ports: ["127.0.0.1:8300:8300"]
+    depends_on:
+      api: { condition: service_healthy }
+      dev-oidc: { condition: service_healthy }
+
   debtor-sim:
     # Demo only: reads the WireMock journal and posts signed Twilio callbacks and replies.
     build: { <<: *python-build, target: debtor-sim }

@@ -38,6 +38,9 @@ test.describe("queue", () => {
     );
     await page.goto("/queue");
     await page.getByLabel("Case status").selectOption("awaiting_approval");
+    // Earlier runs leave other drafts awaiting approval: narrow to this account so it is on page 1.
+    await page.getByLabel("Account or reference").fill(detail.account.name);
+    await page.getByRole("button", { name: "Search" }).click();
     const table = page.getByRole("table", { name: /accounts by priority/i });
     await table.getByLabel(`Select the draft for ${detail.account.name}`).check();
     await page.getByRole("button", { name: "Review and approve (1)" }).click();

@@ -1,0 +1,37 @@
+# `make test-docker`: the unit, harness, integration and contract suites inside the tools image,
+# against the compose dependencies. Host networking keeps the URLs the suites use on the host
+# (localhost:8320, 8330, 8340, 8341, 8342, 8345); everything stays offline with the fake LLM.
+services:
+  tests:
+    image: collections-copilot/tools:dev
+    build:
+      context: .
+      dockerfile: docker/python.Dockerfile
+      target: tools
+      network: host
+      args:
+        HTTPS_PROXY: "${HTTPS_PROXY:-}"
+    profiles: ["test"]
+    network_mode: host
+    environment:
+      CC_ENV: test
+      CC_LLM_PROVIDER: fake
+      HOME: /tmp
+    command:
+      - pytest
+      - tests/unit
+      - tests/harness
+      - tests/integration
+      - tests/contract
+      - -m
+      - not docker and not perf
+      - -q
+    restart: "no"
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      elasticmq: { condition: service_healthy }
+      minio: { condition: service_healthy }
+      wiremock-twilio: { condition: service_healthy }
+      mailpit: { condition: service_healthy }
+      dev-oidc: { condition: service_healthy }

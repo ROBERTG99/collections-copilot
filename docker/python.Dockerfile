@@ -85,7 +85,9 @@ ENV PATH=/app/.venv/bin:$PATH PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1
 # copies of urllib3, msgpack and setuptools carry known CVEs (docs/security.md).
 RUN groupadd --system --gid 10001 app && useradd --system --uid 10001 --gid app --home-dir /app app \
  && rm -rf /usr/local/lib/python3.13/site-packages/pip /usr/local/lib/python3.13/site-packages/pip-*.dist-info \
-      /usr/local/lib/python3.13/ensurepip /usr/local/bin/pip /usr/local/bin/pip3*
+      /usr/local/lib/python3.13/ensurepip /usr/local/bin/pip /usr/local/bin/pip3* \
+ && install -d -o app -g app /app
+# The test suites write caches and scratch files under the repository root (/app).
 WORKDIR /app
 COPY --from=test-builder --chown=app:app /app /app
 COPY --chown=app:app . .

@@ -70,9 +70,10 @@ test: deps-up ## Unit, integration and contract tests on the host (with coverage
 coverage:
 	$(RUN) python scripts/coverage_gate.py coverage.xml
 
-test-docker: ## The full test suite inside containers
-	$(COMPOSE) -f compose.yaml -f compose.test.yaml run --rm --build tests
-	$(COMPOSE) -f compose.yaml -f compose.test.yaml down -v
+test-docker: ## The suites inside the tools image, then the stack tests (`-m docker`); the stack stays up
+	./scripts/time_up.sh
+	$(COMPOSE) -f compose.yaml -f compose.test.yaml --profile test run --rm --build tests
+	$(RUN) pytest tests/integration -m docker -q
 
 e2e: ## Playwright end-to-end tests (+ axe) against the running stack
 	cd web && $(PNPM) exec playwright test
@@ -153,7 +154,7 @@ images:
 	$(COMPOSE) build
 
 clean: ## Remove containers, volumes, caches and build outputs
-	-$(COMPOSE) -f compose.yaml -f compose.test.yaml --profile observability --profile jobs down -v --remove-orphans
+	-$(COMPOSE) -f compose.yaml -f compose.test.yaml --profile observability --profile jobs --profile test down -v --remove-orphans
 	rm -rf .pytest_cache .mypy_cache .ruff_cache .hypothesis htmlcov coverage.xml .coverage \
 		web/.next web/coverage web/playwright-report web/test-results .evalgate
 	find . -name __pycache__ -type d -prune -exec rm -rf {} +
