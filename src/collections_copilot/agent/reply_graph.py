@@ -28,6 +28,7 @@ from collections_copilot.agent.prompts import UntrustedNote, render
 from collections_copilot.agent.reply_actions import apply_stop, cancel_open_work_in
 from collections_copilot.agent.schemas import ReplyClassification
 from collections_copilot.agent.services import Services
+from collections_copilot.compliance.rules import amounts
 from collections_copilot.compliance.stop_keywords import is_stop
 from collections_copilot.db import audit
 from collections_copilot.db.repositories import Repos
@@ -50,6 +51,80 @@ class ReplyState(TypedDict, total=False):
     outcome: str
     promise_id: str
     previous: dict[str, Any] | None
+
+
+async def classify_text(
+    services: Services,
+    *,
+    message_id: str,
+    body: str,
+    account: dict[str, Any],
+    today: date,
+) -> tuple[str, float, dict[str, Any] | None]:
+    """The model classification of a non-STOP reply (also the replies eval target's code path)."""
+    rendered = render(
+        "classify_reply",
+        {
+            "today": today.isoformat(),
+            "language": account.get("language", "en"),
+            "currency": account.get("currency", "USD"),
+            "open_balance_cents": account.get("open_balance_cents", 0),
+        },
+        [UntrustedNote(id=message_id, source="sms_reply", body=body)],
+    )
+    with node_context("classify_reply"):
+        result = await services.gateway.structured(
+            services.routes["classify_reply"],
+            system=rendered.system,
+            user=rendered.user,
+            schema=ReplyClassification,
+            prompt_version=f"{rendered.name}.{rendered.version}",
+            prompt_hash=rendered.hash,
+            pii=AccountPII(name=account.get("name", ""), phone_e164=account.get("phone_e164", "")),
+            language=account.get("language", "en"),
+        )
+    if result.ok and result.parsed is not None:
+        out = result.parsed
+        return (
+            out.label,
+            out.confidence,
+            out.promise.model_dump(mode="json") if out.promise else None,
+        )
+    return "other", 0.0, None
+
+
+def promise_problems(
+    promise: dict[str, Any] | None,
+    balance_cents: int,
+    today: date,
+    body: str | None = None,
+) -> list[str]:
+    """Why an extracted promise may not be written back (empty when it may).
+
+    With the reply `body`, the amount must also be one the debtor actually wrote: code, not the
+    model, decides what reaches the ledger (a date such as 2026-03-16 is never an amount).
+    """
+    promise = promise or {}
+    amount = promise.get("amount_cents")
+    raw_date = promise.get("promised_date")
+    problems = []
+    if balance_cents <= 0:
+        problems.append("no open balance")
+    if not amount or amount <= 0:
+        problems.append("no amount")  # never assume the full balance was promised
+    elif amount > balance_cents:
+        problems.append("amount above open balance")
+    elif body is not None and amount not in {c for _, c, _ in amounts.extract(body)}:
+        problems.append("amount not stated in the reply")
+    if not raw_date:
+        problems.append("no promised date")
+    else:
+        delta = (date.fromisoformat(str(raw_date)) - today).days
+        if not MIN_PROMISE_DAYS <= delta <= MAX_PROMISE_DAYS:
+            problems.append(
+                f"date {delta} days out (allowed {MIN_PROMISE_DAYS}–{MAX_PROMISE_DAYS})"
+            )
+    return problems
 
 
 def build_reply_graph(services: Services, sm: async_sessionmaker[AsyncSession]) -> Any:
@@ -125,34 +200,13 @@ def build_reply_graph(services: Services, sm: async_sessionmaker[AsyncSession]) 
                 "confidence": previous["confidence"],
                 "promise": previous["promise"],
             }
-        today = now().date()
-        rendered = render(
-            "classify_reply",
-            {
-                "today": today.isoformat(),
-                "language": acc.get("language", "en"),
-                "currency": acc.get("currency", "USD"),
-                "open_balance_cents": acc.get("open_balance_cents", 0),
-            },
-            [UntrustedNote(id=reply["message_id"], source="sms_reply", body=reply["body"])],
+        label, confidence, promise = await classify_text(
+            services,
+            message_id=reply["message_id"],
+            body=reply["body"],
+            account=acc,
+            today=now().date(),
         )
-        with node_context("classify_reply"):
-            result = await services.gateway.structured(
-                services.routes["classify_reply"],
-                system=rendered.system,
-                user=rendered.user,
-                schema=ReplyClassification,
-                prompt_version=f"{rendered.name}.{rendered.version}",
-                prompt_hash=rendered.hash,
-                pii=AccountPII(name=acc.get("name", ""), phone_e164=acc.get("phone_e164", "")),
-                language=acc.get("language", "en"),
-            )
-        if result.ok and result.parsed is not None:
-            out = result.parsed
-            promise = out.promise.model_dump(mode="json") if out.promise else None
-            label, confidence = out.label, out.confidence
-        else:
-            label, confidence, promise = "other", 0.0, None
         await _set_message(state, label, confidence, promise)
         return {"label": label, "confidence": confidence, "promise": promise}
 
@@ -171,28 +225,19 @@ def build_reply_graph(services: Services, sm: async_sessionmaker[AsyncSession]) 
     async def validate_promise(state: ReplyState) -> dict[str, Any]:
         acc = state.get("account") or {}
         promise = dict(state.get("promise") or {})
-        balance = int(acc.get("open_balance_cents", 0))
-        amount = promise.get("amount_cents")
-        raw_date = promise.get("promised_date")
-        problems = []
-        if not acc or balance <= 0:
-            problems.append("no open balance")
-        if not amount or amount <= 0:
-            problems.append("no amount")  # never assume the full balance was promised
-        elif amount > balance:
-            problems.append("amount above open balance")
-        if not raw_date:
-            problems.append("no promised date")
-        else:
-            delta = (date.fromisoformat(str(raw_date)) - now().date()).days
-            if not MIN_PROMISE_DAYS <= delta <= MAX_PROMISE_DAYS:
-                problems.append(
-                    f"date {delta} days out (allowed {MIN_PROMISE_DAYS}–{MAX_PROMISE_DAYS})"
-                )
+        problems = promise_problems(
+            promise,
+            int(acc.get("open_balance_cents", 0)),
+            now().date(),
+            body=state["reply"]["body"],
+        )
         if problems:
             return {"outcome": "analyst", "promise": {**promise, "problems": problems}}
         return {
-            "promise": {"amount_cents": int(amount or 0), "promised_date": str(raw_date)},
+            "promise": {
+                "amount_cents": int(promise["amount_cents"]),
+                "promised_date": str(promise["promised_date"]),
+            },
             "outcome": "valid",
         }
 

@@ -5,7 +5,8 @@ Rules, in English and Spanish, on the upper-cased ASCII-folded text:
 2. An unambiguous opt-out phrase anywhere ("unsubscribe", "opt me out", "darme de baja",
    "remove me from your list", "cancelar suscripción").
 3. A request to stop texting ("please stop texting me", "don't text me again", "leave me alone",
-   "dejen de escribirme", "no me molesten", "no quiero recibir mensajes"), unless negated
+   "dejen de escribirme", "no me molesten", "no quiero recibir mensajes", "I'd rather not get
+   these texts anymore", "prefiero no recibir más avisos"), unless negated
    ("don't stop texting me").
 
 Ambiguous words inside longer messages ("End of month", "Cancel the invoice", "no text received
@@ -76,7 +77,12 @@ _REQUESTS = [
     re.compile(rf"\bNO MORE {_TEXTS}\b"),
     re.compile(r"\b(DEJ(EN|E|A|AR)|PAR(EN|E|A|AR)) DE (ESCRIBIR|ENVIAR|MANDAR|CONTACTAR)"),
     re.compile(r"\bNO (ME |NOS )?(ESCRIBAN|ESCRIBAS|ENVIEN|MANDEN|CONTACTEN|MOLESTEN|MOLESTES)\b"),
-    re.compile(r"\bNO QUIERO (RECIBIR )?(MAS )?(MENSAJES|SMS|TEXTOS)\b"),
+    re.compile(r"\bNO QUIERO (RECIBIR )?(MAS )?(MENSAJES|SMS|TEXTOS|AVISOS)\b"),
+    re.compile(r"\b(PREFIERO|QUIERO) NO RECIBIR (MAS )?(MENSAJES|SMS|TEXTOS|AVISOS)\b"),
+    re.compile(
+        rf"\b(RATHER NOT|DON T WANT|DONT WANT|DO NOT WANT|NO LONGER WANT)( TO)?( GET| RECEIVE)?"
+        rf"( THESE| YOUR| ANY)? {_TEXTS} ANY ?MORE\b"
+    ),
     re.compile(r"\bNO MAS (MENSAJES|SMS|TEXTOS)\b"),
 ]
 

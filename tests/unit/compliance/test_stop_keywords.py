@@ -56,6 +56,11 @@ from collections_copilot.compliance.stop_keywords import is_stop
         "Cancelar suscripción",
         "Me doy de baja",
         "Denme de baja",
+        # replies eval (dev): a request to stop texting without the word STOP
+        "I'd rather not get these texts anymore",
+        "I don't want these messages anymore",
+        "Prefiero no recibir más avisos por aquí",
+        "No quiero recibir más avisos",
     ],
 )
 def test_stop_variants(body: str) -> None:
@@ -87,6 +92,9 @@ def test_stop_variants(body: str) -> None:
         "dont stop texting me, I will pay",
         "Para el viernes pago",
         "Do not stop the reminders",
+        "I'd rather not get these texts at the old number, use this one",
+        "We did not get these messages until today",
+        "Prefiero no recibir la factura en papel",
     ],
 )
 def test_not_stop(body: str) -> None:

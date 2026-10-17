@@ -254,16 +254,17 @@ def _nba(ctx: dict[str, Any], notes: list[tuple[str, str]]) -> dict[str, Any]:
                 "confidence": 0.92,
                 "cited_note_ids": cited[:3],
             }
+    # No signal in the notes: the house rules (same thresholds as agent/nba_rules.py).
     broken = int(ctx.get("broken_promises_90d", 0))
-    action = "escalate" if broken >= 2 and int(ctx.get("max_days_past_due", 0)) >= 120 else "remind"
-    return {
-        "action": action,
-        "rationale": "No blocking signal in the notes; a reminder is appropriate."
-        if action == "remind"
-        else "Repeated broken promises on a long-overdue balance.",
-        "confidence": 0.8,
-        "cited_note_ids": [],
-    }
+    dpd = int(ctx.get("max_days_past_due", 0))
+    balance = int(ctx.get("open_balance_cents", 0))
+    if broken >= 2 and dpd >= 120:
+        action, why = "escalate", "Repeated broken promises on a long-overdue balance."
+    elif balance >= 1_000_000 and dpd >= 90:
+        action, why = "payment_plan", "A large balance overdue for 90+ days suits a payment plan."
+    else:
+        action, why = "remind", "No blocking signal in the notes; a reminder is appropriate."
+    return {"action": action, "rationale": why, "confidence": 0.8, "cited_note_ids": []}
 
 
 def _draft(ctx: dict[str, Any], notes: list[tuple[str, str]]) -> dict[str, Any]:
@@ -293,7 +294,11 @@ def _draft(ctx: dict[str, Any], notes: list[tuple[str, str]]) -> dict[str, Any]:
     return {"body": re.sub(r"\s+", " ", body).strip()}
 
 
+ISO_DATE = re.compile(r"\b20\d\d-\d\d-\d\d\b")
+
+
 def _amount_cents(text: str) -> int | None:
+    text = ISO_DATE.sub(" ", text)  # a date is never an amount
     m = re.search(
         r"(?:\$|€|usd|eur)?\s*(\d{1,3}(?:[.,]\d{3})+|\d+)(?:([.,])(\d{2}))?(?!\d)", text, re.I
     )
@@ -322,6 +327,8 @@ def _classify(ctx: dict[str, Any], notes: list[tuple[str, str]]) -> dict[str, An
     text = " ".join(body for _, body in notes)
     today = date.fromisoformat(ctx.get("today", date.today().isoformat()))
     for label, patterns in REPLY_KEYWORDS:
+        if label == "promise_to_pay" and text.rstrip().endswith("?"):
+            continue  # a question is not a commitment
         if _match(text, patterns):
             promise = None
             if label == "promise_to_pay":
