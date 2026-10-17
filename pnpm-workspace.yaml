@@ -1,2 +1,13 @@
 packages:
   - web
+
+# Security overrides (docs/security.md, "Dependency findings").
+overrides:
+  smol-toml: ">=1.9.0"
+  katex: ">=0.18.2"
+
+auditConfig:
+  ignoreGhsas:
+    # braces: no patched release exists; reached only through the dev-only markdownlint-cli2
+    # on the repository's own Markdown (no untrusted patterns). Revisit when a fix ships.
+    - GHSA-vfj7-8cjw-p6xm

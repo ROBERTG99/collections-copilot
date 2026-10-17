@@ -31,7 +31,11 @@ RUN uv sync --frozen --all-packages
 
 FROM ${PYTHON_IMAGE} AS runtime
 ENV PATH=/app/.venv/bin:$PATH PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1
-RUN groupadd --system --gid 10001 app && useradd --system --uid 10001 --gid app --home-dir /app app
+# The runtime never installs packages: drop the base image's pip and ensurepip, whose vendored
+# copies of urllib3, msgpack and setuptools carry known CVEs (docs/security.md).
+RUN groupadd --system --gid 10001 app && useradd --system --uid 10001 --gid app --home-dir /app app \
+ && rm -rf /usr/local/lib/python3.13/site-packages/pip /usr/local/lib/python3.13/site-packages/pip-*.dist-info \
+      /usr/local/lib/python3.13/ensurepip /usr/local/bin/pip /usr/local/bin/pip3*
 WORKDIR /app
 COPY --from=builder --chown=app:app /app /app
 COPY --chown=app:app prompts prompts
@@ -77,7 +81,11 @@ CMD ["python", "-m", "mcpgw_lite.server"]
 
 FROM ${PYTHON_IMAGE} AS tools
 ENV PATH=/app/.venv/bin:$PATH PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1
-RUN groupadd --system --gid 10001 app && useradd --system --uid 10001 --gid app --home-dir /app app
+# The runtime never installs packages: drop the base image's pip and ensurepip, whose vendored
+# copies of urllib3, msgpack and setuptools carry known CVEs (docs/security.md).
+RUN groupadd --system --gid 10001 app && useradd --system --uid 10001 --gid app --home-dir /app app \
+ && rm -rf /usr/local/lib/python3.13/site-packages/pip /usr/local/lib/python3.13/site-packages/pip-*.dist-info \
+      /usr/local/lib/python3.13/ensurepip /usr/local/bin/pip /usr/local/bin/pip3*
 WORKDIR /app
 COPY --from=test-builder --chown=app:app /app /app
 COPY --chown=app:app . .
