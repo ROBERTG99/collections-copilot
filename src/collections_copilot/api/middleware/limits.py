@@ -262,8 +262,17 @@ class IdempotencyMiddleware:
             )
             existing = None if claimed else await redis.get(store_key)
         except RedisError:
-            log.warning("idempotency store unavailable; request runs without it")
-            await self.app(scope, _replay(body), send)
+            # Fail closed: the client asked for at-most-once, so the request waits for the store.
+            log.warning("idempotency store unavailable; request refused")
+            await _reply(
+                scope,
+                _replay(body),
+                send,
+                503,
+                "the idempotency store is unavailable; retry with the same key",
+                "idempotency_unavailable",
+                {"Retry-After": "5"},
+            )
             return
         if existing is not None:
             await self._existing(scope, receive, send, json.loads(existing), fingerprint)

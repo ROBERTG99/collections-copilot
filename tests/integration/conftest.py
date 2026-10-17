@@ -46,8 +46,11 @@ def make_token(signing_key: rsa.RSAPrivateKey) -> TokenFactory:
             "custom:tenant_id": str(tenant_id),
             "iat": now,
             "exp": now + 600,
+            "token_use": "access",
             **extra,
         }
+        if claims.get("token_use") == "__drop__":  # a token without the claim
+            del claims["token_use"]
         return jwt.encode(claims, signing_key, algorithm="RS256", headers={"kid": KID})
 
     return factory

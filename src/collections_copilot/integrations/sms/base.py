@@ -2,9 +2,17 @@
 
 from __future__ import annotations
 
+import re
 import uuid
 from dataclasses import dataclass, field
 from typing import Protocol
+
+# The synthetic ranges this project may text (CLAUDE.md "Never"): +1 555… and +34 555….
+SYNTHETIC = re.compile(r"^\+(?:1555|34555)\d{5,10}$")
+
+
+def is_synthetic(e164: str) -> bool:
+    return bool(SYNTHETIC.match(e164))
 
 
 @dataclass(frozen=True)

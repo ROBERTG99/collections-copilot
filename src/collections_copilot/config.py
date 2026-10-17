@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 from typing import Literal
+from urllib.parse import urlsplit
 
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -25,6 +26,8 @@ class Settings(BaseSettings):
     rate_limit_per_minute: int = Field(default=120, gt=0)
     webhook_rate_limit_per_minute: int = Field(default=600, gt=0)
     redis_max_connections: int = Field(default=200, gt=0)
+    sse_max_connections: int = Field(default=200, gt=0)  # a separate pool for SSE streams
+    sse_streams_per_user: int = Field(default=5, gt=0)
 
     # AWS-compatible services (ElasticMQ and MinIO locally)
     aws_region: str = "us-east-1"
@@ -88,12 +91,21 @@ class Settings(BaseSettings):
     metrics_port: int = 8311
 
     demo_mode: Literal["offline", "live"] = Field(default="offline")
+    # Outside production only +1555… and +34555… numbers are accepted at ingest or texted.
+    synthetic_numbers_only: bool = True
 
     @model_validator(mode="after")
     def _refuse_dev_defaults_in_prod(self) -> Settings:
-        """In production every shared secret must be set and the issuer must be HTTPS: a dev
-        default would let anyone who read the repository sign webhooks."""
-        if self.env != "prod":
+        """In production, or whenever the API is reachable under a public hostname (a forgotten
+        CC_ENV=prod must not fail open), every shared secret must be set and the issuer must be
+        HTTPS: a dev default would let anyone who read the repository sign webhooks."""
+        if self.agent_token_provider == "kms" and not self.agent_kms_key_id:  # noqa: S105
+            raise ValueError("CC_AGENT_TOKEN_PROVIDER=kms needs CC_AGENT_KMS_KEY_ID")
+        if not self.synthetic_numbers_only and self.env != "prod":
+            raise ValueError("CC_SYNTHETIC_NUMBERS_ONLY may be false only with CC_ENV=prod")
+        host = urlsplit(self.public_base_url).hostname or ""
+        public = "." in host and host != "127.0.0.1"
+        if self.env != "prod" and not public:
             return self
         problems = [
             name

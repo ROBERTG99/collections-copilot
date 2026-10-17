@@ -7,6 +7,7 @@ W3C `traceparent`. The histogram is labelled by route template, never by raw pat
 
 from __future__ import annotations
 
+import logging
 import time
 import uuid
 
@@ -23,6 +24,7 @@ NATIVE_TELEMETRY_OFF: TelemetryConfig = {
     "logs": False,
     "operation_spans": False,
 }
+log = logging.getLogger(__name__)
 _SAFE_ID = frozenset("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_.:")
 
 
@@ -59,13 +61,20 @@ class TelemetryMiddleware:
                 message["headers"] = raw
             await send(message)
 
-        span_cm = tracing.tracer().start_as_current_span(
-            f"{method}", kind=tracing.SpanKind.SERVER, attributes={"http.request.method": method}
+        raised = False
+        span_cm = tracing.span(
+            f"{method}", {"http.request.method": method}, kind=tracing.SpanKind.SERVER
         )
         try:
             with span_cm as span:
                 try:
                     await self.app(scope, receive, send_wrapper)
+                except Exception:
+                    raised = True
+                    # Logged here, while the correlation id and the span are still current
+                    # (the 500 handler runs outside this middleware).
+                    log.exception("unhandled error", extra={"route": _route(scope)})
+                    raise
                 finally:
                     route = _route(scope)
                     span.update_name(f"{method} {route}")
@@ -76,10 +85,19 @@ class TelemetryMiddleware:
                             "cc.correlation_id": cid,
                         }
                     )
-                    if status >= 500:
-                        span.set_status(tracing.Status(tracing.StatusCode.ERROR))
-                    metrics.HTTP_DURATION.labels(method, route, str(status)).observe(
-                        time.perf_counter() - started
+                    if status >= 500 and not raised:  # a raise already set ERROR (type only)
+                        span.set_status(tracing.Status(tracing.StatusCode.ERROR, str(status)))
+                    elapsed = time.perf_counter() - started
+                    metrics.HTTP_DURATION.labels(method, route, str(status)).observe(elapsed)
+                    # The access log: route template only (uvicorn's, with raw query, is off).
+                    log.info(
+                        "request",
+                        extra={
+                            "method": method,
+                            "route": route,
+                            "status": status,
+                            "duration_ms": round(elapsed * 1000, 1),
+                        },
                     )
         finally:
             context.detach(ctx_token)

@@ -89,12 +89,11 @@ def _traced(
             "cc.node": name,
             "cc.tenant_id": str(state.get("tenant_id", "")),
         }
-        with tracing.tracer().start_as_current_span(f"node {name}", attributes=attrs) as span:
+        with tracing.span(f"node {name}", attrs) as span:
             try:
                 return await fn(state)
             except Exception:
                 status = "error"
-                span.set_status(tracing.Status(tracing.StatusCode.ERROR))
                 raise
             finally:
                 span.set_attribute("cc.status", status)

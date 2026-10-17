@@ -30,8 +30,8 @@ bootstrap: ## Install toolchains and dependencies, create .env from .env.example
 up: ## Start the full stack in Docker Compose with healthchecks
 	./scripts/time_up.sh
 
-down: ## Stop the stack
-	$(COMPOSE) down
+down: ## Stop the stack (every profile)
+	$(COMPOSE) --profile observability --profile jobs down
 
 seed: ## Load the synthetic dataset (gen.v1, seed 4242)
 	$(COMPOSE) run --rm seed
@@ -153,7 +153,7 @@ images:
 	$(COMPOSE) build
 
 clean: ## Remove containers, volumes, caches and build outputs
-	-$(COMPOSE) -f compose.yaml -f compose.test.yaml down -v --remove-orphans
+	-$(COMPOSE) -f compose.yaml -f compose.test.yaml --profile observability --profile jobs down -v --remove-orphans
 	rm -rf .pytest_cache .mypy_cache .ruff_cache .hypothesis htmlcov coverage.xml .coverage \
 		web/.next web/coverage web/playwright-report web/test-results .evalgate
 	find . -name __pycache__ -type d -prune -exec rm -rf {} +

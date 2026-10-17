@@ -81,11 +81,17 @@ def load_prompt(name: str, version: str = "v1") -> Prompt:
 def _fence(note: UntrustedNote) -> str:
     body = _TAG.sub("[tag removed]", note.body)
     body = "".join(ch for ch in body if ch in "\n\t" or ch.isprintable())
-    body = body.replace("<", "&lt;").replace(">", "&gt;")
+    body = body.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
     attrs = f'id="{_attr(note.id)}" source="{_attr(note.source)}"'
     if note.created_at:
         attrs += f' created_at="{_attr(note.created_at)}"'
     return f"<untrusted_note {attrs}>\n{body}\n</untrusted_note>"
+
+
+def safe_json(value: Any) -> str:
+    """JSON that cannot open or close a tag: <, > and & become \\u escapes (still valid JSON)."""
+    text = json.dumps(value, ensure_ascii=False, sort_keys=True, default=str)
+    return text.replace("&", "\\u0026").replace("<", "\\u003c").replace(">", "\\u003e")
 
 
 def _attr(value: str) -> str:
@@ -98,7 +104,7 @@ def render(
     prompt = load_prompt(name, version)
     parts = [
         "<context>",
-        json.dumps(context, ensure_ascii=False, sort_keys=True, default=str),
+        safe_json(context),
         "</context>",
     ]
     parts += [_fence(n) for n in notes]

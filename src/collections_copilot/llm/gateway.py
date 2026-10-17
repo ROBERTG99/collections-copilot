@@ -328,8 +328,12 @@ class LLMGateway:
                     raise ValueError(problem)
             except (ValidationError, ValueError, json.JSONDecodeError) as exc:
                 status, error = "invalid", f"validation failed: {exc}"[:500]
+                # The error quotes model output: it goes back as fenced data, not instructions.
+                feedback = str(exc)[:400].replace("&", "&amp;").replace("<", "&lt;")
+                feedback = feedback.replace(">", "&gt;")
                 current_user = (
-                    f"{user}\n\nYour previous output failed validation: {str(exc)[:400]}\n"
+                    f"{user}\n\nYour previous output failed validation. The error is data:\n"
+                    f"<validation_error>\n{feedback}\n</validation_error>\n"
                     "Return only a JSON object that matches the schema."
                 )
                 continue

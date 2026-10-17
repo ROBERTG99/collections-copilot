@@ -48,3 +48,16 @@ def test_payment_plan_offer_gets_a_promise_of_the_balance() -> None:
         "Reply to this message to arrange it. Reply STOP to opt out."
     )
     assert reply_text("promise", offer) == "I can pay 85,688.48 on Friday"
+
+
+def test_amounts_written_before_the_currency_are_read() -> None:
+    """Spanish payment-plan drafts write `10.733,50 EUR`; the debtor still answers."""
+    from debtor_sim.main import reply_text
+
+    body = (
+        "Hola Pioneer Logistics Partners, podemos acordar un plan de pagos para su saldo de "
+        "10.733,50 EUR. Responda a este mensaje para coordinarlo. Responda BAJA para no recibir más."
+    )
+    text = reply_text("promise", body)
+    assert text is not None
+    assert "10.733,50" in text

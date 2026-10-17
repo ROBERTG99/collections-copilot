@@ -18,6 +18,10 @@ HOST = re.compile(
 )
 
 
+# A bare IPv4 literal is a host too (never on the allowlist).
+IP = re.compile(r"(?<![\w.])((?:\d{1,3}\.){3}\d{1,3})(?![\w.])")
+
+
 def _host(url: str) -> str:
     target = url if "://" in url else f"http://{url}"
     return (urlsplit(target.rstrip(".,;:!?)")).hostname or "").lower()
@@ -27,4 +31,5 @@ def find_disallowed(text: str, allowed: frozenset[str] = ALLOWED_HOSTS) -> list[
     hosts = [_host(m.group(0)) for m in URL.finditer(text)]
     stripped = URL.sub(" ", text)
     hosts += [m.group(1).lower() for m in HOST.finditer(stripped)]
+    hosts += [m.group(1) for m in IP.finditer(stripped)]
     return [h for h in hosts if h and h not in allowed]

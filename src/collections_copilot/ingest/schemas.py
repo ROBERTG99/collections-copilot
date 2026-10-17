@@ -11,6 +11,9 @@ from zoneinfo import available_timezones
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from collections_copilot.config import get_settings
+from collections_copilot.integrations.sms.base import is_synthetic
+
 E164 = re.compile(r"^\+[1-9]\d{7,14}$")
 CSV_COLUMNS = [
     "external_ref",
@@ -40,7 +43,8 @@ class AgingRow(BaseModel):
     segment: Literal["enterprise", "mid_market", "smb"]
     language: Literal["en", "es"]
     currency: str = Field(pattern=r"^[A-Z]{3}$")
-    invoice_number: str = Field(min_length=1, max_length=64)
+    # An identifier, never free text: it reaches prompts and SMS (M6 security audit M2).
+    invoice_number: str = Field(pattern=r"^[A-Za-z0-9._/-]{1,64}$")
     amount: str = Field(description="Decimal amount in major units, e.g. 1200.50")
     issued_on: date
     due_on: date
@@ -53,6 +57,8 @@ class AgingRow(BaseModel):
     def _e164(cls, v: str) -> str:
         if not E164.match(v):
             raise ValueError("phone_e164 must be E.164 (+ and 8-15 digits)")
+        if get_settings().synthetic_numbers_only and not is_synthetic(v):
+            raise ValueError("phone_e164 must be in the synthetic ranges +1555… or +34555…")
         return v
 
     @field_validator("timezone")

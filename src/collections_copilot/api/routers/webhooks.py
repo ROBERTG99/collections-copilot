@@ -264,20 +264,29 @@ class GatewayApproval(BaseModel):
     expires_at: datetime | None = None
 
 
+MCPGW_MAX_SKEW_S = 300
+
+
 @mcpgw_router.post("/approvals", status_code=204, response_class=Response)
 async def mcpgw_approval(request: Request) -> Response:
     """mcp-gateway held a ledger write for approval: link it to our promise and tell a
-    supervisor. Signed with HMAC-SHA256 over the raw body (`X-MCPGW-Signature: sha256=...`)."""
+    supervisor. Signed with HMAC-SHA256 over `{timestamp}.{raw body}` (`X-MCPGW-Timestamp`,
+    `X-MCPGW-Signature: sha256=...`); a timestamp more than 5 minutes off is refused, so a
+    captured event cannot be replayed later."""
     app = request.app
     raw = await request.body()
+    stamp = request.headers.get("x-mcpgw-timestamp", "")
     expected = (
         "sha256="
         + hmac.new(
-            app.state.settings.mcpgw_webhook_secret.encode(), raw, hashlib.sha256
+            app.state.settings.mcpgw_webhook_secret.encode(),
+            stamp.encode() + b"." + raw,
+            hashlib.sha256,
         ).hexdigest()
     )
     given = request.headers.get("x-mcpgw-signature", "").encode("utf-8", "replace")
-    if not hmac.compare_digest(expected.encode(), given):
+    fresh = stamp.isdigit() and abs(time.time() - int(stamp)) <= MCPGW_MAX_SKEW_S
+    if not hmac.compare_digest(expected.encode(), given) or not fresh:
         await audit_bad_signature(request, _claimed_tenant(raw), "mcp-gateway")
         raise ProblemError(403, "invalid X-MCPGW-Signature", code="bad_signature")
     try:
@@ -286,12 +295,6 @@ async def mcpgw_approval(request: Request) -> Response:
     except (ValueError, TypeError) as exc:
         raise ProblemError(422, "invalid approval event", code="invalid_event") from exc
     sid = str(event.args_redacted.get("source_message_sid") or "")
-    try:  # a replayed event is answered without a second audit row
-        first = await app.state.redis.set(
-            f"cc:mcpgw:{event.approval_id}", "1", nx=True, ex=7 * 24 * 3600
-        )
-    except RedisError:
-        first = True
     async with app.state.sessionmaker() as s, s.begin():
         repos = Repos(s)
         promise = await repos.promises.by_approval_id(event.approval_id)
@@ -300,6 +303,12 @@ async def mcpgw_approval(request: Request) -> Response:
             promise = await repos.promises.by_key(tenant, f"ptp:{tenant}:{sid}")
         if promise is None or promise.tenant_id != tenant:
             raise ProblemError(404, "unknown approval", code="unknown_approval")
+        # Serialise deliveries of one approval, then recognise a replay from the audit log
+        # (durable: it holds while Redis is down).
+        await s.refresh(promise, with_for_update=True)
+        first = not await audit.has_event(
+            s, tenant, "promise.approval_requested", str(promise.id), approval_id=event.approval_id
+        )
         if promise.status == "pending":
             promise.status = "approval_required"
             promise.mcp_approval_id = event.approval_id

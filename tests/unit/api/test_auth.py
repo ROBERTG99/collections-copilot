@@ -25,6 +25,7 @@ def token(**overrides: Any) -> str:
         "sub": "u1",
         "iat": now,
         "exp": now + 60,
+        "token_use": "access",
     }
     claims.update(overrides)
     return jwt.encode(claims, KEY, algorithm="RS256", headers={"kid": "k1"})
@@ -44,6 +45,7 @@ async def test_cognito_access_token_client_id_accepted() -> None:
             "sub": "u1",
             "iat": now,
             "exp": now + 60,
+            "token_use": "access",
         },
         KEY,
         algorithm="RS256",

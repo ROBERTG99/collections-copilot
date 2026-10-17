@@ -2,7 +2,8 @@
 
 Spans carry identifiers and step-record attributes (route, model, tokens, cost, status, prompt
 version and hash), never message text or phone numbers. LLM spans follow the OpenTelemetry GenAI
-conventions (`gen_ai.*`). Without `CC_OTEL_ENDPOINT` spans are created but not exported.
+conventions (`gen_ai.*`). Without `CC_OTEL_EXPORTER_OTLP_ENDPOINT` spans are created but not
+exported.
 """
 
 from __future__ import annotations
@@ -37,10 +38,15 @@ def _provider(service: str) -> TracerProvider:
     return provider
 
 
+_exporting: set[str] = set()
+
+
 def setup_tracing(service: str, endpoint: str | None) -> None:
-    """Install the SDK provider once per process; export over OTLP/HTTP when an endpoint is set."""
+    """Install the SDK provider once per process; export over OTLP/HTTP when an endpoint is set
+    (one exporter per endpoint, however many apps start in the process)."""
     provider = _provider(service)
-    if endpoint:
+    if endpoint and endpoint not in _exporting:
+        _exporting.add(endpoint)
         from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 
         exporter = OTLPSpanExporter(endpoint=f"{endpoint.rstrip('/')}/v1/traces")
@@ -65,34 +71,46 @@ def inject(carrier: MutableMapping[str, str]) -> MutableMapping[str, str]:
 
 
 @contextlib.contextmanager
+def span(
+    name: str,
+    attributes: Mapping[str, Any] | None = None,
+    kind: SpanKind = SpanKind.INTERNAL,
+    *,
+    paused: tuple[type[BaseException], ...] = (),
+) -> Iterator[Span]:
+    """The only way this codebase opens a span.
+
+    OpenTelemetry would record the exception message and stack trace on the span (and set them
+    as its status); messages can carry debtor text or phone numbers, so a failure records its
+    type only. Exceptions listed in `paused` (LangGraph's interrupt) are not failures.
+    """
+    with tracer().start_as_current_span(
+        name,
+        kind=kind,
+        attributes=dict(attributes or {}),
+        record_exception=False,
+        set_status_on_exception=False,
+    ) as current:
+        try:
+            yield current
+        except paused:
+            raise
+        except BaseException as exc:
+            current.set_status(Status(StatusCode.ERROR, type(exc).__name__))
+            raise
+
+
+@contextlib.contextmanager
 def consumer_span(
     name: str, carrier: Mapping[str, str], attributes: Mapping[str, Any] | None = None
 ) -> Iterator[Span]:
     """Continue the producer's trace (SQS message attributes) in a consumer span."""
-    parent = propagate.extract(dict(carrier))
-    token = context.attach(parent)
+    token = context.attach(propagate.extract(dict(carrier)))
     try:
-        with tracer().start_as_current_span(
-            name, kind=SpanKind.CONSUMER, attributes=dict(attributes or {})
-        ) as span:
-            yield span
+        with span(name, attributes, kind=SpanKind.CONSUMER) as current:
+            yield current
     finally:
         context.detach(token)
-
-
-@contextlib.contextmanager
-def span(
-    name: str, attributes: Mapping[str, Any] | None = None, kind: SpanKind = SpanKind.INTERNAL
-) -> Iterator[Span]:
-    with tracer().start_as_current_span(
-        name, kind=kind, attributes=dict(attributes or {}), record_exception=False
-    ) as current:
-        try:
-            yield current
-        except BaseException as exc:
-            # The exception type only: messages may contain text from debtors.
-            current.set_status(Status(StatusCode.ERROR, type(exc).__name__))
-            raise
 
 
 def gen_ai_attributes(

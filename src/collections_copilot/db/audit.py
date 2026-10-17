@@ -183,3 +183,22 @@ async def verify_tenant(session: AsyncSession, tenant_id: uuid.UUID) -> int | No
 async def verify_all(session: AsyncSession) -> dict[uuid.UUID, int | None]:
     tenants = (await session.execute(select(AuditEvent.tenant_id).distinct())).scalars().all()
     return {t: await verify_tenant(session, t) for t in tenants}
+
+
+async def has_event(
+    session: AsyncSession,
+    tenant_id: uuid.UUID,
+    action: str,
+    entity_id: str,
+    *,
+    approval_id: str | None = None,
+) -> bool:
+    """Whether this tenant's log already holds the event (webhook replay detection)."""
+    stmt = select(AuditEvent.seq).where(
+        AuditEvent.tenant_id == tenant_id,
+        AuditEvent.action == action,
+        AuditEvent.entity_id == entity_id,
+    )
+    if approval_id is not None:
+        stmt = stmt.where(AuditEvent.payload_redacted["approval_id"].astext == approval_id)
+    return (await session.execute(stmt.limit(1))).first() is not None

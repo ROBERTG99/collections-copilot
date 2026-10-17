@@ -51,7 +51,8 @@ REPLIES = {
         "stop": "BAJA",
     },
 }
-AMOUNT = re.compile(r"\b[A-Z]{3}\s*(\d[\d.,]*\d)")
+# "USD 1,200.00" or "1.200,00 EUR"
+AMOUNT = re.compile(r"\b[A-Z]{3}\s*(\d[\d.,]*\d)|(\d[\d.,]*\d)\s*[A-Z]{3}\b")
 BALANCE = re.compile(r"(?:Open balance|Saldo pendiente)[^:]*:\s*[A-Z]{3}\s*([\d.,]+)")
 
 
@@ -71,7 +72,7 @@ def reply_text(persona: str, outbound_body: str) -> str | None:
     if persona == "silent":
         return None
     match = BALANCE.search(outbound_body)
-    amounts = [m.group(1).rstrip(".,") for m in AMOUNT.finditer(outbound_body)]
+    amounts = [(m.group(1) or m.group(2)).rstrip(".,") for m in AMOUNT.finditer(outbound_body)]
     if match is None and not amounts:  # STOP confirmations and other notices get no reply
         return None
     amount = match.group(1).rstrip(".,") if match else max(amounts, key=_cents)

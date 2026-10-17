@@ -48,7 +48,7 @@ FROM runtime AS api
 EXPOSE 8310
 HEALTHCHECK --interval=5s --timeout=3s --start-period=20s --retries=12 \
   CMD ["python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8310/healthz', timeout=2).status == 200 else 1)"]
-CMD ["uvicorn", "collections_copilot.api.main:app", "--factory", "--host", "0.0.0.0", "--port", "8310", "--proxy-headers", "--no-server-header"]
+CMD ["uvicorn", "collections_copilot.api.main:app", "--factory", "--host", "0.0.0.0", "--port", "8310", "--proxy-headers", "--no-server-header", "--no-access-log"]
 
 FROM runtime AS worker
 EXPOSE 8311
@@ -89,6 +89,8 @@ RUN groupadd --system --gid 10001 app && useradd --system --uid 10001 --gid app 
 WORKDIR /app
 COPY --from=test-builder --chown=app:app /app /app
 COPY --chown=app:app . .
+# pip arrives only through pip-audit (a dev tool run on the host); drop it with its CVEs.
+RUN rm -rf /app/.venv/lib/python3.13/site-packages/pip /app/.venv/lib/python3.13/site-packages/pip-*.dist-info
 USER 10001
 HEALTHCHECK NONE
 CMD ["cc", "--help"]

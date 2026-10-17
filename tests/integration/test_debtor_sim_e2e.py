@@ -9,8 +9,6 @@ from typing import Any
 import httpx
 import pytest
 
-from scripts.demo import client_for
-
 pytestmark = [pytest.mark.integration, pytest.mark.docker]
 API = "http://localhost:8310"
 OIDC = "http://localhost:8345"
@@ -23,7 +21,7 @@ def wait_case(client: httpx.Client, case_id: str, timeout_s: float = 60) -> dict
         body: dict[str, Any] = client.get(f"/api/v1/cases/{case_id}").json()
         if body["case"]["status"] in SETTLED:
             return body
-        time.sleep(0.25)
+        time.sleep(1.0)
     return None
 
 
@@ -37,13 +35,18 @@ def wait_reply(
         outbound = [m for m in msgs if m["direction"] == "outbound" and m["sent_at"]]
         if inbound and outbound:
             return outbound[0], inbound[0]
-        time.sleep(0.25)
+        time.sleep(1.0)
     return None
 
 
 def test_reply_arrives_within_5_seconds() -> None:
-    client = client_for("ana.analyst")  # honours 429 Retry-After like any polite client
-    items = client.get("/api/v1/queue", params={"limit": 100, "status": "no_case"}).json()["items"]
+    # Its own persona, so the demo script's requests do not share its rate-limit bucket; at most
+    # 40 accounts are examined and cases are polled once a second (well under 120 a minute).
+    token = httpx.post(f"{OIDC}/dev/token", json={"username": "sam.supervisor"}).json()
+    client = httpx.Client(
+        base_url=API, headers={"Authorization": f"Bearer {token['access_token']}"}, timeout=10
+    )
+    items = client.get("/api/v1/queue", params={"limit": 40, "status": "no_case"}).json()["items"]
     for item in items:
         detail = client.get(f"/api/v1/accounts/{item['account_id']}").json()
         # Promise personas end in 0-3; skip accounts that cannot be texted right now.
@@ -55,6 +58,8 @@ def test_reply_arrives_within_5_seconds() -> None:
         case_id = created.json()["cases"][0]["id"]
         case = wait_case(client, case_id)
         if case is None or case["case"]["status"] != "awaiting_approval":
+            continue
+        if case["case"]["nba_action"] != "remind":  # the latency check is about reminders
             continue
         version = case["drafts"][-1]["version"]
         resp = client.post(

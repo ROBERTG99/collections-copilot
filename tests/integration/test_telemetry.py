@@ -91,6 +91,11 @@ async def test_span_per_node_with_gen_ai_attributes(spans: InMemorySpanExporter)
     parent = node_spans["next_best_action"]
     assert nba.parent is not None
     assert nba.parent.span_id == parent.context.span_id
+    # An approval pause is not a failure (M6 review M1).
+    paused = node_spans["human_approval"]
+    assert paused.attributes["cc.status"] == "interrupted"
+    assert paused.status.status_code.name != "ERROR"
+    assert not paused.events
     # No message text or phone number ever lands on a span.
     for span in finished:
         for value in (span.attributes or {}).values():
@@ -126,3 +131,45 @@ async def test_queue_messages_carry_the_trace(spans: InMemorySpanExporter) -> No
     assert "traceparent" in carrier
     with tracing.consumer_span("process cc-tasks", carrier) as consumer:
         assert consumer.get_span_context().trace_id == producer.get_span_context().trace_id
+
+
+async def test_the_trace_crosses_a_real_queue(spans: InMemorySpanExporter) -> None:
+    """M6 review: SqsQueueClient.send writes the trace into message attributes, and the
+    Consumer continues it around the handler (ElasticMQ, a queue no worker reads)."""
+    import asyncio
+
+    from opentelemetry import trace
+
+    from collections_copilot.integrations.queue.sqs import SqsQueueClient
+    from collections_copilot.worker.consumer import Consumer
+
+    settings = Settings()
+    queue = f"cc-telemetry-{uuid.uuid4().hex[:8]}"
+    seen: list[int] = []
+    async with SqsQueueClient(settings.aws_region, settings.sqs_endpoint_url) as client:
+        await client._client.create_queue(QueueName=queue)
+        with tracing.span("enqueue") as producer:
+            await client.send(queue, {"kind": "probe"})
+        consumer = Consumer(client, queue, lambda msg: _record(seen, msg), wait_seconds=1)
+
+        async def _record_and_stop() -> None:
+            for _ in range(50):
+                if seen:
+                    consumer.stop()
+                    return
+                await asyncio.sleep(0.1)
+            consumer.stop()
+
+        await asyncio.gather(consumer.run(), _record_and_stop())
+        await client._client.delete_queue(QueueUrl=await client.url(queue))
+    assert seen == [producer.get_span_context().trace_id]
+    process = [s for s in spans.get_finished_spans() if s.name == f"process {queue}"]
+    assert len(process) == 1
+    assert process[0].context.trace_id == producer.get_span_context().trace_id
+    assert trace.get_current_span().get_span_context().is_valid is False
+
+
+async def _record(seen: list[int], msg: object) -> None:
+    from opentelemetry import trace
+
+    seen.append(trace.get_current_span().get_span_context().trace_id)

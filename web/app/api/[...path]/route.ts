@@ -7,6 +7,7 @@
 import { type NextRequest } from "next/server";
 
 import { webConfig } from "@/lib/config";
+import { apiTarget, readCapped } from "@/lib/proxy";
 import { activeSession } from "@/lib/server-session";
 import { correlationId, traceparent } from "@/lib/trace";
 
@@ -21,6 +22,7 @@ const FORWARD_RESPONSE = [
   "x-ratelimit-remaining",
 ];
 const MUTATING = new Set(["POST", "PUT", "PATCH", "DELETE"]);
+const MAX_BODY_BYTES = 1024 * 1024; // the API's own JSON limit (CC_MAX_JSON_BYTES)
 
 function problem(status: number, title: string, detail: string): Response {
   return Response.json(
@@ -31,9 +33,8 @@ function problem(status: number, title: string, detail: string): Response {
 
 async function proxy(request: NextRequest, path: string[]): Promise<Response> {
   const cfg = webConfig();
-  if (path.length === 0 || path[0] === "webhooks" || path.some((p) => p === ".." || p === "")) {
-    return problem(404, "Not Found", "no such API route");
-  }
+  const target = apiTarget(cfg.apiBaseUrl, path, request.nextUrl.search);
+  if (!target) return problem(404, "Not Found", "no such API route");
   if (MUTATING.has(request.method)) {
     const origin = request.headers.get("origin");
     if ((origin && origin !== cfg.publicUrl) || request.headers.get("x-cc-csrf") !== "1") {
@@ -51,11 +52,16 @@ async function proxy(request: NextRequest, path: string[]): Promise<Response> {
     const value = request.headers.get(name);
     if (value) headers.set(name, value);
   }
-  const target = `${cfg.apiBaseUrl}/api/v1/${path.map(encodeURIComponent).join("/")}${request.nextUrl.search}`;
+  let body: ArrayBuffer | undefined;
+  if (MUTATING.has(request.method)) {
+    const read = await readCapped(request, MAX_BODY_BYTES);
+    if (!read) return problem(413, "Content Too Large", "the request body is too large");
+    body = read;
+  }
   const upstream = await fetch(target, {
     method: request.method,
     headers,
-    body: MUTATING.has(request.method) ? await request.arrayBuffer() : undefined,
+    body,
     cache: "no-store",
     redirect: "manual",
     signal: request.signal,

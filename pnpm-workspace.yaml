@@ -8,6 +8,6 @@ overrides:
 
 auditConfig:
   ignoreGhsas:
-    # braces: no patched release exists; reached only through the dev-only markdownlint-cli2
-    # on the repository's own Markdown (no untrusted patterns). Revisit when a fix ships.
+    # braces: no patched release exists; reached only through dev-only tools (markdownlint-cli2,
+    # eslint-config-next) run on the repository's own files. Revisit when a fix ships.
     - GHSA-vfj7-8cjw-p6xm

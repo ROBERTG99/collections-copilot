@@ -107,5 +107,5 @@ def install(app: FastAPI) -> None:
 
     @app.exception_handler(Exception)
     async def _unhandled(request: Request, exc: Exception) -> JSONResponse:
-        log.exception("unhandled error", extra={"path": request.url.path})
+        # TelemetryMiddleware already logged it with the correlation and trace ids.
         return problem(request, 500, "internal error", "internal_error")

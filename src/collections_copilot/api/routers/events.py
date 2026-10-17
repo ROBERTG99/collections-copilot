@@ -30,6 +30,27 @@ def _frame(event: str, data: str, event_id: str | None = None) -> str:
     return f"{head}event: {event}\ndata: {data}\n\n"
 
 
+class StreamSlots:
+    """Open progress streams per user, in this API process."""
+
+    def __init__(self, per_user: int) -> None:
+        self.per_user = per_user
+        self.open: dict[str, int] = {}
+
+    def acquire(self, holder: str) -> bool:
+        if self.open.get(holder, 0) >= self.per_user:
+            return False
+        self.open[holder] = self.open.get(holder, 0) + 1
+        return True
+
+    def release(self, holder: str) -> None:
+        left = self.open.get(holder, 0) - 1
+        if left > 0:
+            self.open[holder] = left
+        else:
+            self.open.pop(holder, None)
+
+
 @router.get(
     "/cases/{case_id}/events",
     response_class=StreamingResponse,
@@ -46,11 +67,28 @@ async def case_events(
     if case is None:
         raise ProblemError(404, "case not found", code="not_found")
     after = last_event_id if last_event_id and EVENT_ID.match(last_event_id) else "0"
-    reader = RedisEventReader(request.app.state.redis)
+    slots: StreamSlots = request.app.state.stream_slots
+    holder = f"{principal.tenant_id}:{principal.username}"
+    if not slots.acquire(holder):
+        raise ProblemError(
+            429,
+            f"at most {slots.per_user} open progress streams per user",
+            code="too_many_streams",
+            headers={"Retry-After": "5"},
+        )
+    # Streams block on XREAD: they use their own connection pool, never the limiter's.
+    reader = RedisEventReader(request.app.state.redis_streams)
     heartbeat_ms = int(request.app.state.settings.sse_heartbeat_s * 1000)
     tenant, case_key = str(principal.tenant_id), str(case_id)
 
     async def stream() -> AsyncIterator[str]:
+        try:
+            async for frame in frames():
+                yield frame
+        finally:
+            slots.release(holder)
+
+    async def frames() -> AsyncIterator[str]:
         nonlocal after
         yield "retry: 3000\n\n"
         while not await request.is_disconnected():

@@ -5,7 +5,8 @@ from __future__ import annotations
 
 import httpx
 
-from collections_copilot.integrations.sms.base import SmsError, SmsResult
+from collections_copilot.integrations.sms.base import SmsError, SmsResult, is_synthetic
+from collections_copilot.observability.logging import redact
 
 
 class TwilioSmsSender:
@@ -18,6 +19,7 @@ class TwilioSmsSender:
         status_callback: str | None = None,
         timeout_s: float = 10.0,
         client: httpx.AsyncClient | None = None,
+        synthetic_only: bool = False,
     ) -> None:
         self.url = f"{base_url.rstrip('/')}/2010-04-01/Accounts/{account_sid}/Messages.json"
         self.auth = (account_sid, auth_token)
@@ -25,8 +27,12 @@ class TwilioSmsSender:
         self.status_callback = status_callback
         self.timeout_s = timeout_s
         self.client = client
+        self.synthetic_only = synthetic_only
 
     async def send(self, to_e164: str, body: str, *, idempotency_key: str) -> SmsResult:
+        if self.synthetic_only and not is_synthetic(to_e164):
+            # The last gate before Twilio: outside production only synthetic numbers are texted.
+            raise SmsError("recipient outside the synthetic ranges", retryable=False)
         data = {"To": to_e164, "From": self.from_e164, "Body": body}
         if self.status_callback:
             data["StatusCallback"] = self.status_callback
@@ -59,7 +65,8 @@ class TwilioSmsSender:
             )
         if resp.status_code >= 400:
             raise SmsError(
-                f"twilio {resp.status_code}: {resp.text[:200]}",
+                # Twilio's error body names the To number: mask it before anyone stores it.
+                f"twilio {resp.status_code}: {redact(resp.text[:200])}",
                 retryable=False,
                 status=resp.status_code,
             )

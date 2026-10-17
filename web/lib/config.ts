@@ -12,10 +12,12 @@ export type WebConfig = {
 export function webConfig(env: NodeJS.ProcessEnv = process.env): WebConfig {
   const publicUrl = env.WEB_PUBLIC_URL ?? "http://localhost:8300";
   const secret = env.WEB_SESSION_SECRET ?? "";
+  // The escape hatch (the compose stack runs a production build) never applies to a public URL.
+  const local = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?(\/|$)/.test(publicUrl);
   if (
     env.NODE_ENV === "production" &&
     secret.startsWith("dev-only") &&
-    env.WEB_ALLOW_DEV_SECRET !== "true"
+    (env.WEB_ALLOW_DEV_SECRET !== "true" || !local)
   ) {
     throw new Error("WEB_SESSION_SECRET must be set to a real secret in production");
   }

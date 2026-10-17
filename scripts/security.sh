@@ -12,8 +12,10 @@ PIP_AUDIT=pip-audit==2.9.0
 TRIVY_DB=(--db-repository mirror.gcr.io/aquasec/trivy-db
   --java-db-repository mirror.gcr.io/aquasec/trivy-java-db
   --checks-bundle-repository mirror.gcr.io/aquasec/trivy-checks)
-IMAGES=(collections-copilot/api:dev collections-copilot/worker:dev collections-copilot/ledger-mcp:dev
-  collections-copilot/dev-oidc:dev collections-copilot/web:dev)
+# Every image compose builds (api, worker, web, ledger-mcp, dev-oidc, mcp-gateway, debtor-sim, ...).
+mapfile -t IMAGES < <(docker compose --profile jobs config --images 2>/dev/null | grep '^collections-copilot/' | sort -u)
+# Under CI (or SECURITY_STRICT=1) a scanner that is not installed fails the run.
+STRICT="${SECURITY_STRICT:-${CI:-}}"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
@@ -34,15 +36,30 @@ absent() { # name reason
   printf '\n== %s\nNOT RUN %s: %s\n' "$1" "$1" "$2"
   notrun+=("$1 ($2)")
 }
+missing() { # name: a scanner that is not installed
+  if [ -n "$STRICT" ]; then
+    printf '\n== %s\nFAIL %s: not installed (strict mode)\n' "$1" "$1"
+    failed+=("$1 (not installed)")
+  else
+    absent "$1" "not installed (scripts/install-tools.sh)"
+  fi
+}
 need() { command -v "$1" >/dev/null 2>&1; }
 
-need gitleaks && check gitleaks gitleaks git . --redact --no-banner --exit-code 1 \
-  || absent gitleaks "not installed (scripts/install-tools.sh)"
+if need gitleaks; then
+  check gitleaks gitleaks git . --redact --no-banner --exit-code 1
+else
+  missing gitleaks
+fi
 
 # High severity gates; medium findings are listed for review (docs/security.md).
 check bandit uvx --from "$BANDIT" bandit -r src apps third_party -q --severity-level high
-uvx --from "$BANDIT" bandit -r src apps third_party -q --severity-level medium --confidence-level medium \
-  --exit-zero -f custom --msg-template '  medium: {relpath}:{line} {test_id} {msg}' 2>/dev/null | grep medium: || true
+bandit_medium() { # list medium findings for review; fail only if bandit itself fails
+  uvx --from "$BANDIT" bandit -r src apps third_party -q --severity-level medium \
+    --confidence-level medium --exit-zero -f custom \
+    --msg-template '  medium: {relpath}:{line} {test_id} {msg}'
+}
+check bandit-medium-listing bandit_medium
 
 pip_audit() {
   uv export --frozen --no-hashes --no-emit-workspace --no-dev --format requirements-txt >"$TMP/req.txt" \
@@ -65,24 +82,32 @@ if need trivy; then
     fi
   done
 else
-  absent trivy "not installed (scripts/install-tools.sh)"
+  missing trivy
 fi
 
 dockerfiles=(docker/*.Dockerfile)
 [ -f web/Dockerfile ] && dockerfiles+=(web/Dockerfile)
-need hadolint && check hadolint hadolint "${dockerfiles[@]}" || absent hadolint "not installed"
+if need hadolint; then check hadolint hadolint "${dockerfiles[@]}"; else missing hadolint; fi
 
 if [ -d infra/terraform ]; then
-  need checkov && check checkov checkov -d infra/terraform --quiet --compact --framework terraform \
-    --skip-path '\.terraform' || absent checkov "not installed"
-  need tflint && check tflint bash -c 'tflint --chdir=infra/terraform --recursive' || absent tflint "not installed"
+  if need checkov; then
+    check checkov checkov -d infra/terraform --quiet --compact --framework terraform \
+      --skip-path '\.terraform' --config-file infra/terraform/.checkov.yaml
+  else
+    missing checkov
+  fi
+  if need tflint; then
+    check tflint tflint --chdir=infra/terraform --recursive --config="$PWD/infra/terraform/.tflint.hcl"
+  else
+    missing tflint
+  fi
 else
   absent checkov "infra/terraform does not exist yet (T-45)"
   absent tflint "infra/terraform does not exist yet (T-45)"
 fi
 
 if compgen -G ".github/workflows/*.yml" >/dev/null; then
-  need actionlint && check actionlint actionlint || absent actionlint "not installed"
+  if need actionlint; then check actionlint actionlint; else missing actionlint; fi
 else
   absent actionlint ".github/workflows does not exist yet (T-48)"
 fi
@@ -95,4 +120,8 @@ if [ ${#failed[@]} -gt 0 ]; then
   printf 'make security: FAIL (%s)\n' "${failed[*]}"
   exit 1
 fi
-printf 'make security: PASS\n'
+if [ ${#notrun[@]} -gt 0 ]; then
+  printf 'make security: PASS (%s not run, listed above)\n' "${#notrun[@]}"
+else
+  printf 'make security: PASS\n'
+fi

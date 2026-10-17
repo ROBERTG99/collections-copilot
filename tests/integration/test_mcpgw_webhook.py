@@ -5,12 +5,14 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import time
 import uuid
 from collections.abc import AsyncIterator
 from typing import Any
 
 import httpx
 import pytest
+from redis.exceptions import RedisError
 
 from collections_copilot.agent.nodes.record_promise import retry_write_back
 from collections_copilot.agent.reply_graph import build_reply_graph
@@ -43,13 +45,21 @@ async def wired(api_app: Any, stack: Any) -> AsyncIterator[tuple[RecordingQueue,
         api_app.state.queues, api_app.state.notifier, api_app.state.gateway_admin = saved
 
 
-def signed(api_app: Any, payload: dict[str, Any], secret: str | None = None) -> dict[str, Any]:
+def signed(
+    api_app: Any, payload: dict[str, Any], secret: str | None = None, ts: int | None = None
+) -> dict[str, Any]:
+    """The gateway signs `{timestamp}.{body}` (M6 security audit M3)."""
     body = json.dumps(payload).encode()
     key = (secret or api_app.state.settings.mcpgw_webhook_secret).encode()
-    sig = "sha256=" + hmac.new(key, body, hashlib.sha256).hexdigest()
+    stamp = str(int(time.time()) if ts is None else ts)
+    sig = "sha256=" + hmac.new(key, stamp.encode() + b"." + body, hashlib.sha256).hexdigest()
     return {
         "content": body,
-        "headers": {"X-MCPGW-Signature": sig, "Content-Type": "application/json"},
+        "headers": {
+            "X-MCPGW-Signature": sig,
+            "X-MCPGW-Timestamp": stamp,
+            "Content-Type": "application/json",
+        },
     }
 
 
@@ -71,6 +81,9 @@ async def test_unknown_approval_404(client: httpx.AsyncClient, api_app, tenant, 
     assert resp.status_code == 404
     forged = await client.post(WEBHOOK, **signed(api_app, event, secret="not-the-secret"))
     assert forged.status_code == 403
+    # A correctly signed event captured long ago is refused: the timestamp is signed too.
+    stale = await client.post(WEBHOOK, **signed(api_app, event, ts=int(time.time()) - 600))
+    assert stale.status_code == 403
     assert wired[1].sent == []
 
 
@@ -102,8 +115,18 @@ async def test_supervisor_approval_enqueues_retry(
 
     # The gateway's webhook links the approval and emails a supervisor once.
     event = approval_event(promise.mcp_approval_id, tenant, reply.provider_sid)
-    for _ in range(2):
+    assert (await client.post(WEBHOOK, **signed(api_app, event))).status_code == 204
+
+    # A replay is recognised from the database, so it holds even while Redis is down
+    # (M6 security audit M3: the Redis check failed open).
+    async def redis_down(*args: Any, **kwargs: Any) -> None:
+        raise RedisError("down")
+
+    api_app.state.redis.set = redis_down
+    try:
         assert (await client.post(WEBHOOK, **signed(api_app, event))).status_code == 204
+    finally:
+        del api_app.state.redis.set
     assert [n["key"] for n in notifier.sent] == [f"mcpgw-approval:{promise.mcp_approval_id}"]
 
     url = f"/api/v1/promises/{promise_id}:approve"

@@ -14,6 +14,7 @@ import traceback
 from contextvars import ContextVar
 from datetime import UTC, datetime
 from typing import Any
+from urllib.parse import unquote_plus
 
 from opentelemetry import trace
 
@@ -28,6 +29,11 @@ _BEARER = re.compile(
     r"(?i)\b(bearer|basic|token[=:]|api[_-]?key[=:]|secret[=:]|password[=:])\s*\S+"
 )
 _EMAIL = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
+# National-format numbers: 555 123 4567, (555) 123-4567, 15551234567.
+_NATIONAL = re.compile(r"(?<![\w+-])(?:1[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}(?![\w-])")
+_KEYED = re.compile(r"(?i)\b(\w*(?:token|secret|password|api[_-]?key))=[^&\s]+")
+_API_KEY = re.compile(r"\bsk-(?:ant-)?[\w-]{8,}")
+_ENCODED = re.compile(r"%[0-9A-Fa-f]{2}")
 DROPPED = frozenset(
     {
         "body",
@@ -56,10 +62,15 @@ _STANDARD = frozenset(vars(logging.LogRecord("", 0, "", 0, "", None, None))) | {
 
 
 def redact(text: str) -> str:
+    if _ENCODED.search(text):  # mask what a URL-encoded query would reveal once decoded
+        text = unquote_plus(text)
     text = _JWT.sub("[token]", text)
+    text = _API_KEY.sub("[token]", text)
+    text = _KEYED.sub(lambda m: f"{m.group(1)}=[token]", text)
     text = _BEARER.sub(lambda m: f"{m.group(1)} [token]", text)
     text = _EMAIL.sub("[email]", text)
-    return _PHONE.sub("[phone]", text)
+    text = _PHONE.sub("[phone]", text)
+    return _NATIONAL.sub("[phone]", text)
 
 
 def _clean(value: Any) -> Any:
@@ -112,6 +123,9 @@ def configure_logging(service: str, level: str = "INFO") -> None:
     root = logging.getLogger()
     root.handlers = [handler]
     root.setLevel(level.upper())
-    for name in ("uvicorn", "uvicorn.error", "uvicorn.access"):
+    for name in ("uvicorn", "uvicorn.error"):
         logging.getLogger(name).handlers = []
         logging.getLogger(name).propagate = True
+    # uvicorn's access log carries raw paths and query strings; TelemetryMiddleware logs the
+    # route template instead.
+    logging.getLogger("uvicorn.access").disabled = True

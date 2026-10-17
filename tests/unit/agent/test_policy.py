@@ -23,6 +23,7 @@ def check(**overrides: Any) -> tuple[bool, str]:
         "postcheck_ok": True,
         "requires_edit": False,
         "invoice_currencies": ["USD"],
+        "rules_action": "remind",
     }
     pol = overrides.pop("policy", DEFAULT)
     args.update(overrides)
@@ -48,6 +49,10 @@ def test_small_confident_clean_remind_qualifies() -> None:
         {"policy": policy.effective({"enabled": False}, ENV_MAX, ENV_MIN)},
         {"policy": policy.effective({"max_usd": 100}, ENV_MAX, ENV_MIN)},
         {"policy": policy.effective({"min_confidence": 0.99}, ENV_MAX, ENV_MIN)},
+        # M6 security audit M1: a note cannot talk the model into a reminder the house rules
+        # would not choose for the same facts, however confident it says it is.
+        {"rules_action": "escalate", "confidence": 0.99},
+        {"rules_action": "pause", "confidence": 0.99},
     ],
 )
 def test_needs_a_human(overrides: dict[str, Any]) -> None:

@@ -64,12 +64,17 @@ def qualifies(
     confidence: float,
     postcheck_ok: bool,
     requires_edit: bool,
+    rules_action: str,
     invoice_currencies: Iterable[str] = (),
 ) -> tuple[bool, str]:
+    """`confidence` is the model's own; the model reads untrusted notes, so the deterministic
+    house rules must independently choose the same reminder (`rules_action`)."""
     if not policy.enabled:
         return False, "auto-approval disabled"
     if action != "remind":
         return False, f"action {action} always needs a human"
+    if rules_action != "remind":
+        return False, f"the house rules choose {rules_action}, not a reminder"
     if not postcheck_ok or requires_edit:
         return False, "post-check not clean"
     # Fail closed: an amount we cannot convert, or invoices in another currency, need a human.

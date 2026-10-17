@@ -65,3 +65,37 @@ async def test_maybe_sent_counts_toward_the_cap(handler: object, maybe_sent: boo
     with pytest.raises(SmsError) as info:
         await sender(handler).send("+15550000001", "hi", idempotency_key="sms:x:1")
     assert info.value.maybe_sent is maybe_sent
+
+
+async def test_real_numbers_are_refused_before_any_request() -> None:
+    """M6 security audit M11: synthetic ranges only, checked at the last step before Twilio."""
+    calls: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request)
+        return httpx.Response(201, json={"sid": "SM1", "status": "queued"})
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    guarded = TwilioSmsSender(
+        "http://twilio.test", "AC1", "token", "+15550000000", client=client, synthetic_only=True
+    )
+    with pytest.raises(SmsError) as err:
+        await guarded.send("+447700900123", "hi", idempotency_key="k")
+    assert not err.value.retryable
+    assert not calls
+    await guarded.send("+34555000111", "hi", idempotency_key="k2")
+    assert len(calls) == 1
+
+
+async def test_error_bodies_never_carry_the_recipient() -> None:
+    """M6 security audit L8: Twilio's 4xx body names the To number; it is masked before the
+    error text is stored on the message or a follow-up."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            400, json={"code": 21211, "message": "The 'To' number +15550001234 is not valid."}
+        )
+
+    with pytest.raises(SmsError) as err:
+        await sender(handler).send("+15550001234", "hi", idempotency_key="k")
+    assert "+15550001234" not in str(err.value)

@@ -87,7 +87,7 @@ class JwksTokenVerifier:
         if self.audience not in auds:
             raise jwt.InvalidAudienceError("audience mismatch")
         # Cognito ID tokens (token_use=id) live in the browser; only access tokens reach the API.
-        if claims.get("token_use", "access") != "access":
+        if claims.get("token_use") != "access":  # required: a missing claim is not trusted
             raise jwt.InvalidTokenError("access token required")
         return claims
 

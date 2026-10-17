@@ -81,8 +81,52 @@ def test_no_phone_or_token_in_logs(capture: tuple[logging.Logger, io.StringIO]) 
 
 
 def test_configure_logging_is_idempotent() -> None:
-    cc_logging.configure_logging("api", "INFO")
-    cc_logging.configure_logging("api", "INFO")
     root = logging.getLogger()
-    json_handlers = [h for h in root.handlers if isinstance(h.formatter, cc_logging.JsonFormatter)]
-    assert len(json_handlers) == 1
+    saved_handlers, saved_level = list(root.handlers), root.level
+    try:
+        cc_logging.configure_logging("api", "INFO")
+        cc_logging.configure_logging("api", "INFO")
+        json_handlers = [
+            h for h in root.handlers if isinstance(h.formatter, cc_logging.JsonFormatter)
+        ]
+        assert len(json_handlers) == 1
+        assert logging.getLogger("uvicorn.access").disabled
+    finally:
+        logging.getLogger(
+            "uvicorn.access"
+        ).disabled = False  # leave logging as other tests expect it
+        root.handlers, root.level = saved_handlers, saved_level
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "GET /api/v1/queue?q=x&phone=%2B15551234567",  # URL-encoded phone (M6 audit M7)
+        "callback for 555 123 4567 failed",
+        "number 15551234567 bounced",
+        "refresh_token=abc.def.ghi&x=1",
+        "auth_token=0123456789abcdef",
+        "key sk-ant-api03-AbCdEf_123-xyz",
+        "mail ana%40example.com",
+    ],
+)
+def test_encoded_and_unprefixed_secrets_are_masked(text: str) -> None:
+    out = cc_logging.redact(text)
+    for secret in (
+        "15551234567",
+        "555 123 4567",
+        "abc.def.ghi",
+        "0123456789abcdef",
+        "sk-ant-api03",
+        "ana@example.com",
+        "ana%40example",
+    ):
+        assert secret not in out
+
+
+def test_access_log_is_the_route_template_only() -> None:
+    """uvicorn's access log (raw path and query) is off; the middleware logs the template."""
+    from pathlib import Path
+
+    dockerfile = Path("docker/python.Dockerfile").read_text()
+    assert "--no-access-log" in dockerfile

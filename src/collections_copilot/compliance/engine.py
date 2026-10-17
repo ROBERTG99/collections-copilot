@@ -6,10 +6,11 @@ send to the next 08:00 debtor-local time and the caller schedules a follow-up.
 
 from __future__ import annotations
 
+import unicodedata
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 
-from collections_copilot.compliance.rules import amounts, footer, links, phrases, window
+from collections_copilot.compliance.rules import amounts, charset, footer, links, phrases, window
 from collections_copilot.compliance.types import Violation
 
 MAX_SMS_CHARS = 320
@@ -107,10 +108,13 @@ def precheck(ctx: ComplianceContext) -> CheckResult:
 
 
 def text_violations(ctx: ComplianceContext) -> list[Violation]:
-    body = (ctx.body or "").strip()
-    if not body:
+    raw = (ctx.body or "").strip()
+    if not raw:
         return [Violation("empty_body", "the message is empty")]
-    out: list[Violation] = []
+    out = [Violation(code, msg) for code, msg in charset.violations(raw, ctx.account_name)]
+    # Every other rule reads what the phone will show: fullwidth forms and odd dots folded, and
+    # invisible characters dropped (they are blocked above in any case).
+    body = "".join(ch for ch in charset.normalize(raw) if unicodedata.category(ch) != "Cf")
     if len(body) > MAX_SMS_CHARS:
         out.append(Violation("too_long", f"{len(body)} characters > {MAX_SMS_CHARS}"))
     if not footer.has_footer(body, ctx.account.language):

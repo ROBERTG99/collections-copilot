@@ -184,3 +184,13 @@ async def test_cross_tenant_ids_are_404(
         headers=auth("analyst"),
     )
     assert batch.json()["results"][0]["status"] == 404
+
+
+async def test_tokens_must_say_they_are_access_tokens(
+    client: httpx.AsyncClient, make_token, tenant
+) -> None:  # type: ignore[no-untyped-def]
+    """M6 security audit L5: an ID token, or a token without token_use, is refused."""
+    for token_use in ("id", "__drop__"):
+        token = make_token(tenant, [A], token_use=token_use)
+        resp = await client.get("/api/v1/me", headers={"Authorization": f"Bearer {token}"})
+        assert resp.status_code == 401

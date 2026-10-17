@@ -92,6 +92,7 @@ def token(roles: list[str]) -> str:
         "custom:tenant_id": str(TENANT),
         "iat": now,
         "exp": now + 3600,
+        "token_use": "access",
     }
     return jwt.encode(claims, KEY, algorithm="RS256", headers={"kid": KID})
 

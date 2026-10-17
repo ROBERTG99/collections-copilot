@@ -140,3 +140,39 @@ async def test_unauthenticated_results_are_not_stored(client: httpx.AsyncClient,
     )
     assert ok.status_code in (200, 201)
     assert "idempotent-replayed" not in ok.headers
+
+
+async def test_idempotency_fails_closed_when_redis_is_down(
+    client: httpx.AsyncClient, api_app, auth
+) -> None:  # type: ignore[no-untyped-def]
+    """M6 security audit M4: a request that asked for idempotency is never run without it."""
+    from redis.exceptions import RedisError
+
+    async def down(*args: object, **kwargs: object) -> None:
+        raise RedisError("down")
+
+    api_app.state.redis.set = down
+    try:
+        resp = await client.post(
+            "/api/v1/opt-outs",
+            json={"phone_e164": "+15550009988", "reason": "test"},
+            headers={**auth("analyst"), "Idempotency-Key": "idem-redis-down-1"},
+        )
+    finally:
+        del api_app.state.redis.set
+    assert resp.status_code == 503
+    assert resp.headers["retry-after"]
+    assert resp.json()["code"] == "idempotency_unavailable"
+
+
+def test_sse_streams_are_capped_per_user() -> None:
+    """M6 security audit M4: one user cannot hold every Redis connection with event streams."""
+    from collections_copilot.api.routers.events import StreamSlots
+
+    slots = StreamSlots(per_user=2)
+    assert slots.acquire("ana")
+    assert slots.acquire("ana")
+    assert not slots.acquire("ana")
+    assert slots.acquire("sam")
+    slots.release("ana")
+    assert slots.acquire("ana")

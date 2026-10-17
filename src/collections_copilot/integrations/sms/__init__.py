@@ -14,4 +14,5 @@ def build_sms_sender(settings: Settings) -> SmsSender:
         settings.twilio_auth_token,
         settings.twilio_from,
         status_callback=f"{settings.public_base_url.rstrip('/')}/api/v1/webhooks/twilio/status",
+        synthetic_only=settings.synthetic_numbers_only,
     )

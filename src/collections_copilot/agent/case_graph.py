@@ -27,6 +27,7 @@ from langgraph.errors import GraphBubbleUp
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import interrupt
 
+from collections_copilot.agent import nba_rules
 from collections_copilot.agent import policy as auto_policy
 from collections_copilot.agent.nba_rules import RuleFacts
 from collections_copilot.agent.nodes.draft import DraftInput, make_draft
@@ -101,6 +102,18 @@ def _compliance_ctx(
     )
 
 
+def rule_facts(f: CaseFacts) -> RuleFacts:
+    open_inv = [i for i in f.invoices if i.status == "open"]
+    return RuleFacts(
+        open_balance_cents=sum(i.amount_cents for i in open_inv),
+        max_days_past_due=max((i.days_past_due for i in open_inv), default=0),
+        broken_promises_90d=f.broken_promises_90d,
+        open_invoices=len(open_inv),
+        disputed_invoices=sum(1 for i in f.invoices if i.status == "disputed"),
+        currency=f.currency,
+    )
+
+
 def build_case_graph(services: Services, checkpointer: BaseCheckpointSaver[Any] | None) -> Any:
     store = services.store
     settings = services.settings
@@ -125,7 +138,7 @@ def build_case_graph(services: Services, checkpointer: BaseCheckpointSaver[Any] 
             }
             with (
                 node_context(name),
-                tracing.tracer().start_as_current_span(f"node {name}", attributes=attrs) as span,
+                tracing.span(f"node {name}", attrs, paused=(GraphBubbleUp,)) as span,
             ):
                 await services.events.publish(
                     state["tenant_id"], state["case_id"], "node", {"node": name, "phase": "start"}
@@ -142,8 +155,6 @@ def build_case_graph(services: Services, checkpointer: BaseCheckpointSaver[Any] 
                     ctx = current_context()
                     latency = (time.perf_counter() - started) * 1000
                     span.set_attribute("cc.status", status)
-                    if status == "error":
-                        span.set_status(tracing.Status(tracing.StatusCode.ERROR))
                     metrics.NODE_DURATION.labels("case", name, status).observe(latency / 1000)
                     await services.gateway.sink.record(
                         StepRecord(
@@ -186,6 +197,7 @@ def build_case_graph(services: Services, checkpointer: BaseCheckpointSaver[Any] 
         ok, reason = auto_policy.qualifies(
             effective,
             action=state["nba"]["action"],
+            rules_action=nba_rules.decide(rule_facts(f)).action,
             open_balance_cents=sum(i.amount_cents for i in open_inv),
             currency=f.currency,
             confidence=float(state["nba"]["confidence"]),
@@ -261,19 +273,11 @@ def build_case_graph(services: Services, checkpointer: BaseCheckpointSaver[Any] 
 
     async def next_best_action(state: CaseState) -> dict[str, Any]:
         f = facts_of(state)
-        open_inv = [i for i in f.invoices if i.status == "open"]
         decision = await decide_nba(
             services.gateway,
             services.routes,
             NbaInput(
-                facts=RuleFacts(
-                    open_balance_cents=sum(i.amount_cents for i in open_inv),
-                    max_days_past_due=max((i.days_past_due for i in open_inv), default=0),
-                    broken_promises_90d=f.broken_promises_90d,
-                    open_invoices=len(open_inv),
-                    disputed_invoices=sum(1 for i in f.invoices if i.status == "disputed"),
-                    currency=f.currency,
-                ),
+                facts=rule_facts(f),
                 segment=f.segment,
                 language=f.language,
                 notes=[UntrustedNote(n.id, n.source, n.body, n.created_at) for n in f.notes],

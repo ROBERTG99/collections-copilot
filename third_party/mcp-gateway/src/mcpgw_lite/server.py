@@ -181,8 +181,15 @@ class Gateway:
             },
             default=_json_default,
         ).encode()
-        sig = hmac.new(self.cfg.webhook_secret.encode(), body, hashlib.sha256).hexdigest()
-        headers = {"Content-Type": "application/json", "X-MCPGW-Signature": f"sha256={sig}"}
+        stamp = str(int(time.time()))
+        sig = hmac.new(
+            self.cfg.webhook_secret.encode(), stamp.encode() + b"." + body, hashlib.sha256
+        ).hexdigest()
+        headers = {
+            "Content-Type": "application/json",
+            "X-MCPGW-Signature": f"sha256={sig}",
+            "X-MCPGW-Timestamp": stamp,
+        }
         delay = 0.5
         for _ in range(6):
             try:

@@ -93,9 +93,21 @@ class S3ObjectStore:
             raise ObjectNotFoundError(key) from exc
         if int(head["ContentLength"]) > max_bytes:
             raise ObjectTooLargeError(key)
-        obj = await self._client.get_object(Bucket=self.bucket, Key=key)
+        # The presigned URL stays valid after the HEAD: read the same version (ETag) and never
+        # more than max_bytes + 1, so a swapped-in larger object cannot exhaust memory.
+        try:
+            obj = await self._client.get_object(
+                Bucket=self.bucket,
+                Key=key,
+                IfMatch=head["ETag"],
+                Range=f"bytes=0-{max_bytes}",
+            )
+        except Exception as exc:
+            raise ObjectTooLargeError(key) from exc
         async with obj["Body"] as stream:
-            data: bytes = await stream.read()
+            data: bytes = await stream.read(max_bytes + 1)
+        if len(data) > max_bytes:
+            raise ObjectTooLargeError(key)
         return data
 
     async def delete(self, key: str) -> None:

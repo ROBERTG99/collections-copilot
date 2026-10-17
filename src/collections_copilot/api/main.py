@@ -37,6 +37,7 @@ from collections_copilot.api.routers import (
 from collections_copilot.api.routers import (
     settings as settings_router,
 )
+from collections_copilot.api.routers.events import StreamSlots
 from collections_copilot.config import Settings, get_settings
 from collections_copilot.db.session import make_engine, make_sessionmaker, ping
 from collections_copilot.integrations.email.smtp import Notifier, SmtpNotifier
@@ -74,6 +75,10 @@ def create_app(
         app.state.redis = Redis.from_url(
             settings.redis_url, max_connections=settings.redis_max_connections
         )
+        app.state.redis_streams = Redis.from_url(
+            settings.redis_url, max_connections=settings.sse_max_connections
+        )
+        app.state.stream_slots = StreamSlots(settings.sse_streams_per_user)
         app.state.gateway_admin = gateway_admin or build_gateway_admin(settings)
         app.state.notifier = notifier or SmtpNotifier(
             settings.smtp_host, settings.smtp_port, settings.smtp_from, settings.supervisor_email
@@ -105,11 +110,17 @@ def create_app(
             finally:
                 await app.state.engine.dispose()
                 await app.state.redis.aclose()
+                await app.state.redis_streams.aclose()
 
+    prod = settings.env == "prod"
     app = FastAPI(
         title="collections-copilot API",
         version="0.1.0",
         lifespan=lifespan,
+        # No interactive docs or schema in production (`make gen-types` exports the schema).
+        docs_url=None if prod else "/docs",
+        redoc_url=None if prod else "/redoc",
+        openapi_url=None if prod else "/openapi.json",
         # TelemetryMiddleware owns the server span (route template, correlation id): FastAPI's
         # native telemetry would add a second span carrying the raw path and query.
         telemetry=NATIVE_TELEMETRY_OFF,
