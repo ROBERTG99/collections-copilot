@@ -22,25 +22,22 @@ export class ApiError extends Error {
 }
 
 const bff: Middleware = {
-  onRequest({ request }) {
+  async onRequest({ request }) {
     const url = new URL(request.url);
     url.pathname = url.pathname.replace(/^\/api\/v1\//, "/api/");
     const headers = new Headers(request.headers);
     headers.set("x-cc-csrf", "1");
-    return new Request(url, { ...requestInit(request), headers });
+    // Buffer the body: browsers refuse streamed request bodies over HTTP/1.1.
+    const body = ["GET", "HEAD"].includes(request.method) ? undefined : await request.text();
+    return new Request(url, {
+      method: request.method,
+      headers,
+      body,
+      credentials: "same-origin",
+      signal: request.signal,
+    });
   },
 };
-
-function requestInit(request: Request): RequestInit {
-  return {
-    method: request.method,
-    body: request.body,
-    credentials: "same-origin",
-    signal: request.signal,
-    // @ts-expect-error - required by undici/browsers when streaming a body
-    duplex: "half",
-  };
-}
 
 export const api = createClient<paths>({
   baseUrl: typeof window === "undefined" ? "http://localhost:8300" : window.location.origin,

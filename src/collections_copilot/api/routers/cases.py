@@ -153,4 +153,5 @@ async def get_case(
         cited_notes=[views.note_out(n) for n in notes if str(n.id) in cited],
         messages=[views.message_out(m) for m in messages],
         precheck=case.precheck,
+        recipient_e164=account.phone_e164,
     )

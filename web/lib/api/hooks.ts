@@ -62,3 +62,44 @@ export function useStartCases() {
     },
   });
 }
+
+export type CheckResult = {
+  ok: boolean;
+  violations: { code: string; message: string; blocking: boolean }[];
+  send_at: string;
+  deferred: boolean;
+};
+
+export async function postcheck(caseId: string, body: string): Promise<CheckResult> {
+  return unwrap(
+    await api.POST("/api/v1/cases/{case_id}/postcheck", {
+      params: { path: { case_id: caseId } },
+      body: { body },
+    }),
+  ) as CheckResult;
+}
+
+export type Decision =
+  | { decision: "approve"; draft_version: number }
+  | { decision: "edit"; draft_version: number; body: string }
+  | { decision: "reject"; draft_version: number; reason: string };
+
+export function useDecision(caseId: string) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async (decision: Decision) =>
+      unwrap(
+        await api.POST("/api/v1/cases/{case_id}/approval", {
+          params: { path: { case_id: caseId } },
+          body: decision,
+          headers: {
+            "Idempotency-Key": `${caseId}:${decision.draft_version}:${decision.decision}`,
+          },
+        }),
+      ),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ["case", caseId] });
+      void client.invalidateQueries({ queryKey: ["queue"] });
+    },
+  });
+}

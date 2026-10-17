@@ -355,3 +355,36 @@ async def approve_batch(
                 )
             )
     return BatchResponse(results=results)
+
+
+class PostcheckRequest(BaseModel):
+    body: str = Field(min_length=1, max_length=MAX_BODY)
+
+
+@router.post(
+    "/cases/{case_id}/postcheck",
+    responses={404: {}},
+    summary="Run the compliance post-check on text without storing anything",
+)
+async def preview_postcheck(
+    case_id: uuid.UUID,
+    req: PostcheckRequest,
+    request: Request,
+    principal: Principal = Depends(ANALYST_OR_SUPERVISOR),
+) -> dict[str, Any]:
+    """The approval drawer's live check while an analyst edits; the approval re-checks."""
+    async with request.app.state.sessionmaker() as session:
+        repos = Repos(session)
+        case = await repos.cases.get(principal.tenant_id, case_id)
+        if case is None:
+            raise ProblemError(404, "case not found", code="not_found")
+        check = await _postcheck(
+            repos,
+            principal.tenant_id,
+            case.id,
+            case.account_id,
+            case.nba_action,
+            req.body.strip(),
+            datetime.now(UTC),
+        )
+    return check.as_dict()

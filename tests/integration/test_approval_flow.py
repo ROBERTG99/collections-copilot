@@ -232,3 +232,25 @@ async def test_auto_approval_settings_only_tighten(client: httpx.AsyncClient, te
     assert ok.status_code == 200, ok.text
     got = (await client.get(url, headers=auth("analyst"))).json()
     assert (got["max_usd"], got["min_confidence"], got["ceiling_max_usd"]) == (100, 0.95, 500)
+
+
+async def test_live_postcheck_stores_nothing(
+    client: httpx.AsyncClient, sessionmaker, database_url, tenant, auth, queue
+) -> None:  # type: ignore[no-untyped-def]
+    sms = InMemorySmsSender()
+    case_id, draft = await paused_case(sessionmaker, database_url, tenant, sms)
+    url = f"/api/v1/cases/{case_id}/postcheck"
+    good = await client.post(url, json={"body": draft["body"]}, headers=auth("analyst"))
+    assert good.status_code == 200, good.text
+    assert good.json()["ok"] is True
+    bad = await client.post(
+        url, json={"body": "Pay USD 999.00 now or else."}, headers=auth("analyst")
+    )
+    codes = {v["code"] for v in bad.json()["violations"] if v["blocking"]}
+    assert {"amount_not_in_ledger", "missing_footer"} <= codes
+    async with sessionmaker() as s:
+        drafts = await Repos(s).drafts.for_case(tenant, uuid.UUID(case_id))
+    assert len(drafts) == 1
+    assert queue.sent == []
+    detail = await client.get(f"/api/v1/cases/{case_id}", headers=auth("analyst"))
+    assert detail.json()["recipient_e164"].startswith("+1555")

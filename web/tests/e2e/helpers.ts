@@ -39,3 +39,35 @@ export const problem = (status: number, detail: string) => ({
     correlation_id: "e2e-correlation-0001",
   }),
 });
+
+type QueueItem = { account_id: string; opted_out: boolean; case_id: string | null };
+
+/** A case paused at human approval, created through the BFF as the signed-in user. */
+export async function caseAwaitingApproval(page: Page): Promise<string> {
+  const headers = { "x-cc-csrf": "1", "content-type": "application/json" };
+  const queue = await page.request.get("/api/queue?limit=40&status=no_case");
+  expect(queue.ok()).toBeTruthy();
+  const items = ((await queue.json()) as { items: QueueItem[] }).items.filter((i) => !i.opted_out);
+  for (const item of items.slice(0, 15)) {
+    const created = await page.request.post("/api/cases", {
+      headers,
+      data: { account_ids: [item.account_id] },
+    });
+    if (!created.ok()) continue;
+    const caseId = ((await created.json()) as { cases: { id: string }[] }).cases[0]?.id;
+    if (!caseId) continue;
+    for (let i = 0; i < 120; i++) {
+      const res = await page.request.get(`/api/cases/${caseId}`);
+      const status = ((await res.json()) as { case: { status: string } }).case.status;
+      if (status === "awaiting_approval") return caseId;
+      if (
+        ["closed", "failed", "requires_analyst", "escalated", "sent", "awaiting_reply"].includes(
+          status,
+        )
+      )
+        break;
+      await page.waitForTimeout(250);
+    }
+  }
+  throw new Error("no case reached awaiting_approval");
+}

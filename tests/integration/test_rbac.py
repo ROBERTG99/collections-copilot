@@ -33,6 +33,7 @@ MATRIX: dict[tuple[str, str], set[str]] = {
     ("GET", "/api/v1/cases/{case_id}/events"): ALL,
     ("POST", "/api/v1/cases/{case_id}/approval"): {A, S},
     ("POST", "/api/v1/approvals:batch"): {A, S},
+    ("POST", "/api/v1/cases/{case_id}/postcheck"): {A, S},
     ("GET", "/api/v1/settings/auto-approval"): ALL,
     ("PUT", "/api/v1/settings/auto-approval"): {S, D},
     ("GET", "/api/v1/promises"): ALL,
@@ -52,6 +53,7 @@ BODIES: dict[tuple[str, str], Any] = {
     ("POST", "/api/v1/ingest/aging"): {"rows": []},
     ("POST", "/api/v1/cases"): {"account_ids": [ZERO]},
     ("POST", "/api/v1/cases/{case_id}/approval"): {"decision": "approve", "draft_version": 1},
+    ("POST", "/api/v1/cases/{case_id}/postcheck"): {"body": "Hi. Reply STOP to opt out."},
     ("POST", "/api/v1/approvals:batch"): {
         "items": [{"case_id": ZERO, "decision": "approve", "draft_version": 1}]
     },

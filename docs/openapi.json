@@ -796,6 +796,10 @@
             ],
             "title": "Precheck"
           },
+          "recipient_e164": {
+            "title": "Recipient E164",
+            "type": "string"
+          },
           "steps": {
             "items": {
               "$ref": "#/components/schemas/StepOut"
@@ -812,7 +816,8 @@
           "steps",
           "cited_notes",
           "messages",
-          "precheck"
+          "precheck",
+          "recipient_e164"
         ],
         "title": "CaseDetail",
         "type": "object"
@@ -1631,6 +1636,21 @@
           "cases_closed"
         ],
         "title": "OptOutResult",
+        "type": "object"
+      },
+      "PostcheckRequest": {
+        "properties": {
+          "body": {
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Body",
+            "type": "string"
+          }
+        },
+        "required": [
+          "body"
+        ],
+        "title": "PostcheckRequest",
         "type": "object"
       },
       "PromiseDecisionOut": {
@@ -2510,6 +2530,65 @@
         "summary": "Case Events",
         "tags": [
           "events"
+        ]
+      }
+    },
+    "/api/v1/cases/{case_id}/postcheck": {
+      "post": {
+        "description": "The approval drawer's live check while an analyst edits; the approval re-checks.",
+        "operationId": "preview_postcheck_api_v1_cases__case_id__postcheck_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "case_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Case Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PostcheckRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Preview Postcheck Api V1 Cases  Case Id  Postcheck Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Run the compliance post-check on text without storing anything",
+        "tags": [
+          "approvals"
         ]
       }
     },

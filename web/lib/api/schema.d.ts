@@ -126,6 +126,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/cases/{case_id}/postcheck": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Run the compliance post-check on text without storing anything
+         * @description The approval drawer's live check while an analyst edits; the approval re-checks.
+         */
+        post: operations["preview_postcheck_api_v1_cases__case_id__postcheck_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/follow-ups": {
         parameters: {
             query?: never;
@@ -757,6 +777,8 @@ export interface components {
             precheck: {
                 [key: string]: unknown;
             } | null;
+            /** Recipient E164 */
+            recipient_e164: string;
             /** Steps */
             steps: components["schemas"]["StepOut"][];
         };
@@ -1070,6 +1092,11 @@ export interface components {
             /** Created */
             created: boolean;
             opt_out: components["schemas"]["OptOutOut"];
+        };
+        /** PostcheckRequest */
+        PostcheckRequest: {
+            /** Body */
+            body: string;
         };
         /** PromiseDecisionOut */
         PromiseDecisionOut: {
@@ -1485,6 +1512,50 @@ export interface operations {
                 };
                 content: {
                     "text/event-stream": unknown;
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    preview_postcheck_api_v1_cases__case_id__postcheck_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                case_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PostcheckRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Not Found */

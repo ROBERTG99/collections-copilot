@@ -198,3 +198,4 @@ class CaseDetail(BaseModel):
     cited_notes: list[NoteOut]
     messages: list[MessageOut]
     precheck: dict[str, Any] | None
+    recipient_e164: str  # exactly who an approved draft is sent to
