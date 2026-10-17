@@ -133,7 +133,7 @@ function AccountBody({ account }: { account: AccountDetail }) {
         {account.invoices.length === 0 ? (
           <Empty title="No invoices on file" />
         ) : (
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Scrollable table">
             <table className="mt-2 w-full text-sm">
               <thead>
                 <tr className="border-b border-rule text-left">

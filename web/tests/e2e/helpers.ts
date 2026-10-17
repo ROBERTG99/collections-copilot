@@ -42,17 +42,30 @@ export const problem = (status: number, detail: string) => ({
 
 type QueueItem = { account_id: string; opted_out: boolean; case_id: string | null };
 
+/** GET through the BFF as the signed-in user, waiting out 429s (the API allows 120/min). */
+export async function getJson<T>(page: Page, url: string): Promise<T> {
+  for (let attempt = 0; attempt < 10; attempt++) {
+    const res = await page.request.get(url);
+    if (res.status() === 429) {
+      await page.waitForTimeout(1000 * Number(res.headers()["retry-after"] ?? "5"));
+      continue;
+    }
+    expect(res.ok(), `${url} → ${res.status()}`).toBeTruthy();
+    return (await res.json()) as T;
+  }
+  throw new Error(`${url} stayed rate limited`);
+}
+
 /** A case paused at human approval, created through the BFF as the signed-in user. */
 export async function caseAwaitingApproval(page: Page, phoneEndsWith?: string): Promise<string> {
   const headers = { "x-cc-csrf": "1", "content-type": "application/json" };
-  const queue = await page.request.get("/api/queue?limit=100&status=no_case");
-  expect(queue.ok()).toBeTruthy();
-  const items = ((await queue.json()) as { items: QueueItem[] }).items.filter((i) => !i.opted_out);
+  const queue = await getJson<{ items: QueueItem[] }>(page, "/api/queue?limit=100&status=no_case");
+  const items = queue.items.filter((i) => !i.opted_out);
   for (const item of items.slice(0, 40)) {
-    const account = (await (await page.request.get(`/api/accounts/${item.account_id}`)).json()) as {
+    const account = await getJson<{
       phone_e164: string;
       precheck: { ok: boolean; deferred: boolean };
-    };
+    }>(page, `/api/accounts/${item.account_id}`);
     // Only accounts that can be texted right now (inside their 08:00–21:00 window).
     if (!account.precheck.ok || account.precheck.deferred) continue;
     if (phoneEndsWith && !phoneEndsWith.includes(account.phone_e164.slice(-1))) continue;
@@ -63,9 +76,9 @@ export async function caseAwaitingApproval(page: Page, phoneEndsWith?: string): 
     if (!created.ok()) continue;
     const caseId = ((await created.json()) as { cases: { id: string }[] }).cases[0]?.id;
     if (!caseId) continue;
-    for (let i = 0; i < 120; i++) {
-      const res = await page.request.get(`/api/cases/${caseId}`);
-      const status = ((await res.json()) as { case: { status: string } }).case.status;
+    for (let i = 0; i < 60; i++) {
+      const detail = await getJson<{ case: { status: string } }>(page, `/api/cases/${caseId}`);
+      const status = detail.case.status;
       if (status === "awaiting_approval") return caseId;
       if (
         ["closed", "failed", "requires_analyst", "escalated", "sent", "awaiting_reply"].includes(
@@ -73,7 +86,7 @@ export async function caseAwaitingApproval(page: Page, phoneEndsWith?: string): 
         )
       )
         break;
-      await page.waitForTimeout(250);
+      await page.waitForTimeout(1000);
     }
   }
   throw new Error("no case reached awaiting_approval");
@@ -81,8 +94,8 @@ export async function caseAwaitingApproval(page: Page, phoneEndsWith?: string): 
 
 /** Approve the latest draft of a case through the BFF, as the signed-in user. */
 export async function approveCase(page: Page, caseId: string): Promise<void> {
-  const detail = await (await page.request.get(`/api/cases/${caseId}`)).json();
-  const version = (detail as { drafts: { version: number }[] }).drafts.at(-1)?.version ?? 1;
+  const detail = await getJson<{ drafts: { version: number }[] }>(page, `/api/cases/${caseId}`);
+  const version = detail.drafts.at(-1)?.version ?? 1;
   const resp = await page.request.post(`/api/cases/${caseId}/approval`, {
     headers: { "x-cc-csrf": "1", "content-type": "application/json" },
     data: { decision: "approve", draft_version: version },

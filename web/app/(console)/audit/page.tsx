@@ -123,7 +123,7 @@ export default function AuditPage() {
         ) : items.length === 0 ? (
           <Empty title="No events match">Clear the filter to see every event.</Empty>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Scrollable table">
             <table className="w-full text-sm">
               <caption className="sr-only">Audit events, newest first</caption>
               <thead>

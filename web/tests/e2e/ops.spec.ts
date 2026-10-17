@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { expectAccessible, problem, signIn } from "./helpers";
+import { expectAccessible, getJson, problem, signIn } from "./helpers";
 
 type Ops = {
   pending_approvals: number;
@@ -22,9 +22,7 @@ test.describe("ops dashboard", () => {
         async () => {
           await page.reload();
           await expect(page.getByTestId("pending-approvals")).toBeVisible();
-          const api = (await (
-            await page.request.get("/api/metrics/ops?window_days=30")
-          ).json()) as Ops;
+          const api = await getJson<Ops>(page, "/api/metrics/ops?window_days=30");
           const ui = {
             pending: await page.getByTestId("pending-approvals").innerText(),
             sends: await page.getByTestId("sends").innerText(),

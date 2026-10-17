@@ -31,7 +31,12 @@ export default function PromisesPage() {
           ) : promises.data.length === 0 ? (
             <Empty title="No promises yet">They appear when a debtor promises to pay by SMS.</Empty>
           ) : (
-            <div className="overflow-x-auto">
+            <div
+              className="overflow-x-auto"
+              tabIndex={0}
+              role="region"
+              aria-label="Scrollable table"
+            >
               <table className="w-full text-sm" data-testid="promises">
                 <caption className="sr-only">Promises to pay, newest first</caption>
                 <thead>
