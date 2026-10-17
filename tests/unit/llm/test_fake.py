@@ -117,3 +117,60 @@ async def test_classify_never_reads_a_date_as_an_amount_and_questions_are_not_pr
         ).text
     )
     assert out["label"] == "other"
+
+
+@pytest.mark.parametrize(
+    ("body", "label"),
+    [
+        # Commitments phrased as sending money (found on the replies dev split; new wording here).
+        ("I'll wire $250.00 on Friday.", "promise_to_pay"),
+        ("We will transfer EUR 800,00 next week", "promise_to_pay"),
+        ("Le envío 300,00 € el lunes.", "promise_to_pay"),
+        ("Mandaremos 75,00 USD mañana.", "promise_to_pay"),
+        # Not knowing the sender at all is a wrong number, in either language.
+        ("Never heard of you. Please check your records.", "wrong_number"),
+        ("¿Quién es usted? No conozco esa empresa.", "wrong_number"),
+        # A bare "who is this?" may be the debtor asking: not enough to stop contacting the phone.
+        ("Who is this?", "other"),
+        # Past tense is a payment claim, not a promise.
+        ("We transferred the full amount yesterday.", "paid"),
+    ],
+)
+async def test_classify_reworded_promises_and_unknown_senders(body: str, label: str) -> None:
+    fake = FakeLLM()
+    ctx = '<context>{"today": "2026-03-10"}</context>'
+    out = json.loads((await fake.complete(req("classify_reply", ctx + notes(body)))).text)
+    assert out["label"] == label
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "We'll get back to you after we check with accounting.",
+        "I'll have a look and call you.",
+        "Can we pay you by card?",
+    ],
+)
+async def test_classify_does_not_read_a_commitment_into_a_non_commitment(body: str) -> None:
+    fake = FakeLLM()
+    ctx = '<context>{"today": "2026-03-10"}</context>'
+    out = json.loads((await fake.complete(req("classify_reply", ctx + notes(body)))).text)
+    assert out["label"] == "other"
+
+
+async def test_amount_with_a_future_time_is_a_commitment_unless_asked_or_refused() -> None:
+    fake = FakeLLM()
+    ctx = '<context>{"today": "2026-03-10"}</context>'
+
+    async def classify(body: str) -> dict[str, object]:
+        return dict(
+            json.loads((await fake.complete(req("classify_reply", ctx + notes(body)))).text)
+        )
+
+    out = await classify("Expect USD 640.00 from us on Thursday.")
+    assert out["label"] == "promise_to_pay"
+    assert out["promise"] == {"amount_cents": 64_000, "promised_date": "2026-03-12"}
+    assert (await classify("Os llegan 90,00 € la próxima semana."))["label"] == "promise_to_pay"
+    assert (await classify("We cannot find USD 640.00 by Thursday."))["label"] == "other"
+    assert (await classify("Is USD 640.00 by Thursday enough?"))["label"] == "other"
+    assert (await classify("Invoice for USD 640.00 dated 2026-01-02."))["label"] == "other"

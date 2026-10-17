@@ -90,52 +90,90 @@ REPLY_KEYWORDS: list[tuple[str, list[str]]] = [
     (
         "wrong_number",
         [
-            r"wrong number",
+            r"wrong (?:number|person)",
+            r"you have the wrong",
             r"no (?:soy|es) (?:yo|la persona)",
             r"n[uú]mero equivocado",
-            r"don'?t know (?:this|the) company",
-            r"not my company",
+            r"se (?:ha )?equivoca",
+            r"don'?t know (?:this|the|any|who|your) (?:company|business|person|one)",
+            r"not my (?:company|business)",
+            r"never heard of",
+            r"(?:no one|nobody) (?:here )?(?:by|with|called) that name",
+            r"(?:doesn'?t|does not|no longer) work(?:s)? here",
+            r"(?:this is|it'?s) a personal (?:number|phone|cell)",
+            r"no conozco (?:esa|esta|la|a esa|a esta)",
+            r"nunca (?:he|hemos) o[ií]do",
+            r"(?:ya )?no trabaja (?:aqu[ií]|aqui|en esta)",
+            r"(?:este|es un) n[uú]mero (?:es )?personal",
         ],
     ),
     (
         "dispute",
         [
             r"disput",
-            r"never (?:received|ordered)",
+            r"never (?:received|ordered|got|agreed)",
+            r"(?:don'?t|do not) owe",
             r"damaged",
+            r"defective",
             r"incorrect",
-            r"wrong amount",
+            r"wrong (?:amount|price|invoice|quantity|items?)",
             r"not (?:what|the) (?:we|i) ordered",
+            r"(?:billed|charged) (?:us |me )?twice",
+            r"overcharg",
+            r"missing (?:items|parts|goods)",
+            r"(?:we|i) returned",
+            r"(?:we|i) (?:disagree|contest)",
             r"no (?:recib|ped)",
+            r"no (?:debemos|debo|reconocemos|reconozco|corresponde)",
             r"dañad",
-            r"incorrect",
-            r"billed twice",
+            r"defectuos",
+            r"cobr(?:ado|aron|ó) dos veces",
             r"duplicad",
+            r"devolvimos",
+            r"error en (?:la|el) (?:factura|importe|monto)",
+            r"no estamos de acuerdo",
+            r"reclam",
         ],
     ),
     (
         "paid",
         [
-            r"already paid",
+            r"already (?:paid|sent|settled|wired|transferred)",
             r"(?:we|i) paid",
-            r"payment (?:was )?sent",
-            r"ya (?:pagu|pagamos|pag)",
+            r"(?:we|i) (?:transferred|wired|sent|mailed|settled) ",
+            r"(?:has|have|was|were) (?:been )?(?:paid|settled)",
+            r"payment (?:was |has been )?(?:sent|made|processed)",
+            r"payment went (?:out|through)",
+            r"check (?:is in|was) (?:the mail|mailed|sent)",
+            r"ya (?:le |les )?(?:pagu|pagamos|pag)",
+            r"\bpagu[eé]\b",
             r"transfer(?:i|í)mos",
-            r"check is in the mail",
+            r"\btransfer[ií]\b",
+            r"deposit(?:amos|é)",
+            r"(?:abonamos|liquidamos|saldamos)\b",
             r"pagado",
+            r"ya se pag[oó]",
+            r"comprobante",
         ],
     ),
     (
         "promise_to_pay",
         [
             r"\bcan pay\b",
-            r"\bwill pay\b",
-            r"\bpay(?:ing)? (?:on|by|next|this)\b",
+            r"\b(?:will|'ll|shall|going to|plan to|intend to|expect to) (?:pay|settle|clear)\b",
+            r"\bpay(?:ing)? (?:on|by|next|this|you)\b",
             r"\bpromise\b",
+            r"\b(?:i|we)(?:'ll| will) (?:send|wire|transfer|mail)\b",
+            r"\b(?:i|we)(?:'ll| will) make (?:a|the) payment\b",
+            r"\bpayment will (?:go out|be (?:made|sent))\b",
+            r"\byou(?:'ll| will) (?:have|get|receive) (?:it|the|your|payment|funds|the money)\b",
             r"\bpagar[eé]\b",
             r"\bpagamos el\b",
-            r"\bpuedo pagar\b",
-            r"\bpagaremos\b",
+            r"\b(?:puedo|podemos|vamos a|voy a) (?:pagar|abonar|liquidar|transferir)\b",
+            r"\b(?:pagaremos|abonaremos|abonar[eé]|liquidaremos|saldaremos|depositaremos)\b",
+            r"\b(?:le|les|te) (?:pago|mando|env[ií]o|transfiero|deposito)\b",
+            r"\b(?:mandaremos|enviaremos|transferiremos|haremos (?:el|la) (?:pago|transferencia))\b",
+            r"\brecibir[aá]n? (?:el pago|el dinero|la transferencia)\b",
         ],
     ),
 ]
@@ -295,6 +333,12 @@ def _draft(ctx: dict[str, Any], notes: list[tuple[str, str]]) -> dict[str, Any]:
 
 
 ISO_DATE = re.compile(r"\b20\d\d-\d\d-\d\d\b")
+CURRENCY_AMOUNT = re.compile(
+    r"(?:[$€]\s*\d|\d[\d.,]*\s*(?:€|(?:usd|eur)\b)|\b(?:usd|eur)\s*\d)", re.I
+)
+NEGATION = re.compile(
+    r"\b(?:can'?t|cannot|won'?t|unable|not able|no (?:podemos|puedo|vamos|voy)|imposible)\b", re.I
+)
 
 
 def _amount_cents(text: str) -> int | None:
@@ -337,6 +381,18 @@ def _classify(ctx: dict[str, Any], notes: list[tuple[str, str]]) -> dict[str, An
                     "promised_date": _promise_date(text, today),
                 }
             return {"label": label, "confidence": 0.9, "promise": promise}
+    # No keyword: a stated sum of money with a future time, neither asked nor refused, is still a
+    # commitment ("Les mando 400,00 USD la próxima semana"). Lower confidence than a keyword.
+    date_ = _promise_date(text, today)
+    if (
+        CURRENCY_AMOUNT.search(text)
+        and date_ is not None
+        and date_ > today.isoformat()
+        and not text.rstrip().endswith("?")
+        and not NEGATION.search(text)
+    ):
+        promise = {"amount_cents": _amount_cents(text), "promised_date": date_}
+        return {"label": "promise_to_pay", "confidence": 0.7, "promise": promise}
     return {"label": "other", "confidence": 0.55, "promise": None}
 
 
