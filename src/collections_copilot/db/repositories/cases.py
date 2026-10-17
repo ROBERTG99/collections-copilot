@@ -107,6 +107,20 @@ class DraftsRepo(Repo):
         drafts = await self.for_case(tenant_id, case_id)
         return drafts[-1] if drafts else None
 
+    async def latest_for_cases(
+        self, tenant_id: TenantId, case_ids: list[uuid.UUID]
+    ) -> dict[uuid.UUID, Draft]:
+        """The newest draft of each case (one query for a queue page)."""
+        if not case_ids:
+            return {}
+        stmt = (
+            select(Draft)
+            .where(Draft.tenant_id == tenant_id, Draft.case_id.in_(case_ids))
+            .order_by(Draft.case_id, Draft.version.desc())
+            .distinct(Draft.case_id)
+        )
+        return {d.case_id: d for d in (await self.s.execute(stmt)).scalars()}
+
     async def get_version(
         self, tenant_id: TenantId, case_id: uuid.UUID, version: int
     ) -> Draft | None:

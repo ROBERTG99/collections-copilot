@@ -25,7 +25,7 @@ from collections_copilot.agent.store import load_facts
 from collections_copilot.api import views
 from collections_copilot.api.deps.auth import ANALYST_OR_SUPERVISOR, Principal
 from collections_copilot.api.errors import ProblemError
-from collections_copilot.api.schemas import CaseSummary
+from collections_copilot.api.schemas import CaseSummary, CheckOut
 from collections_copilot.compliance import engine
 from collections_copilot.db import audit
 from collections_copilot.db.models import Draft
@@ -363,6 +363,7 @@ class PostcheckRequest(BaseModel):
 
 @router.post(
     "/cases/{case_id}/postcheck",
+    response_model=CheckOut,
     responses={404: {}},
     summary="Run the compliance post-check on text without storing anything",
 )
@@ -371,7 +372,7 @@ async def preview_postcheck(
     req: PostcheckRequest,
     request: Request,
     principal: Principal = Depends(ANALYST_OR_SUPERVISOR),
-) -> dict[str, Any]:
+) -> CheckOut:
     """The approval drawer's live check while an analyst edits; the approval re-checks."""
     async with request.app.state.sessionmaker() as session:
         repos = Repos(session)
@@ -387,4 +388,4 @@ async def preview_postcheck(
             req.body.strip(),
             datetime.now(UTC),
         )
-    return check.as_dict()
+    return CheckOut.model_validate(check.as_dict())

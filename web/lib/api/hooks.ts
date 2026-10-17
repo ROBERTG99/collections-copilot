@@ -3,7 +3,7 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { api, unwrap } from "@/lib/api/client";
-import type { AccountDetail, CaseDetail, QueuePage } from "@/lib/api/types";
+import type { AccountDetail, CaseDetail, CheckOut, QueuePage } from "@/lib/api/types";
 
 export type QueueFilters = {
   segment?: "enterprise" | "mid_market" | "smb";
@@ -38,10 +38,11 @@ export function useAccount(accountId: string) {
   });
 }
 
-export function useCase(caseId: string | null) {
+export function useCase(caseId: string | null, refetchInterval: number | false = false) {
   return useQuery({
     queryKey: ["case", caseId],
     enabled: !!caseId,
+    refetchInterval,
     queryFn: async () =>
       unwrap(
         await api.GET("/api/v1/cases/{case_id}", {
@@ -63,12 +64,7 @@ export function useStartCases() {
   });
 }
 
-export type CheckResult = {
-  ok: boolean;
-  violations: { code: string; message: string; blocking: boolean }[];
-  send_at: string;
-  deferred: boolean;
-};
+export type CheckResult = CheckOut;
 
 export async function postcheck(caseId: string, body: string): Promise<CheckResult> {
   return unwrap(
@@ -76,13 +72,37 @@ export async function postcheck(caseId: string, body: string): Promise<CheckResu
       params: { path: { case_id: caseId } },
       body: { body },
     }),
-  ) as CheckResult;
+  );
 }
 
 export type Decision =
   | { decision: "approve"; draft_version: number }
   | { decision: "edit"; draft_version: number; body: string }
   | { decision: "reject"; draft_version: number; reason: string };
+
+/**
+ * One key per distinct request: a network retry of the same decision replays the stored result,
+ * while a corrected edit (different body) or a new reason is a new request. A key without the
+ * body locked the edit path for 24 h after one refused edit (M4 review).
+ */
+export function decisionKey(caseId: string, decision: Decision): string {
+  const content =
+    decision.decision === "edit"
+      ? decision.body
+      : decision.decision === "reject"
+        ? decision.reason
+        : "";
+  return `${caseId}:${decision.draft_version}:${decision.decision}:${fnv1a(content)}`;
+}
+
+function fnv1a(text: string): string {
+  let hash = 0x811c9dc5;
+  for (const byte of new TextEncoder().encode(text)) {
+    hash ^= byte;
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return hash.toString(16).padStart(8, "0");
+}
 
 export function useDecision(caseId: string) {
   const client = useQueryClient();
@@ -92,14 +112,34 @@ export function useDecision(caseId: string) {
         await api.POST("/api/v1/cases/{case_id}/approval", {
           params: { path: { case_id: caseId } },
           body: decision,
-          headers: {
-            "Idempotency-Key": `${caseId}:${decision.draft_version}:${decision.decision}`,
-          },
+          headers: { "Idempotency-Key": decisionKey(caseId, decision) },
         }),
       ),
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: ["case", caseId] });
       void client.invalidateQueries({ queryKey: ["queue"] });
+    },
+  });
+}
+
+export const MAX_BATCH = 50;
+
+/** FR-6 batch approval (≤ 50): each item is decided on its own and reported back. */
+export function useBatchApprove() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async (items: { case_id: string; draft_version: number }[]) =>
+      unwrap(
+        await api.POST("/api/v1/approvals:batch", {
+          body: { items: items.map((i) => ({ ...i, decision: "approve" as const })) },
+          headers: {
+            "Idempotency-Key": `batch:${fnv1a(items.map((i) => `${i.case_id}:${i.draft_version}`).join(","))}`,
+          },
+        }),
+      ),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ["queue"] });
+      void client.invalidateQueries({ queryKey: ["case"] });
     },
   });
 }

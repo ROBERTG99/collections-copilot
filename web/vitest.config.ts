@@ -7,6 +7,8 @@ export default defineConfig({
   test: {
     include: ["tests/unit/**/*.test.ts", "tests/unit/**/*.test.tsx"],
     environment: "node",
+    // West of UTC on purpose: date-only values once rendered a day early (M4 review).
+    env: { TZ: "America/New_York" },
     coverage: {
       provider: "v8",
       include: ["lib/**/*.ts", "components/**/*.tsx"],

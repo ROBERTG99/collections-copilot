@@ -77,6 +77,11 @@ export async function openOidcState(
   }
 }
 
+/** The access token has expired (the session may still be refreshable within the grace). */
+export function isExpired(session: Session, nowMs: number = Date.now()): boolean {
+  return session.expiresAt <= Math.floor(nowMs / 1000);
+}
+
 export function needsRefresh(session: Session, now = Date.now() / 1000): boolean {
   return session.expiresAt - now < 60;
 }

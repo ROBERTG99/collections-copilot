@@ -10,3 +10,5 @@ export type CaseDetail = S["CaseDetail"];
 export type DraftOut = S["DraftOut"];
 export type MessageOut = S["MessageOut"];
 export type PromiseOut = S["PromiseOut"];
+export type CheckOut = S["CheckOut"];
+export type AuditEvent = S["AuditEventOut"];

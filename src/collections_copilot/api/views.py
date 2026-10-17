@@ -89,7 +89,12 @@ def case_summary(c: Case) -> CaseSummary:
     )
 
 
-def message_out(m: Message) -> MessageOut:
+def message_out(m: Message, account: Account | None = None) -> MessageOut:
+    extracted = m.extracted or {}
+    correction = extracted.get("correction") or {}
+    source = extracted.get("source")
+    if m.classification and source is None:
+        source = "unknown"  # classified before the source was recorded
     return MessageOut(
         id=m.id,
         direction=cast(Any, m.direction),
@@ -101,10 +106,18 @@ def message_out(m: Message) -> MessageOut:
         case_id=m.case_id,
         sent_at=m.sent_at,
         created_at=m.created_at,
+        classification_source=source,
+        corrected_label=correction.get("label"),
+        corrected_by=correction.get("by"),
+        corrected_at=correction.get("at"),
+        account_id=m.account_id,
+        account_name=account.name if account else None,
+        account_ref=account.external_ref if account else None,
+        currency=account.currency if account else None,
     )
 
 
-def promise_out(p: Promise) -> PromiseOut:
+def promise_out(p: Promise, account: Account | None = None) -> PromiseOut:
     return PromiseOut(
         id=p.id,
         account_id=p.account_id,
@@ -118,6 +131,8 @@ def promise_out(p: Promise) -> PromiseOut:
         ledger_ref=p.ledger_ref,
         failure_reason=p.failure_reason,
         created_at=p.created_at,
+        account_name=account.name if account else None,
+        account_ref=account.external_ref if account else None,
     )
 
 

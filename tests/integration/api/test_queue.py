@@ -165,3 +165,31 @@ async def test_create_cases_enqueues_and_dedupes(
         assert foreign.status_code == 404
     finally:
         api_app.state.queues = real
+
+
+async def test_awaiting_approval_rows_carry_the_draft_for_batch_review(  # type: ignore[no-untyped-def]
+    client: httpx.AsyncClient, sessionmaker, tenant, auth
+) -> None:
+    """M4 review: batch approve shows each exact SMS, so the queue carries the latest draft."""
+    from collections_copilot.db.repositories import Repos
+
+    account = await make_account(sessionmaker, tenant)
+    async with sessionmaker() as s, s.begin():
+        repos = Repos(s)
+        case = await repos.cases.create(tenant, account, status="awaiting_approval")
+        await repos.drafts.add(tenant, case.id, version=1, body="v1", language="en", author="ai")
+        await repos.drafts.add(
+            tenant, case.id, version=2, body="v2 text", language="en", author="ai"
+        )
+    page = (
+        await client.get(
+            "/api/v1/queue", params={"status": "awaiting_approval"}, headers=auth("analyst")
+        )
+    ).json()
+    item = next(i for i in page["items"] if i["account_id"] == str(account))
+    assert (item["draft_version"], item["draft_body"]) == (2, "v2 text")
+    assert item["timezone"]
+    other = await make_account(sessionmaker, tenant)
+    plain = (await client.get("/api/v1/queue", params={"q": ""}, headers=auth("analyst"))).json()
+    row = next((i for i in plain["items"] if i["account_id"] == str(other)), None)
+    assert row is None or row["draft_version"] is None

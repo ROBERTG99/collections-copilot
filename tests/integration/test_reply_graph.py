@@ -166,21 +166,59 @@ async def test_paid_and_wrong_number_and_other(sessionmaker, database_url, tenan
         assert "payment_verification" in kinds
 
 
-async def test_reclassify_records_correction_only(client, sessionmaker, tenant, auth) -> None:  # type: ignore[no-untyped-def]
+async def test_reclassify_records_correction_only(  # type: ignore[no-untyped-def]
+    client, sessionmaker, database_url, tenant, auth
+) -> None:
+    """M4 review: a correction never changes what the graph reads, and only a processed reply
+    can be corrected (an unprocessed one would otherwise be routed on the analyst's label)."""
     account = await make_account(sessionmaker, tenant)
     reply = await inbound(sessionmaker, tenant, account, "Who is this?")
     url = f"/api/v1/replies/{reply.message_id}:reclassify"
+    early = await client.post(url, json={"label": "dispute"}, headers=auth("analyst"))
+    assert early.status_code == 409
+    assert early.json()["code"] == "not_processed"
+
+    services = make_services(sessionmaker, database_url, FakeLLM(), InMemorySmsSender())
+    await build_reply_graph(services, sessionmaker).ainvoke(
+        {"reply": reply.model_dump(mode="json", by_alias=True)}
+    )
     resp = await client.post(
         url, json={"label": "dispute", "note": "mentions damaged goods"}, headers=auth("analyst")
     )
     assert resp.status_code == 200, resp.text
-    assert resp.json()["classification"] == "dispute"
+    out = resp.json()
+    assert out["classification"] == "other"  # the model's label is kept
+    assert out["classification_source"] == "model"
+    assert out["corrected_label"] == "dispute"
+    assert out["corrected_by"]
     stop = await client.post(url, json={"label": "stop"}, headers=auth("analyst"))
     assert stop.status_code == 409
     async with sessionmaker() as s:
         repos = Repos(s)
         assert {i.status for i in await repos.invoices.for_account(tenant, account)} == {"open"}
+        msg = await repos.messages.get(tenant, uuid.UUID(reply.message_id))
+        assert msg is not None
+        assert msg.classification == "other"
+    listed = (await client.get("/api/v1/replies", headers=auth("analyst"))).json()
+    row = next(r for r in listed if r["id"] == reply.message_id)
+    assert row["corrected_label"] == "dispute"
+    assert row["account_name"]
+    assert row["currency"] == "USD"
     other = await client.post(
         url, json={"label": "other"}, headers=auth("analyst", tenant_id=uuid.uuid4())
     )
     assert other.status_code == 404
+
+
+async def test_stop_rule_label_is_marked_as_rule(  # type: ignore[no-untyped-def]
+    client, sessionmaker, database_url, tenant, auth
+) -> None:
+    account = await make_account(sessionmaker, tenant)
+    reply = await inbound(sessionmaker, tenant, account, "STOP")
+    services = make_services(sessionmaker, database_url, FakeLLM(), InMemorySmsSender())
+    await build_reply_graph(services, sessionmaker).ainvoke(
+        {"reply": reply.model_dump(mode="json", by_alias=True)}
+    )
+    listed = (await client.get("/api/v1/replies", headers=auth("analyst"))).json()
+    row = next(r for r in listed if r["id"] == reply.message_id)
+    assert (row["classification"], row["classification_source"]) == ("stop", "rule")

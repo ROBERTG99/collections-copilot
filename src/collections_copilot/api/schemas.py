@@ -20,6 +20,7 @@ class QueueItem(BaseModel):
     name: str
     segment: str
     language: str
+    timezone: str = "UTC"  # the debtor's IANA zone: contact windows and send times use it
     priority_score: int
     score_components: dict[str, float] | None
     open_balance: Money
@@ -33,6 +34,8 @@ class QueueItem(BaseModel):
     fallback: bool
     compliance_ok: bool | None
     compliance_codes: list[str]
+    draft_version: int | None = None  # the latest draft while the case awaits approval
+    draft_body: str | None = None
 
 
 class QueuePage(BaseModel):
@@ -84,6 +87,14 @@ class MessageOut(BaseModel):
     case_id: uuid.UUID | None
     sent_at: datetime | None
     created_at: datetime
+    classification_source: Literal["rule", "model", "fallback", "unknown"] | None = None
+    corrected_label: str | None = None  # an analyst's correction; never read by the graph
+    corrected_by: str | None = None
+    corrected_at: datetime | None = None
+    account_id: uuid.UUID | None = None
+    account_name: str | None = None
+    account_ref: str | None = None
+    currency: str | None = None
 
 
 class PromiseOut(BaseModel):
@@ -99,6 +110,8 @@ class PromiseOut(BaseModel):
     ledger_ref: str | None
     failure_reason: str | None
     created_at: datetime
+    account_name: str | None = None
+    account_ref: str | None = None
 
 
 class AgingBuckets(BaseModel):
@@ -199,3 +212,18 @@ class CaseDetail(BaseModel):
     messages: list[MessageOut]
     precheck: dict[str, Any] | None
     recipient_e164: str  # exactly who an approved draft is sent to
+
+
+class ViolationOut(BaseModel):
+    code: str
+    message: str
+    blocking: bool = True
+
+
+class CheckOut(BaseModel):
+    """A compliance pre-check or post-check result."""
+
+    ok: bool
+    violations: list[ViolationOut]
+    send_at: datetime
+    deferred: bool

@@ -13,7 +13,7 @@ from collections_copilot.api.deps.auth import ANY_ROLE, Principal
 from collections_copilot.api.deps.db import REPOS
 from collections_copilot.api.errors import ProblemError
 from collections_copilot.api.schemas import Money, QueueItem, QueuePage
-from collections_copilot.db.models import Account, Case
+from collections_copilot.db.models import Account, Case, Draft
 from collections_copilot.db.repositories import Repos
 
 router = APIRouter(prefix="/api/v1", tags=["queue"])
@@ -45,7 +45,7 @@ def decode_cursor(cursor: str) -> tuple[int, uuid.UUID]:
         raise ProblemError(400, "invalid cursor", code="invalid_cursor") from exc
 
 
-def queue_item(account: Account, case: Case | None) -> QueueItem:
+def queue_item(account: Account, case: Case | None, draft: Draft | None = None) -> QueueItem:
     precheck: dict[str, Any] = (case.precheck if case is not None else None) or {}
     violations = precheck.get("violations") or []
     return QueueItem(
@@ -54,6 +54,7 @@ def queue_item(account: Account, case: Case | None) -> QueueItem:
         name=account.name,
         segment=account.segment,
         language=account.language,
+        timezone=account.timezone,
         priority_score=account.priority_score,
         score_components=account.score_components,
         open_balance=Money(amount_cents=account.open_balance_cents, currency=account.currency),
@@ -67,6 +68,8 @@ def queue_item(account: Account, case: Case | None) -> QueueItem:
         fallback=bool(case and case.fallback),
         compliance_ok=bool(precheck["ok"]) if "ok" in precheck else None,
         compliance_codes=[str(v.get("code")) for v in violations if isinstance(v, dict)],
+        draft_version=draft.version if draft else None,
+        draft_body=draft.body if draft else None,
     )
 
 
@@ -90,7 +93,9 @@ async def get_queue(
         status=status,
         search=q.strip() if q else None,
     )
-    items = [queue_item(a, c) for a, c in rows[:limit]]
+    awaiting = [c.id for _, c in rows[:limit] if c is not None and c.status == "awaiting_approval"]
+    drafts = await repos.drafts.latest_for_cases(principal.tenant_id, awaiting)
+    items = [queue_item(a, c, drafts.get(c.id) if c else None) for a, c in rows[:limit]]
     next_cursor = None
     if len(rows) > limit:
         last = rows[limit - 1][0]

@@ -379,8 +379,9 @@ export interface paths {
         put?: never;
         /**
          * Reclassify Reply
-         * @description An analyst corrects the label. This records the correction for review and evals; it does
-         *     not replay side effects (a STOP is applied by recording an opt-out, not by relabelling).
+         * @description An analyst corrects the label of a processed reply. The correction is stored next to the
+         *     model's label (which the reply graph keeps reading) for review and evals; it never replays
+         *     side effects (a STOP is applied by recording an opt-out, not by relabelling).
          */
         post: operations["reclassify_reply_api_v1_replies__message_id__reclassify_post"];
         delete?: never;
@@ -836,6 +837,23 @@ export interface components {
             /** Status */
             status: string;
         };
+        /**
+         * CheckOut
+         * @description A compliance pre-check or post-check result.
+         */
+        CheckOut: {
+            /** Deferred */
+            deferred: boolean;
+            /** Ok */
+            ok: boolean;
+            /**
+             * Send At
+             * Format: date-time
+             */
+            send_at: string;
+            /** Violations */
+            violations: components["schemas"]["ViolationOut"][];
+        };
         /** ComplianceOut */
         ComplianceOut: {
             /** Deferred */
@@ -980,6 +998,12 @@ export interface components {
         };
         /** MessageOut */
         MessageOut: {
+            /** Account Id */
+            account_id?: string | null;
+            /** Account Name */
+            account_name?: string | null;
+            /** Account Ref */
+            account_ref?: string | null;
             /** Body */
             body: string;
             /** Case Id */
@@ -988,11 +1012,21 @@ export interface components {
             classification: string | null;
             /** Classification Confidence */
             classification_confidence: number | null;
+            /** Classification Source */
+            classification_source?: ("rule" | "model" | "fallback" | "unknown") | null;
+            /** Corrected At */
+            corrected_at?: string | null;
+            /** Corrected By */
+            corrected_by?: string | null;
+            /** Corrected Label */
+            corrected_label?: string | null;
             /**
              * Created At
              * Format: date-time
              */
             created_at: string;
+            /** Currency */
+            currency?: string | null;
             /**
              * Direction
              * @enum {string}
@@ -1132,6 +1166,10 @@ export interface components {
              * Format: uuid
              */
             account_id: string;
+            /** Account Name */
+            account_name?: string | null;
+            /** Account Ref */
+            account_ref?: string | null;
             /** Amount Cents */
             amount_cents: number;
             /** Case Id */
@@ -1181,6 +1219,10 @@ export interface components {
             compliance_ok: boolean | null;
             /** Contact Flag */
             contact_flag: string | null;
+            /** Draft Body */
+            draft_body?: string | null;
+            /** Draft Version */
+            draft_version?: number | null;
             /** External Ref */
             external_ref: string;
             /** Fallback */
@@ -1206,6 +1248,11 @@ export interface components {
             } | null;
             /** Segment */
             segment: string;
+            /**
+             * Timezone
+             * @default UTC
+             */
+            timezone: string;
         };
         /** QueuePage */
         QueuePage: {
@@ -1289,6 +1336,18 @@ export interface components {
             msg: string;
             /** Error Type */
             type: string;
+        };
+        /** ViolationOut */
+        ViolationOut: {
+            /**
+             * Blocking
+             * @default true
+             */
+            blocking: boolean;
+            /** Code */
+            code: string;
+            /** Message */
+            message: string;
         };
     };
     responses: never;
@@ -1584,9 +1643,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["CheckOut"];
                 };
             };
             /** @description Not Found */

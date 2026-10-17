@@ -13,15 +13,13 @@ export function DiffView({ before, after }: { before: string; after: string }) {
     >
       {parts.map((p, i) =>
         p.added ? (
-          <ins
-            key={i}
-            className="bg-chip-ai text-teal no-underline"
-            aria-label={`added: ${p.value}`}
-          >
+          <ins key={i} className="bg-chip-ai text-teal underline">
+            <span className="sr-only">added: </span>
             {p.value}
           </ins>
         ) : p.removed ? (
-          <del key={i} className="text-danger" aria-label={`removed: ${p.value}`}>
+          <del key={i} className="text-danger">
+            <span className="sr-only">removed: </span>
             {p.value}
           </del>
         ) : (

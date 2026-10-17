@@ -40,35 +40,78 @@ export const problem = (status: number, detail: string) => ({
   }),
 });
 
-type QueueItem = { account_id: string; opted_out: boolean; case_id: string | null };
+type QueueItem = {
+  account_id: string;
+  opted_out: boolean;
+  contact_flag: string | null;
+  case_id: string | null;
+  timezone: string;
+  max_days_past_due: number;
+};
 
-/** GET through the BFF as the signed-in user, waiting out 429s (the API allows 120/min). */
+/** Accounts this run already turned into a case (most end closed: escalate, pause, no action). */
+const tried = new Set<string>();
+
+/** GET through the BFF as the signed-in user, polling past 429s (the API allows 120/min). */
 export async function getJson<T>(page: Page, url: string): Promise<T> {
-  for (let attempt = 0; attempt < 10; attempt++) {
-    const res = await page.request.get(url);
-    if (res.status() === 429) {
-      await page.waitForTimeout(1000 * Number(res.headers()["retry-after"] ?? "5"));
-      continue;
-    }
-    expect(res.ok(), `${url} → ${res.status()}`).toBeTruthy();
-    return (await res.json()) as T;
-  }
-  throw new Error(`${url} stayed rate limited`);
+  let body: T | undefined;
+  await expect
+    .poll(
+      async () => {
+        const res = await page.request.get(url);
+        if (res.status() === 429) return 429;
+        expect(res.ok(), `${url} → ${res.status()}`).toBeTruthy();
+        body = (await res.json()) as T;
+        return res.status();
+      },
+      { timeout: 90_000, intervals: [1_000, 2_000, 5_000, 10_000] },
+    )
+    .not.toBe(429);
+  return body as T;
 }
 
-/** A case paused at human approval, created through the BFF as the signed-in user. */
+/** Inside the 08:00–21:00 contact window in the account's own time zone right now. */
+export function insideWindow(timeZone: string, now = new Date()): boolean {
+  const hour = Number(
+    new Intl.DateTimeFormat("en-US", { timeZone, hour: "numeric", hourCycle: "h23" }).format(now),
+  );
+  return hour >= 8 && hour < 21;
+}
+
+const DONE = ["closed", "failed", "requires_analyst", "escalated", "sent", "awaiting_reply"];
+
+/** A case paused at human approval, created through the BFF as the signed-in user. Uses only
+ * accounts inside their contact window now (docs/KNOWN_LIMITATIONS.md: around 04:00–06:00 UTC
+ * no seeded account is). */
 export async function caseAwaitingApproval(page: Page, phoneEndsWith?: string): Promise<string> {
   const headers = { "x-cc-csrf": "1", "content-type": "application/json" };
   const queue = await getJson<{ items: QueueItem[] }>(page, "/api/queue?limit=100&status=no_case");
-  const items = queue.items.filter((i) => !i.opted_out);
-  for (const item of items.slice(0, 40)) {
-    const account = await getJson<{
-      phone_e164: string;
-      precheck: { ok: boolean; deferred: boolean };
-    }>(page, `/api/accounts/${item.account_id}`);
-    // Only accounts that can be texted right now (inside their 08:00–21:00 window).
-    if (!account.precheck.ok || account.precheck.deferred) continue;
-    if (phoneEndsWith && !phoneEndsWith.includes(account.phone_e164.slice(-1))) continue;
+  const more = await getJson<{ items: QueueItem[] }>(
+    page,
+    "/api/queue?limit=100&status=no_case&min_score=0&segment=smb",
+  );
+  queue.items.push(
+    ...more.items.filter((i) => !queue.items.some((q) => q.account_id === i.account_id)),
+  );
+  // The least overdue accounts are the likeliest to get a reminder (not an escalation).
+  const candidates = queue.items
+    .filter(
+      (i) =>
+        !i.opted_out && !i.contact_flag && !tried.has(i.account_id) && insideWindow(i.timezone),
+    )
+    .sort((a, b) => a.max_days_past_due - b.max_days_past_due);
+  if (candidates.length === 0) {
+    throw new Error("no seeded account is inside its 08:00–21:00 contact window right now");
+  }
+  for (const item of candidates.slice(0, 25)) {
+    if (phoneEndsWith) {
+      const account = await getJson<{ phone_e164: string }>(
+        page,
+        `/api/accounts/${item.account_id}`,
+      );
+      if (!phoneEndsWith.includes(account.phone_e164.slice(-1))) continue;
+    }
+    tried.add(item.account_id);
     const created = await page.request.post("/api/cases", {
       headers,
       data: { account_ids: [item.account_id] },
@@ -76,18 +119,18 @@ export async function caseAwaitingApproval(page: Page, phoneEndsWith?: string): 
     if (!created.ok()) continue;
     const caseId = ((await created.json()) as { cases: { id: string }[] }).cases[0]?.id;
     if (!caseId) continue;
-    for (let i = 0; i < 60; i++) {
-      const detail = await getJson<{ case: { status: string } }>(page, `/api/cases/${caseId}`);
-      const status = detail.case.status;
-      if (status === "awaiting_approval") return caseId;
-      if (
-        ["closed", "failed", "requires_analyst", "escalated", "sent", "awaiting_reply"].includes(
-          status,
-        )
+    let status = "queued";
+    await expect
+      .poll(
+        async () => {
+          status = (await getJson<{ case: { status: string } }>(page, `/api/cases/${caseId}`)).case
+            .status;
+          return status === "awaiting_approval" || DONE.includes(status);
+        },
+        { timeout: 60_000, intervals: [500, 1_000, 2_000] },
       )
-        break;
-      await page.waitForTimeout(1000);
-    }
+      .toBe(true);
+    if (status === "awaiting_approval") return caseId;
   }
   throw new Error("no case reached awaiting_approval");
 }

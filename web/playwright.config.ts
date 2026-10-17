@@ -22,8 +22,10 @@ export default defineConfig({
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: {
-    command: "pnpm run build && pnpm exec next start -p 8300",
-    url: "http://localhost:8300",
+    // `output: "standalone"`: run the standalone server (with its static assets), as in the image.
+    command:
+      "pnpm run build && cp -r .next/static .next/standalone/web/.next/ && mkdir -p public && cp -r public .next/standalone/web/ && PORT=8300 HOSTNAME=127.0.0.1 node .next/standalone/web/server.js",
+    url: "http://127.0.0.1:8300",
     reuseExistingServer: true,
     timeout: 240_000,
     env: { WEB_SESSION_SECRET: SECRET, NODE_ENV: "production" },

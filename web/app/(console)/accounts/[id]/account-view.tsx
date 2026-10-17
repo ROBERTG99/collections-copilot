@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect } from "react";
 
 import { NbaChip, StatusBadge } from "@/components/chips";
 import { Empty, ErrorState, Skeleton } from "@/components/states";
@@ -29,6 +30,9 @@ export function AccountView({ accountId }: { accountId: string }) {
 
 function AccountBody({ account }: { account: AccountDetail }) {
   const start = useStartCases();
+  useEffect(() => {
+    document.title = `${account.name} · collections-copilot`;
+  }, [account.name]);
   const openCase = account.cases.find((c) => OPEN.has(c.status));
   const money = (cents: number) => formatMoney(cents, account.currency);
   return (
@@ -73,7 +77,9 @@ function AccountBody({ account }: { account: AccountDetail }) {
               {start.isPending ? "Starting…" : "Start case"}
             </button>
           )}
-          {start.isError ? <ErrorState error={start.error} /> : null}
+          {start.isError ? (
+            <ErrorState error={start.error} onRetry={() => start.mutate([account.id])} />
+          ) : null}
         </div>
       </header>
 
@@ -131,7 +137,16 @@ function AccountBody({ account }: { account: AccountDetail }) {
           Invoices
         </h2>
         {account.invoices.length === 0 ? (
-          <Empty title="No invoices on file" />
+          <Empty
+            title="No invoices on file"
+            action={
+              <Link href="/queue" className="underline">
+                Back to the queue
+              </Link>
+            }
+          >
+            Invoices arrive with the next aging import.
+          </Empty>
         ) : (
           <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Scrollable table">
             <table className="mt-2 w-full text-sm">
@@ -197,11 +212,19 @@ function AccountBody({ account }: { account: AccountDetail }) {
                 {c.cited_note_ids.length ? (
                   <p className="mt-1 text-sm">
                     Cites:{" "}
-                    {c.cited_note_ids.map((id, i) => (
-                      <a key={id} href={`#note-${id}`} className="underline">
-                        note {i + 1}
-                      </a>
-                    ))}
+                    {c.cited_note_ids.map((id, i) => {
+                      const note = account.notes.find((n) => n.id === id);
+                      return (
+                        <span key={id}>
+                          {i > 0 ? ", " : ""}
+                          <a href={`#note-${id}`} className="underline">
+                            {note
+                              ? `${humanize(note.source)} note of ${formatDate(note.created_at)}`
+                              : `note ${i + 1}`}
+                          </a>
+                        </span>
+                      );
+                    })}
                   </p>
                 ) : null}
               </li>
@@ -218,7 +241,10 @@ function AccountBody({ account }: { account: AccountDetail }) {
           </span>
         </h2>
         {account.notes.length === 0 ? (
-          <Empty title="No notes" />
+          <Empty title="No notes">
+            Notes come from the CRM import and from debtor replies; without notes the next best
+            action is decided by rules.
+          </Empty>
         ) : (
           <ul className="mt-2 space-y-2">
             {account.notes.map((n) => (

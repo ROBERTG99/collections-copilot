@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import logging
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, Query, Request
@@ -63,7 +63,8 @@ async def list_promises(
     repos: Repos = REPOS,
 ) -> list[PromiseOut]:
     rows = await repos.promises.list(principal.tenant_id, status=status, limit=limit)
-    return [views.promise_out(p) for p in rows]
+    accounts = await repos.accounts.get_many(principal.tenant_id, (p.account_id for p in rows))
+    return [views.promise_out(p, accounts.get(p.account_id)) for p in rows]
 
 
 @router.get("/replies", response_model=list[MessageOut])
@@ -72,7 +73,11 @@ async def list_replies(
     principal: Principal = Depends(ANY_ROLE),
     repos: Repos = REPOS,
 ) -> list[MessageOut]:
-    return [views.message_out(m) for m in await repos.messages.inbound(principal.tenant_id, limit)]
+    rows = await repos.messages.inbound(principal.tenant_id, limit)
+    accounts = await repos.accounts.get_many(principal.tenant_id, (m.account_id for m in rows))
+    return [
+        views.message_out(m, accounts.get(m.account_id) if m.account_id else None) for m in rows
+    ]
 
 
 @router.get("/follow-ups", response_model=list[FollowUpOut])
@@ -241,8 +246,9 @@ async def reclassify_reply(
     principal: Principal = Depends(ANALYST_OR_SUPERVISOR),
     repos: Repos = REPOS,
 ) -> MessageOut:
-    """An analyst corrects the label. This records the correction for review and evals; it does
-    not replay side effects (a STOP is applied by recording an opt-out, not by relabelling)."""
+    """An analyst corrects the label of a processed reply. The correction is stored next to the
+    model's label (which the reply graph keeps reading) for review and evals; it never replays
+    side effects (a STOP is applied by recording an opt-out, not by relabelling)."""
     tenant = principal.tenant_id
     message = await repos.messages.get(tenant, message_id)
     if message is None or message.direction != "inbound":
@@ -251,9 +257,19 @@ async def reclassify_reply(
         raise ProblemError(
             409, "record an opt-out instead of relabelling a reply as STOP", code="use_opt_out"
         )
-    previous = message.classification
-    message.classification = body.label
-    message.classification_confidence = 1.0
+    if message.status != "handled":
+        raise ProblemError(
+            409, "the reply has not been processed yet; correct it afterwards", code="not_processed"
+        )
+    extracted = dict(message.extracted or {})
+    previous = (extracted.get("correction") or {}).get("label") or message.classification
+    extracted["correction"] = {
+        "label": body.label,
+        "by": principal.username,
+        "at": datetime.now(UTC).isoformat(),
+        "note": body.note,
+    }
+    message.extracted = extracted
     await audit.append(
         repos.session,
         tenant,
@@ -265,4 +281,5 @@ async def reclassify_reply(
         payload={"from": previous, "to": body.label, "note": body.note},
     )
     await repos.session.flush()
-    return views.message_out(message)
+    account = await repos.accounts.get(tenant, message.account_id) if message.account_id else None
+    return views.message_out(message, account)

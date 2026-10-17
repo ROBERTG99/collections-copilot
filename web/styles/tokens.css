@@ -14,6 +14,10 @@
   --cc-focus: #0f766e;
   --cc-chip-ai-bg: #e6f2f1;
   --cc-chip-template-bg: #fbf0e3;
+  --cc-chip-template-ink: #92400e; /* 6.3:1 on the chip; amber is 4.47:1 (M4 UX review) */
+  --cc-control-border: #857d6b; /* ≥ 3:1 on bg and surface (WCAG 1.4.11) */
+  --cc-scrim: rgb(31 35 40 / 0.35);
+  --cc-shadow: 0 10px 30px rgb(31 35 40 / 0.18);
   --cc-skeleton: #ebe5d8;
   --cc-row-h: 32px;
   --cc-radius: 6px;
@@ -37,6 +41,10 @@
     --cc-focus: #2dd4bf;
     --cc-chip-ai-bg: #12302d;
     --cc-chip-template-bg: #3a2a12;
+    --cc-chip-template-ink: #f59e0b;
+    --cc-control-border: #767c88;
+    --cc-scrim: rgb(0 0 0 / 0.6);
+    --cc-shadow: 0 10px 30px rgb(0 0 0 / 0.5);
     --cc-skeleton: #2a2e37;
   }
 }
@@ -56,5 +64,9 @@
   --cc-focus: #2dd4bf;
   --cc-chip-ai-bg: #12302d;
   --cc-chip-template-bg: #3a2a12;
+  --cc-chip-template-ink: #f59e0b;
+  --cc-control-border: #767c88;
+  --cc-scrim: rgb(0 0 0 / 0.6);
+  --cc-shadow: 0 10px 30px rgb(0 0 0 / 0.5);
   --cc-skeleton: #2a2e37;
 }

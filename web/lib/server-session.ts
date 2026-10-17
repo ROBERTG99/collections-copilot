@@ -1,4 +1,6 @@
 /** Reading and writing the session cookie in route handlers and server components. */
+import "server-only";
+
 import { cookies } from "next/headers";
 
 import { webConfig } from "@/lib/config";

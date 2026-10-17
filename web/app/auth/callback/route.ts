@@ -10,14 +10,14 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const cfg = webConfig();
   const jar = await cookies();
   const saved = await openOidcState(jar.get(OIDC_COOKIE)?.value, cfg.sessionSecret);
-  jar.delete(OIDC_COOKIE);
+  jar.delete({ name: OIDC_COOKIE, path: "/auth" }); // it was set on /auth
   const code = request.nextUrl.searchParams.get("code");
   const state = request.nextUrl.searchParams.get("state");
   if (!saved || !code || !state || state !== saved.state) {
     return NextResponse.redirect(`${cfg.publicUrl}/?error=signin_failed`);
   }
   try {
-    await writeSession(await exchangeCode(cfg, code, saved.verifier));
+    await writeSession(await exchangeCode(cfg, code, saved.verifier, saved.nonce));
   } catch {
     return NextResponse.redirect(`${cfg.publicUrl}/?error=signin_failed`);
   }

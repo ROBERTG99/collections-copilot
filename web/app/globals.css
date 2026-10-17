@@ -17,6 +17,9 @@
   --color-danger: var(--cc-danger);
   --color-chip-ai: var(--cc-chip-ai-bg);
   --color-chip-template: var(--cc-chip-template-bg);
+  --color-chip-template-ink: var(--cc-chip-template-ink);
+  --color-control: var(--cc-control-border);
+  --color-scrim: var(--cc-scrim);
   --color-skeleton: var(--cc-skeleton);
   --font-sans: var(--cc-font-sans);
   --font-mono: var(--cc-font-mono);
@@ -27,6 +30,22 @@ body {
   background: var(--cc-bg);
   color: var(--cc-ink);
   font-family: var(--cc-font-sans);
+}
+
+/* Unlayered, so it wins over utility classes: form controls need a 3:1 boundary. */
+input:not([type="checkbox"]):not([type="radio"]),
+select,
+textarea {
+  border-color: var(--cc-control-border);
+}
+
+th,
+td {
+  padding-inline: 0.5rem;
+}
+th:first-child,
+td:first-child {
+  padding-inline-start: 0;
 }
 
 .num {

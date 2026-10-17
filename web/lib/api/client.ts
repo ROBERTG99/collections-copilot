@@ -47,8 +47,23 @@ api.use(bff);
 /** Unwrap an openapi-fetch result or throw an ApiError carrying the problem document. */
 export function unwrap<T>(result: { data?: T; error?: unknown; response: Response }): T {
   if (result.error !== undefined || result.data === undefined) {
-    const body = (result.error ?? {}) as Partial<Problem>;
-    throw new ApiError({ ...body, status: result.response.status });
+    throw new ApiError(problemFrom(result.error, result.response));
   }
   return result.data;
+}
+
+/** A problem document from an error body; plain-text or empty bodies (a proxy, a crash) still
+ * carry the status and the correlation id the BFF forwards in `x-correlation-id`. */
+export function problemFrom(error: unknown, response: Response): Problem {
+  const body =
+    error !== null && typeof error === "object"
+      ? (error as Partial<Problem>)
+      : ({} as Partial<Problem>);
+  return {
+    ...body,
+    title: body.title ?? response.statusText ?? undefined,
+    detail: body.detail ?? (typeof error === "string" && error ? error.slice(0, 300) : undefined),
+    correlation_id: body.correlation_id ?? response.headers.get("x-correlation-id") ?? undefined,
+    status: response.status,
+  };
 }

@@ -60,8 +60,11 @@ async def classify_text(
     body: str,
     account: dict[str, Any],
     today: date,
-) -> tuple[str, float, dict[str, Any] | None]:
-    """The model classification of a non-STOP reply (also the replies eval target's code path)."""
+) -> tuple[str, float, dict[str, Any] | None, str]:
+    """The model classification of a non-STOP reply (also the replies eval target's code path).
+
+    Returns (label, confidence, promise, source): source is "model", or "fallback" when the
+    model failed and the reply goes to an analyst as "other"."""
     rendered = render(
         "classify_reply",
         {
@@ -85,12 +88,9 @@ async def classify_text(
         )
     if result.ok and result.parsed is not None:
         out = result.parsed
-        return (
-            out.label,
-            out.confidence,
-            out.promise.model_dump(mode="json") if out.promise else None,
-        )
-    return "other", 0.0, None
+        promise = out.promise.model_dump(mode="json") if out.promise else None
+        return out.label, out.confidence, promise, "model"
+    return "other", 0.0, None, "fallback"
 
 
 def promise_problems(
@@ -144,7 +144,7 @@ def build_reply_graph(services: Services, sm: async_sessionmaker[AsyncSession]) 
                 phone_e164=reply["from_e164"],
                 now=now(),
             )
-            await _set_message(state, "stop", 1.0, None)
+            await _set_message(state, "stop", 1.0, None, "rule")
         return {"tenant_id": tenant, "label": "stop", "confidence": 1.0, "outcome": "opted_out"}
 
     async def load(state: ReplyState) -> dict[str, Any]:
@@ -200,14 +200,14 @@ def build_reply_graph(services: Services, sm: async_sessionmaker[AsyncSession]) 
                 "confidence": previous["confidence"],
                 "promise": previous["promise"],
             }
-        label, confidence, promise = await classify_text(
+        label, confidence, promise, source = await classify_text(
             services,
             message_id=reply["message_id"],
             body=reply["body"],
             account=acc,
             today=now().date(),
         )
-        await _set_message(state, label, confidence, promise)
+        await _set_message(state, label, confidence, promise, source)
         return {"label": label, "confidence": confidence, "promise": promise}
 
     async def handle_stop(state: ReplyState) -> dict[str, Any]:
@@ -329,7 +329,11 @@ def build_reply_graph(services: Services, sm: async_sessionmaker[AsyncSession]) 
         return {}
 
     async def _set_message(
-        state: ReplyState, label: str, confidence: float, promise: dict[str, Any] | None
+        state: ReplyState,
+        label: str,
+        confidence: float,
+        promise: dict[str, Any] | None,
+        source: str,
     ) -> None:
         reply = state["reply"]
         async with sm() as s, s.begin():
@@ -338,7 +342,7 @@ def build_reply_graph(services: Services, sm: async_sessionmaker[AsyncSession]) 
                 uuid.UUID(reply["message_id"]),
                 classification=label,
                 classification_confidence=confidence,
-                extracted={"promise": promise} if promise else None,
+                extracted={"promise": promise, "source": source},
             )
 
     async def _claim(repos: Repos, state: ReplyState) -> bool:

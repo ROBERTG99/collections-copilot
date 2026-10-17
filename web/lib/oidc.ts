@@ -1,5 +1,7 @@
 /** Authorization code + PKCE (S256) against Cognito or dev-oidc. Server-side only. */
-import { decodeJwt } from "jose";
+import "server-only";
+
+import { createRemoteJWKSet, decodeJwt, jwtVerify } from "jose";
 
 import type { WebConfig } from "@/lib/config";
 import type { Session } from "@/lib/session";
@@ -71,10 +73,28 @@ async function tokenRequest(cfg: WebConfig, body: Record<string, string>): Promi
   return (await resp.json()) as TokenResponse;
 }
 
+const jwksByIssuer = new Map<string, ReturnType<typeof createRemoteJWKSet>>();
+
+/** The ID token from the code exchange must be signed by the issuer, be for this client, and
+ * carry the nonce sent with the authorization request (replayed or injected codes fail). */
+export async function verifyIdToken(cfg: WebConfig, idToken: string, nonce: string): Promise<void> {
+  let jwks = jwksByIssuer.get(cfg.oidcIssuer);
+  if (!jwks) {
+    jwks = createRemoteJWKSet(new URL(`${cfg.oidcIssuer}/.well-known/jwks.json`));
+    jwksByIssuer.set(cfg.oidcIssuer, jwks);
+  }
+  const { payload } = await jwtVerify(idToken, jwks, {
+    audience: cfg.clientId,
+    issuer: [cfg.oidcIssuer, cfg.oidcPublicIssuer],
+  });
+  if (payload.nonce !== nonce) throw new Error("ID token nonce does not match");
+}
+
 export async function exchangeCode(
   cfg: WebConfig,
   code: string,
   verifier: string,
+  nonce: string,
 ): Promise<Session> {
   const tokens = await tokenRequest(cfg, {
     grant_type: "authorization_code",
@@ -82,18 +102,30 @@ export async function exchangeCode(
     code_verifier: verifier,
     redirect_uri: `${cfg.publicUrl}/auth/callback`,
   });
+  if (!tokens.id_token) throw new Error("the issuer returned no ID token");
+  await verifyIdToken(cfg, tokens.id_token, nonce);
   return sessionFromTokens(tokens);
 }
 
-export async function refreshSession(cfg: WebConfig, session: Session): Promise<Session | null> {
-  if (!session.refreshToken) return null;
-  try {
-    const tokens = await tokenRequest(cfg, {
-      grant_type: "refresh_token",
-      refresh_token: session.refreshToken,
-    });
-    return sessionFromTokens(tokens, session.refreshToken);
-  } catch {
-    return null;
+/** In-flight and just-finished refreshes by the refresh token they used. Refresh tokens are
+ * single-use, so the parallel requests of one page (and an SSE reconnect) must share one
+ * refresh; requests still carrying the old cookie for a minute get the same new session. This
+ * is per BFF process: run one replica per session (sticky) or share the map if scaled out. */
+const refreshes = new Map<string, { at: number; result: Promise<Session | null> }>();
+const REFRESH_REUSE_MS = 60_000;
+
+export function refreshSession(cfg: WebConfig, session: Session): Promise<Session | null> {
+  const token = session.refreshToken;
+  if (!token) return Promise.resolve(null);
+  const now = Date.now();
+  for (const [key, entry] of refreshes) {
+    if (now - entry.at > REFRESH_REUSE_MS) refreshes.delete(key);
   }
+  const existing = refreshes.get(token);
+  if (existing) return existing.result;
+  const result = tokenRequest(cfg, { grant_type: "refresh_token", refresh_token: token })
+    .then((tokens) => sessionFromTokens(tokens, token))
+    .catch(() => null);
+  refreshes.set(token, { at: now, result });
+  return result;
 }

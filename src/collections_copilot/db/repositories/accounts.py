@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+from collections.abc import Iterable
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
@@ -19,6 +20,15 @@ class AccountsRepo(Repo):
             return None
         stmt = select(Account).where(Account.tenant_id == tenant_id, Account.id == aid)
         return (await self.s.execute(stmt)).scalar_one_or_none()
+
+    async def get_many(
+        self, tenant_id: TenantId, account_ids: Iterable[uuid.UUID | None]
+    ) -> dict[uuid.UUID, Account]:
+        ids = {a for a in account_ids if a is not None}
+        if not ids:
+            return {}
+        stmt = select(Account).where(Account.tenant_id == tenant_id, Account.id.in_(ids))
+        return {a.id: a for a in (await self.s.execute(stmt)).scalars()}
 
     async def get_by_ref(self, tenant_id: TenantId, external_ref: str) -> Account | None:
         stmt = select(Account).where(

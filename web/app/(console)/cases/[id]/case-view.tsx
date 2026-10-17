@@ -1,19 +1,27 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { ApprovalDrawer } from "@/components/approval-drawer/approval-drawer";
-import { NbaChip, SourceChip, StatusBadge } from "@/components/chips";
+import { NbaChip, type Source, SourceChip, StatusBadge } from "@/components/chips";
 import { Empty, ErrorState, Skeleton } from "@/components/states";
-import { useCaseEvents } from "@/lib/api/events";
+import { type ProgressEvent, useCaseEvents } from "@/lib/api/events";
 import { useCase } from "@/lib/api/hooks";
+import type { CaseDetail } from "@/lib/api/types";
 import { formatDateTime, humanize } from "@/lib/format";
 
+const AUTHOR: Record<string, Source> = { ai: "ai", analyst: "analyst", fallback: "fallback" };
+
 export function CaseView({ caseId }: { caseId: string }) {
-  const detail = useCase(caseId);
   const { events, connected } = useCaseEvents(caseId);
+  // While the live stream is down, poll the case so the page still moves on.
+  const detail = useCase(caseId, connected ? false : 5000);
   const [open, setOpen] = useState(false);
+  const name = detail.data?.account.name;
+  useEffect(() => {
+    if (name) document.title = `Case for ${name} · collections-copilot`;
+  }, [name]);
 
   if (detail.isPending) return <Skeleton rows={10} label="Loading the case" />;
   if (detail.isError)
@@ -32,7 +40,7 @@ export function CaseView({ caseId }: { caseId: string }) {
             </Link>{" "}
             <span className="num text-muted">{d.account.external_ref}</span>
           </p>
-          <h1 id="case-title" className="text-xl font-semibold">
+          <h1 id="case-title" tabIndex={-1} className="text-xl font-semibold">
             Case <span className="num text-base">{d.case.id.slice(0, 8)}</span>
           </h1>
           <div className="mt-1 flex flex-wrap items-center gap-2">
@@ -92,24 +100,15 @@ export function CaseView({ caseId }: { caseId: string }) {
           </Empty>
         ) : (
           <ol className="mt-2 space-y-1 text-sm" data-testid="progress">
-            {d.steps
-              .filter((s) => s.kind === "node")
-              .map((s, i) => (
-                <li key={`s${i}`} className="flex gap-2">
-                  <span className="num w-40 text-muted">{formatDateTime(s.started_at)}</span>
-                  <span>{humanize(s.node)}</span>
-                  <span className="text-muted">{s.status}</span>
-                </li>
-              ))}
-            {events
-              .filter((e) => e.event === "node" && e.data.phase === "end")
-              .map((e) => (
-                <li key={e.id} className="flex gap-2">
-                  <span className="w-40 text-muted">live</span>
-                  <span>{humanize(String(e.data.node))}</span>
-                  <span className="text-muted">{String(e.data.status)}</span>
-                </li>
-              ))}
+            {progressRows(d, events).map((row) => (
+              <li key={row.key} className="flex gap-2">
+                <span className="num w-48 shrink-0 whitespace-nowrap text-muted">
+                  {formatDateTime(row.at)}
+                </span>
+                <span>{humanize(row.node)}</span>
+                <span className="text-muted">{row.status}</span>
+              </li>
+            ))}
           </ol>
         )}
       </section>
@@ -128,7 +127,7 @@ export function CaseView({ caseId }: { caseId: string }) {
               <li key={draft.version} className="rounded border border-rule bg-surface p-2 text-sm">
                 <p className="flex flex-wrap items-center gap-2 text-xs text-muted">
                   v{draft.version} · {humanize(draft.status)} · {humanize(draft.author)}
-                  <SourceChip fallback={draft.author === "fallback"} />
+                  <SourceChip source={AUTHOR[draft.author] ?? "unknown"} />
                 </p>
                 <p className="mt-1 whitespace-pre-wrap">{draft.body}</p>
               </li>
@@ -157,4 +156,34 @@ export function CaseView({ caseId }: { caseId: string }) {
       {open ? <ApprovalDrawer detail={d} onClose={() => setOpen(false)} /> : null}
     </article>
   );
+}
+
+type Row = { key: string; at: string; node: string; status: string };
+
+/** Persisted node steps, then live node events the steps do not include yet (matched by node and
+ * attempt), so a step is listed once whether it came from the database or the stream. */
+function progressRows(d: CaseDetail, events: ProgressEvent[]): Row[] {
+  const steps = d.steps.filter((s) => s.kind === "node");
+  const persisted = new Map<string, number>();
+  for (const s of steps) persisted.set(s.node, (persisted.get(s.node) ?? 0) + 1);
+  const seen = new Map<string, number>();
+  const live: Row[] = [];
+  for (const e of events) {
+    if (e.event !== "node" || e.data.phase !== "end") continue;
+    const node = String(e.data.node);
+    const n = (seen.get(node) ?? 0) + 1;
+    seen.set(node, n);
+    if (n <= (persisted.get(node) ?? 0)) continue;
+    const ms = Number.parseInt(e.id.split("-")[0] ?? "", 10); // Redis stream ids start with ms
+    live.push({
+      key: `e${e.id}`,
+      at: Number.isFinite(ms) ? new Date(ms).toISOString() : "",
+      node,
+      status: String(e.data.status),
+    });
+  }
+  return [
+    ...steps.map((s, i) => ({ key: `s${i}`, at: s.started_at, node: s.node, status: s.status })),
+    ...live,
+  ];
 }

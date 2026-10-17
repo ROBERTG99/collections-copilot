@@ -939,6 +939,39 @@
         "title": "CaseSummary",
         "type": "object"
       },
+      "CheckOut": {
+        "description": "A compliance pre-check or post-check result.",
+        "properties": {
+          "deferred": {
+            "title": "Deferred",
+            "type": "boolean"
+          },
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          },
+          "send_at": {
+            "format": "date-time",
+            "title": "Send At",
+            "type": "string"
+          },
+          "violations": {
+            "items": {
+              "$ref": "#/components/schemas/ViolationOut"
+            },
+            "title": "Violations",
+            "type": "array"
+          }
+        },
+        "required": [
+          "ok",
+          "violations",
+          "send_at",
+          "deferred"
+        ],
+        "title": "CheckOut",
+        "type": "object"
+      },
       "ComplianceOut": {
         "properties": {
           "deferred": {
@@ -1284,6 +1317,40 @@
       },
       "MessageOut": {
         "properties": {
+          "account_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Id"
+          },
+          "account_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Name"
+          },
+          "account_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Ref"
+          },
           "body": {
             "title": "Body",
             "type": "string"
@@ -1322,10 +1389,72 @@
             ],
             "title": "Classification Confidence"
           },
+          "classification_source": {
+            "anyOf": [
+              {
+                "enum": [
+                  "rule",
+                  "model",
+                  "fallback",
+                  "unknown"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Classification Source"
+          },
+          "corrected_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Corrected At"
+          },
+          "corrected_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Corrected By"
+          },
+          "corrected_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Corrected Label"
+          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
             "type": "string"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
           },
           "direction": {
             "enum": [
@@ -1677,6 +1806,28 @@
             "title": "Account Id",
             "type": "string"
           },
+          "account_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Name"
+          },
+          "account_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Ref"
+          },
           "amount_cents": {
             "title": "Amount Cents",
             "type": "integer"
@@ -1833,6 +1984,28 @@
             ],
             "title": "Contact Flag"
           },
+          "draft_body": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Draft Body"
+          },
+          "draft_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Draft Version"
+          },
           "external_ref": {
             "title": "External Ref",
             "type": "string"
@@ -1902,6 +2075,11 @@
           },
           "segment": {
             "title": "Segment",
+            "type": "string"
+          },
+          "timezone": {
+            "default": "UTC",
+            "title": "Timezone",
             "type": "string"
           }
         },
@@ -2162,6 +2340,29 @@
           "type"
         ],
         "title": "ValidationError",
+        "type": "object"
+      },
+      "ViolationOut": {
+        "properties": {
+          "blocking": {
+            "default": true,
+            "title": "Blocking",
+            "type": "boolean"
+          },
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ],
+        "title": "ViolationOut",
         "type": "object"
       }
     }
@@ -2597,9 +2798,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Preview Postcheck Api V1 Cases  Case Id  Postcheck Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/CheckOut"
                 }
               }
             },
@@ -3397,7 +3596,7 @@
     },
     "/api/v1/replies/{message_id}:reclassify": {
       "post": {
-        "description": "An analyst corrects the label. This records the correction for review and evals; it does\nnot replay side effects (a STOP is applied by recording an opt-out, not by relabelling).",
+        "description": "An analyst corrects the label of a processed reply. The correction is stored next to the\nmodel's label (which the reply graph keeps reading) for review and evals; it never replays\nside effects (a STOP is applied by recording an opt-out, not by relabelling).",
         "operationId": "reclassify_reply_api_v1_replies__message_id__reclassify_post",
         "parameters": [
           {

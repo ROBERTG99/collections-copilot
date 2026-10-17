@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { expectAccessible, problem, signIn } from "./helpers";
+import { caseAwaitingApproval, expectAccessible, getJson, problem, signIn } from "./helpers";
 
 test.describe("queue", () => {
   test.beforeEach(async ({ page }) => {
@@ -26,6 +26,37 @@ test.describe("queue", () => {
     await page.getByRole("button", { name: "Search" }).click();
     await expect(page.getByText("No accounts match these filters")).toBeVisible();
     await expectAccessible(page);
+    await page.getByRole("button", { name: "Clear filters" }).click();
+    await expect(page.getByRole("table", { name: /accounts by priority/i })).toBeVisible();
+  });
+
+  test("batch approve: review every SMS, then per-item results (FR-6)", async ({ page }) => {
+    const caseId = await caseAwaitingApproval(page);
+    const detail = await getJson<{ account: { name: string }; drafts: { body: string }[] }>(
+      page,
+      `/api/cases/${caseId}`,
+    );
+    await page.goto("/queue");
+    await page.getByLabel("Case status").selectOption("awaiting_approval");
+    const table = page.getByRole("table", { name: /accounts by priority/i });
+    await table.getByLabel(`Select the draft for ${detail.account.name}`).check();
+    await page.getByRole("button", { name: "Review and approve (1)" }).click();
+    const dialog = page.getByRole("dialog", { name: "Approve 1 SMS drafts" });
+    await expect(dialog.getByTestId("batch-items")).toContainText(detail.drafts.at(-1)!.body);
+    await expectAccessible(page);
+    await dialog.getByRole("button", { name: "Approve 1 messages" }).click();
+    await expect(dialog.getByTestId("batch-items")).toContainText("Approved");
+    await dialog.getByRole("button", { name: "Done" }).click();
+    await expect(dialog).toBeHidden();
+  });
+
+  test("phones: cards can be selected and show compliance", async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 812 });
+    await page.goto("/queue");
+    const cards = page.locator("main ul li:visible");
+    await expect(cards.first()).toBeVisible();
+    await expect(cards.first().getByRole("checkbox")).toBeVisible();
+    await expect(cards.first()).toContainText(/Clear|Blocked|not checked/);
   });
 
   test("error: problem details show the correlation id and retry works", async ({ page }) => {

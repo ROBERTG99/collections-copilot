@@ -1,11 +1,12 @@
-import Link from "next/link";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 
+import { NavLinks } from "@/components/nav-links";
 import { UserProvider } from "@/components/user-context";
 import { QueryProvider } from "@/lib/api/query";
 import { currentSession } from "@/lib/server-session";
-import { hasRole } from "@/lib/session";
+import { hasRole, isExpired } from "@/lib/session";
 
 const NAV = [
   { href: "/queue", label: "Queue" },
@@ -18,7 +19,16 @@ const NAV = [
 
 export default async function ConsoleLayout({ children }: { children: ReactNode }) {
   const session = await currentSession();
-  if (!session) redirect("/auth/login");
+  const path = (await headers()).get("x-cc-path") ?? "/queue";
+  const returnTo = encodeURIComponent(
+    path.startsWith("/") && !path.startsWith("//") ? path : "/queue",
+  );
+  if (!session) redirect(`/auth/login?returnTo=${returnTo}`);
+  // An expired access token is refreshed by a route handler (server components cannot set
+  // cookies); if that fails the analyst signs in again instead of seeing every panel fail.
+  if (isExpired(session)) {
+    redirect(`/auth/refresh?returnTo=${returnTo}`);
+  }
   return (
     <QueryProvider>
       <UserProvider user={session.user}>
@@ -28,13 +38,11 @@ export default async function ConsoleLayout({ children }: { children: ReactNode 
         <header className="border-b border-rule bg-surface">
           <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-4 px-4 py-2">
             <span className="font-semibold">collections-copilot</span>
-            <nav aria-label="Main" className="flex flex-wrap gap-3">
-              {NAV.filter((n) => !n.roles || hasRole(session, ...n.roles)).map((n) => (
-                <Link key={n.href} href={n.href} className="rounded px-2 py-1 hover:bg-surface-2">
-                  {n.label}
-                </Link>
-              ))}
-            </nav>
+            <NavLinks
+              links={NAV.filter((n) => !n.roles || hasRole(session, ...n.roles)).map(
+                ({ href, label }) => ({ href, label }),
+              )}
+            />
             <div className="ml-auto flex items-center gap-3 text-sm">
               <span data-testid="whoami">
                 {session.user.username} · {session.user.roles.join(", ")}
