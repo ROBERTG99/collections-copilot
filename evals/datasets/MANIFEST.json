@@ -1,0 +1,34 @@
+{
+  "datasets": {
+    "compliance_adversarial.v1": {
+      "dev": 30,
+      "path": "evals/datasets/compliance_adversarial.v1.jsonl",
+      "rows": 60,
+      "sha256": "61227445055e3734a0ecb5f11d1002a8c885383c8a4c4c60d1eb3fb156e7eac2",
+      "test": 30
+    },
+    "nba.v1": {
+      "dev": 180,
+      "path": "evals/datasets/nba.v1.jsonl",
+      "rows": 300,
+      "sha256": "5acd2f203f00f4e3de10d523f70c210624fc139ae5bdaaa04e9560a5991a58ce",
+      "test": 120
+    },
+    "replies.v1": {
+      "dev": 120,
+      "path": "evals/datasets/replies.v1.jsonl",
+      "rows": 200,
+      "sha256": "3b01dd1a64e9cb7ea3bb42f0b045de1e896f1ef1bedffe5f1daf46faa8e69089",
+      "test": 80
+    },
+    "tone_calibration.v1": {
+      "dev": 40,
+      "path": "evals/datasets/tone_calibration.v1.jsonl",
+      "rows": 80,
+      "sha256": "483de6b2f36bf59b9b16eda1a4facc2aa9d4b28cbc0cbe8346c65800be675e29",
+      "test": 40
+    }
+  },
+  "generator": "evals.v1",
+  "seed": 4242
+}
