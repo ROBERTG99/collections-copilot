@@ -16,6 +16,7 @@ from mcp.client.streamable_http import streamable_http_client
 from mcp.shared.exceptions import MCPError
 
 from collections_copilot.integrations.mcp.tokens import AgentTokenProvider
+from collections_copilot.observability import tracing
 
 E_IDEMPOTENCY_CONFLICT = -32040
 E_APPROVAL_INVALID = -32045
@@ -81,8 +82,13 @@ class McpLedgerTools:
         http = httpx2.AsyncClient(
             headers={"Authorization": f"Bearer {token}"}, timeout=self.timeout_s
         )
-        async with http, Client(streamable_http_client(self.url, http_client=http)) as client:
-            return await client.call_tool(tool, args, meta=cast(Any, meta) or None)
+        with tracing.span(
+            f"tool {tool}",
+            {"cc.tool": tool, "cc.tenant_id": tenant, "rpc.system": "mcp"},
+            kind=tracing.SpanKind.CLIENT,
+        ):
+            async with http, Client(streamable_http_client(self.url, http_client=http)) as client:
+                return await client.call_tool(tool, args, meta=cast(Any, meta) or None)
 
     async def get_balance(self, tenant: str, account_ref: str) -> dict[str, Any]:
         result = await self._call(

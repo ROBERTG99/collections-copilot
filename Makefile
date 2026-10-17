@@ -16,7 +16,7 @@ PY_SRC := src apps third_party scripts tests data migrations
 .PHONY: help bootstrap up down seed demo logs check-fast test test-unit test-integration \
 	test-docker e2e eval eval-live bench lint fmt typecheck security verify verify-clean docs \
 	clean gen-types record-fixtures tf-check tf-test dev-token db-shell deps-up deps-down \
-	migrate images coverage
+	migrate images coverage observability
 
 help: ## List targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-18s %s\n", $$1, $$2}'
@@ -112,6 +112,9 @@ tf-test: ## terraform test only (offline, mock_provider)
 
 tf-check: ## fmt, validate, test, tflint, checkov (offline)
 	./scripts/tf.sh check
+
+observability: ## Full stack plus Jaeger, Prometheus and Grafana (8391), with trace export on
+	CC_OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318 docker compose --profile observability up -d --wait --build
 
 verify: ## Everything except eval-live; the single gate
 	$(MAKE) lint

@@ -8,14 +8,9 @@ import { type NextRequest } from "next/server";
 
 import { webConfig } from "@/lib/config";
 import { activeSession } from "@/lib/server-session";
+import { correlationId, traceparent } from "@/lib/trace";
 
-const FORWARD_REQUEST = [
-  "content-type",
-  "accept",
-  "idempotency-key",
-  "last-event-id",
-  "x-correlation-id",
-];
+const FORWARD_REQUEST = ["content-type", "accept", "idempotency-key", "last-event-id"];
 const FORWARD_RESPONSE = [
   "content-type",
   "cache-control",
@@ -47,7 +42,11 @@ async function proxy(request: NextRequest, path: string[]): Promise<Response> {
   }
   const session = await activeSession();
   if (!session) return problem(401, "Unauthorized", "sign in again");
-  const headers = new Headers({ authorization: `Bearer ${session.accessToken}` });
+  const headers = new Headers({
+    authorization: `Bearer ${session.accessToken}`,
+    "x-correlation-id": correlationId(request.headers.get("x-correlation-id")),
+    traceparent: traceparent(),
+  });
   for (const name of FORWARD_REQUEST) {
     const value = request.headers.get(name);
     if (value) headers.set(name, value);

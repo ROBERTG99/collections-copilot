@@ -9,6 +9,7 @@ from typing import Any
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
+from prometheus_client import make_asgi_app
 from redis.asyncio import Redis
 
 from collections_copilot.api import errors
@@ -18,6 +19,7 @@ from collections_copilot.api.middleware.limits import (
     IdempotencyMiddleware,
     RateLimitMiddleware,
 )
+from collections_copilot.api.middleware.telemetry import NATIVE_TELEMETRY_OFF, TelemetryMiddleware
 from collections_copilot.api.routers import (
     accounts,
     approvals,
@@ -44,6 +46,8 @@ from collections_copilot.integrations.queue.sqs import QueueClient, SqsQueueClie
 from collections_copilot.integrations.sms import build_sms_sender
 from collections_copilot.integrations.sms.base import SmsSender
 from collections_copilot.integrations.storage.s3 import ObjectStore, S3ObjectStore
+from collections_copilot.observability.logging import configure_logging
+from collections_copilot.observability.tracing import setup_tracing
 
 log = logging.getLogger(__name__)
 
@@ -62,6 +66,7 @@ def create_app(
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+        setup_tracing("cc-api", settings.otel_exporter_otlp_endpoint)
         app.state.settings = settings
         app.state.engine = make_engine(settings.database_url)
         app.state.sessionmaker = make_sessionmaker(app.state.engine)
@@ -101,12 +106,21 @@ def create_app(
                 await app.state.engine.dispose()
                 await app.state.redis.aclose()
 
-    app = FastAPI(title="collections-copilot API", version="0.1.0", lifespan=lifespan)
+    app = FastAPI(
+        title="collections-copilot API",
+        version="0.1.0",
+        lifespan=lifespan,
+        # TelemetryMiddleware owns the server span (route template, correlation id): FastAPI's
+        # native telemetry would add a second span carrying the raw path and query.
+        telemetry=NATIVE_TELEMETRY_OFF,
+    )
     errors.install(app)
     # Added last runs first: body size → rate limit → idempotency → routes.
     app.add_middleware(IdempotencyMiddleware)
     app.add_middleware(RateLimitMiddleware)
     app.add_middleware(BodyLimitMiddleware, max_bytes=settings.max_json_bytes)
+    app.add_middleware(TelemetryMiddleware)  # outermost: every request, rejections included
+    app.mount("/metrics", make_asgi_app())  # Prometheus scrape (internal; the ALB serves /api)
     app.include_router(me.router)
     app.include_router(ingest.router)
     app.include_router(queue.router)
@@ -136,4 +150,8 @@ def create_app(
     return app
 
 
-app = create_app
+def app() -> FastAPI:
+    """uvicorn factory (`collections_copilot.api.main:app --factory`): JSON logs, then the app."""
+    settings = get_settings()
+    configure_logging("api", settings.log_level)
+    return create_app(settings)

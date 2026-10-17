@@ -39,6 +39,7 @@ from collections_copilot.compliance import engine
 from collections_copilot.compliance.engine import AccountFacts, ComplianceContext, InvoiceFacts
 from collections_copilot.integrations.sms.base import SmsError
 from collections_copilot.llm.redaction import AccountPII
+from collections_copilot.observability import metrics, tracing
 from collections_copilot.observability.steps import StepRecord, current_context, node_context
 from collections_copilot.scoring.priority import inputs_from, score
 
@@ -116,7 +117,16 @@ def build_case_graph(services: Services, checkpointer: BaseCheckpointSaver[Any] 
         async def wrapped(state: CaseState) -> dict[str, Any]:
             started = time.perf_counter()
             status = "ok"
-            with node_context(name):
+            attrs = {
+                "cc.graph": "case",
+                "cc.node": name,
+                "cc.case_id": state["case_id"],
+                "cc.tenant_id": state["tenant_id"],
+            }
+            with (
+                node_context(name),
+                tracing.tracer().start_as_current_span(f"node {name}", attributes=attrs) as span,
+            ):
                 await services.events.publish(
                     state["tenant_id"], state["case_id"], "node", {"node": name, "phase": "start"}
                 )
@@ -131,6 +141,10 @@ def build_case_graph(services: Services, checkpointer: BaseCheckpointSaver[Any] 
                 finally:
                     ctx = current_context()
                     latency = (time.perf_counter() - started) * 1000
+                    span.set_attribute("cc.status", status)
+                    if status == "error":
+                        span.set_status(tracing.Status(tracing.StatusCode.ERROR))
+                    metrics.NODE_DURATION.labels("case", name, status).observe(latency / 1000)
                     await services.gateway.sink.record(
                         StepRecord(
                             run_id=ctx.run_id or state.get("run_id", ""),
@@ -284,6 +298,7 @@ def build_case_graph(services: Services, checkpointer: BaseCheckpointSaver[Any] 
             "requires_analyst": decision.requires_analyst,
             "analyst_reason": decision.analyst_reason,
         }
+        metrics.NBA_DECISIONS.labels(decision.action).inc()
         if decision.requires_analyst:
             await set_status(state, "requires_analyst", analyst_reason=decision.analyst_reason)
         return {"nba": nba, "fallback": state.get("fallback", False) or decision.fallback}
@@ -580,8 +595,12 @@ def build_case_graph(services: Services, checkpointer: BaseCheckpointSaver[Any] 
         maybe_sent = False
         for attempt in range(SEND_RETRIES):
             try:
-                sms = await services.sms.send(f.phone_e164, body, idempotency_key=key)
+                with tracing.span(
+                    "sms send", {"cc.attempt": attempt + 1}, kind=tracing.SpanKind.CLIENT
+                ):
+                    sms = await services.sms.send(f.phone_e164, body, idempotency_key=key)
             except SmsError as exc:
+                metrics.SMS_SENT.labels("error").inc()
                 last_error = str(exc)
                 maybe_sent = maybe_sent or exc.maybe_sent
                 if not exc.retryable or attempt == SEND_RETRIES - 1:
@@ -596,6 +615,7 @@ def build_case_graph(services: Services, checkpointer: BaseCheckpointSaver[Any] 
                 sent_at=now,
                 attempts=attempt + 1,
             )
+            metrics.SMS_SENT.labels("sent").inc()
             await store.add_contact(state, claim["id"], now)
             await store.audit(
                 state,

@@ -32,6 +32,7 @@ from collections_copilot.db.models import Draft
 from collections_copilot.db.repositories import Repos
 from collections_copilot.integrations.queue.messages import TaskMessage
 from collections_copilot.integrations.queue.sqs import QueueUnavailableError
+from collections_copilot.observability import metrics
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1", tags=["approvals"])
@@ -165,6 +166,8 @@ async def decide(
             )
         else:
             result = await _record(repos, principal, case, latest, req, now)
+    if not result.replayed:  # counted once the decision is committed, never on a retry
+        metrics.APPROVALS.labels(result.decision).inc()
     await _enqueue_resume(request, principal, case_id, result, req)
     return result
 

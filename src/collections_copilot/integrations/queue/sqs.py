@@ -10,6 +10,8 @@ from typing import Any, Protocol
 
 from aiobotocore.session import get_session
 
+from collections_copilot.observability import tracing
+
 
 @dataclass(frozen=True)
 class QueueMessage:
@@ -70,7 +72,8 @@ class SqsQueueClient:
     async def send(
         self, queue: str, body: Mapping[str, Any], attributes: Mapping[str, str] | None = None
     ) -> str:
-        attrs = {k: {"DataType": "String", "StringValue": v} for k, v in (attributes or {}).items()}
+        carrier = tracing.inject(dict(attributes or {}))  # §14: the trace crosses the queue
+        attrs = {k: {"DataType": "String", "StringValue": v} for k, v in carrier.items()}
         try:
             resp = await self._client.send_message(
                 QueueUrl=await self.url(queue),

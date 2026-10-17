@@ -9,6 +9,8 @@ from typing import Any
 import httpx
 import pytest
 
+from scripts.demo import client_for
+
 pytestmark = [pytest.mark.integration, pytest.mark.docker]
 API = "http://localhost:8310"
 OIDC = "http://localhost:8345"
@@ -40,8 +42,7 @@ def wait_reply(
 
 
 def test_reply_arrives_within_5_seconds() -> None:
-    token = httpx.post(f"{OIDC}/dev/token", json={"username": "ana.analyst"}).json()["access_token"]
-    client = httpx.Client(base_url=API, headers={"Authorization": f"Bearer {token}"}, timeout=10)
+    client = client_for("ana.analyst")  # honours 429 Retry-After like any polite client
     items = client.get("/api/v1/queue", params={"limit": 100, "status": "no_case"}).json()["items"]
     for item in items:
         detail = client.get(f"/api/v1/accounts/{item['account_id']}").json()

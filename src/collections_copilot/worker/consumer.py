@@ -9,6 +9,7 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 from collections_copilot.integrations.queue.sqs import QueueClient, QueueMessage
+from collections_copilot.observability import tracing
 
 log = logging.getLogger(__name__)
 
@@ -52,7 +53,12 @@ class Consumer:
     async def _process(self, msg: QueueMessage) -> None:
         keepalive = asyncio.create_task(self._keepalive(msg))
         try:
-            await self.handler(msg)
+            with tracing.consumer_span(
+                f"process {self.queue}",
+                msg.attributes,
+                {"messaging.system": "aws_sqs", "messaging.destination.name": self.queue},
+            ):
+                await self.handler(msg)
         except Exception:
             # Leave the message: it becomes visible again and, after maxReceiveCount, goes to the DLQ.
             log.exception(

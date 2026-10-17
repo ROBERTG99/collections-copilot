@@ -17,7 +17,9 @@ message is reused instead of calling the model again; a handled message skips st
 
 from __future__ import annotations
 
+import time
 import uuid
+from collections.abc import Awaitable, Callable
 from datetime import date, datetime, timedelta
 from typing import Any, TypedDict
 
@@ -34,6 +36,7 @@ from collections_copilot.db import audit
 from collections_copilot.db.repositories import Repos
 from collections_copilot.integrations.queue.messages import TaskMessage
 from collections_copilot.llm.redaction import AccountPII
+from collections_copilot.observability import metrics, tracing
 from collections_copilot.observability.steps import node_context
 
 MIN_PROMISE_DAYS = 1
@@ -51,6 +54,35 @@ class ReplyState(TypedDict, total=False):
     outcome: str
     promise_id: str
     previous: dict[str, Any] | None
+
+
+def _traced(
+    name: str, fn: Callable[[ReplyState], Awaitable[dict[str, Any]]]
+) -> Callable[[ReplyState], Awaitable[dict[str, Any]]]:
+    """One span and one duration sample per reply-graph node (identifiers only, never text)."""
+
+    async def wrapped(state: ReplyState) -> dict[str, Any]:
+        started = time.perf_counter()
+        status = "ok"
+        attrs = {
+            "cc.graph": "reply",
+            "cc.node": name,
+            "cc.tenant_id": str(state.get("tenant_id", "")),
+        }
+        with tracing.tracer().start_as_current_span(f"node {name}", attributes=attrs) as span:
+            try:
+                return await fn(state)
+            except Exception:
+                status = "error"
+                span.set_status(tracing.Status(tracing.StatusCode.ERROR))
+                raise
+            finally:
+                span.set_attribute("cc.status", status)
+                metrics.NODE_DURATION.labels("reply", name, status).observe(
+                    time.perf_counter() - started
+                )
+
+    return wrapped
 
 
 async def classify_text(
@@ -385,7 +417,7 @@ def build_reply_graph(services: Services, sm: async_sessionmaker[AsyncSession]) 
         ("to_analyst", to_analyst),
         ("notify_case", notify_case),
     ]:
-        g.add_node(name, fn)  # type: ignore[call-overload]
+        g.add_node(name, _traced(name, fn))  # type: ignore[call-overload]
     g.add_edge(START, "stop_rule")
     g.add_conditional_edges("stop_rule", after_stop, ["load", END])
     g.add_conditional_edges("load", after_load, ["classify_reply", "to_analyst", "notify_case"])

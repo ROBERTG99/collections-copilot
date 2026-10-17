@@ -1,0 +1,26 @@
+# SLOs (§14): availability 99.5%, queue p95 < 300 ms; DLQ messages page someone.
+groups:
+  - name: collections-copilot
+    rules:
+      - alert: CCDLQNotEmpty
+        expr: max by (queue) (cc_sqs_dlq_depth) > 0
+        for: 5m
+        labels: { severity: page }
+        annotations:
+          summary: "Dead-letter queue {{ $labels.queue }} is not empty"
+          runbook: docs/runbook.md#dlq-replay
+      - alert: CCQueueLatencyP95High
+        expr: >
+          histogram_quantile(0.95, sum by (le) (rate(cc_http_request_duration_seconds_bucket{route="/api/v1/queue"}[5m]))) > 0.3
+        for: 10m
+        labels: { severity: ticket }
+        annotations:
+          summary: "Queue route p95 above 300 ms"
+      - alert: CCApiErrorRateHigh
+        expr: >
+          sum(rate(cc_http_request_duration_seconds_count{status=~"5.."}[5m]))
+          / clamp_min(sum(rate(cc_http_request_duration_seconds_count[5m])), 1e-9) > 0.005
+        for: 10m
+        labels: { severity: page }
+        annotations:
+          summary: "API 5xx rate above the 99.5% availability budget"

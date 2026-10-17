@@ -34,11 +34,14 @@ from collections_copilot.db.session import (
 from collections_copilot.integrations.email.smtp import SmtpNotifier
 from collections_copilot.integrations.mcp import build_ledger
 from collections_copilot.integrations.queue.messages import ReplyMessage, TaskMessage
-from collections_copilot.integrations.queue.sqs import QueueMessage, SqsQueueClient
+from collections_copilot.integrations.queue.sqs import QueueClient, QueueMessage, SqsQueueClient
 from collections_copilot.integrations.sms import build_sms_sender
 from collections_copilot.llm.gateway import LLMGateway
 from collections_copilot.llm.providers import build_provider
+from collections_copilot.observability import metrics
 from collections_copilot.observability.events import RedisEventPublisher
+from collections_copilot.observability.logging import configure_logging
+from collections_copilot.observability.tracing import setup_tracing
 from collections_copilot.worker.consumer import Consumer
 from collections_copilot.worker.runner import CaseRunner
 
@@ -169,13 +172,30 @@ async def run(settings: Settings) -> None:
         await asyncio.gather(
             *(c.run() for c in consumers),
             scheduler.run(settings.scheduler_interval_s, stop),
+            watch_dlqs(queues, [settings.sqs_tasks_dlq, settings.sqs_replies_dlq], stop),
             server.serve(),
         )
 
 
+async def watch_dlqs(
+    queues: QueueClient, names: list[str], stop: asyncio.Event, interval_s: float = 30.0
+) -> None:
+    """Keep `cc_sqs_dlq_depth` current for the `CCDLQNotEmpty` alert."""
+    while not stop.is_set():
+        for name in names:
+            try:
+                metrics.DLQ_DEPTH.labels(name).set(await queues.depth(name))
+            except Exception:
+                log.warning("dlq depth unavailable", extra={"queue": name})
+        with contextlib.suppress(TimeoutError):
+            await asyncio.wait_for(stop.wait(), interval_s)
+
+
 def main() -> None:
-    logging.basicConfig(level=logging.INFO)
-    asyncio.run(run(get_settings()))
+    settings = get_settings()
+    configure_logging("worker", settings.log_level)
+    setup_tracing("cc-worker", settings.otel_exporter_otlp_endpoint)
+    asyncio.run(run(settings))
 
 
 if __name__ == "__main__":

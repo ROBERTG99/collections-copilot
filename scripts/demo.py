@@ -19,6 +19,24 @@ def token(username: str) -> str:
     return str(resp.json()["access_token"])
 
 
+class PoliteTransport(httpx.HTTPTransport):
+    """Honours 429 Retry-After (the API allows 120 requests a minute per user)."""
+
+    def handle_request(self, request: httpx.Request) -> httpx.Response:
+        for _ in range(5):
+            response = super().handle_request(request)
+            if response.status_code != 429:
+                return response
+            response.close()
+            time.sleep(min(30.0, float(response.headers.get("retry-after", "5"))))
+        return super().handle_request(request)
+
+
+def client_for(username: str) -> httpx.Client:
+    headers = {"Authorization": f"Bearer {token(username)}"}
+    return httpx.Client(base_url=API, timeout=10, headers=headers, transport=PoliteTransport())
+
+
 PAUSED = "awaiting_approval"
 TERMINAL = {"closed", "failed", "escalated", "requires_analyst", "scheduled", "sent"}
 
@@ -32,16 +50,20 @@ def wait_settled(client: httpx.Client, case_id: str, timeout_s: float = 60) -> d
         seen = body.get("case", {}).get("status")
         if seen == PAUSED or seen in TERMINAL:
             return dict(body)
-        time.sleep(0.25)
+        time.sleep(1.0)
     raise TimeoutError(f"case {case_id} did not settle (last: {seen})")
 
 
 def main() -> int:
-    headers = {"Authorization": f"Bearer {token('ana.analyst')}"}
-    with httpx.Client(base_url=API, timeout=10, headers=headers) as client:
-        queue = client.get("/api/v1/queue", params={"limit": 20, "status": "no_case"})
+    with client_for("ana.analyst") as client:
+        queue = client.get("/api/v1/queue", params={"limit": 100, "status": "no_case"})
         queue.raise_for_status()
-        items = [i for i in queue.json()["items"] if not i["opted_out"]]
+        # The highest scores are long overdue with broken promises and escalate by house rule;
+        # the least overdue accounts are the ones a reminder is drafted for.
+        items = sorted(
+            (i for i in queue.json()["items"] if not i["opted_out"]),
+            key=lambda i: i["max_days_past_due"],
+        )
         if not items:
             print("no account without an open case; run `make seed` on a fresh stack")
             return 1
@@ -57,7 +79,7 @@ def main() -> int:
                 drafts = body.get("drafts") or [{}]
                 print(f"case {case_id} awaiting_approval; draft: {drafts[-1].get('body')}")
                 return 0
-    print("no case paused for approval in the top 10 accounts")
+    print("no case paused for approval in the 10 least overdue accounts")
     return 1
 
 

@@ -30,6 +30,7 @@ from collections_copilot.llm.providers.base import (
     Usage,
 )
 from collections_copilot.llm.redaction import AccountPII, Redactor
+from collections_copilot.observability import metrics, tracing
 from collections_copilot.observability.steps import (
     NullStepSink,
     StepRecord,
@@ -217,6 +218,54 @@ class LLMGateway:
         language: str = "en",
     ) -> LLMResult[T]:
         """One structured call. `validator` adds domain checks (return an error string to reject)."""
+        with tracing.span(f"chat {route.model}", kind=tracing.SpanKind.CLIENT) as span:
+            result = await self._structured(
+                route,
+                system=system,
+                user=user,
+                schema=schema,
+                prompt_version=prompt_version,
+                prompt_hash=prompt_hash,
+                validator=validator,
+                pii=pii,
+                language=language,
+            )
+            model = result.model or route.model
+            span.set_attributes(
+                tracing.gen_ai_attributes(
+                    provider=self.provider.name,
+                    route=route.name,
+                    request_model=route.model,
+                    response_model=result.model,
+                    input_tokens=result.input_tokens,
+                    output_tokens=result.output_tokens,
+                    cost_usd=result.cost_usd,
+                    status=result.status,
+                    prompt_version=prompt_version,
+                    prompt_hash=prompt_hash,
+                    attempts=result.attempts,
+                )
+            )
+            if result.status != "ok":
+                span.set_status(tracing.Status(tracing.StatusCode.ERROR, result.status))
+            metrics.LLM_TOKENS.labels(route.name, model, "input").inc(result.input_tokens)
+            metrics.LLM_TOKENS.labels(route.name, model, "output").inc(result.output_tokens)
+            metrics.LLM_COST.labels(route.name, model).inc(result.cost_usd)
+            return result
+
+    async def _structured(
+        self,
+        route: RouteSpec,
+        *,
+        system: str,
+        user: str,
+        schema: type[T],
+        prompt_version: str,
+        prompt_hash: str,
+        validator: Callable[[T], str | None] | None,
+        pii: AccountPII | None,
+        language: str,
+    ) -> LLMResult[T]:
         started = time.perf_counter()
         result: LLMResult[T]
         if not self.breaker.allow():
