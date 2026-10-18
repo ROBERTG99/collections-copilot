@@ -18,6 +18,7 @@ GITLEAKS_VERSION=8.30.1
 SYFT_VERSION=1.54.1
 CHECKOV_VERSION=3.3.29
 PRE_COMMIT_VERSION=4.7.0
+SHELLCHECK_VERSION=0.11.0
 AWS_PROVIDER_VERSION=6.68.0
 
 OS="$(uname -s | tr '[:upper:]' '[:lower:]')"   # linux | darwin
@@ -79,6 +80,12 @@ fi
 if ! have syft; then
   log "syft $SYFT_VERSION"
   install_tgz syft "https://github.com/anchore/syft/releases/download/v${SYFT_VERSION}/syft_${SYFT_VERSION}_${OS}_${ARCH}.tar.gz"
+fi
+if ! have shellcheck; then  # actionlint lints workflow run: scripts with it
+  log "shellcheck $SHELLCHECK_VERSION"
+  S_OS=$OS; S_ARCH=x86_64; [ "$ARCH" = arm64 ] && S_ARCH=aarch64
+  fetch "https://github.com/koalaman/shellcheck/releases/download/v${SHELLCHECK_VERSION}/shellcheck-v${SHELLCHECK_VERSION}.${S_OS}.${S_ARCH}.tar.xz" "$TMP/sc.tar.xz"
+  tar -xJf "$TMP/sc.tar.xz" -C "$TMP" && install -m 0755 "$TMP/shellcheck-v${SHELLCHECK_VERSION}/shellcheck" "$BIN/shellcheck"
 fi
 if have go; then
   have actionlint || { log "actionlint $ACTIONLINT_VERSION"; GOBIN="$BIN" go install "github.com/rhysd/actionlint/cmd/actionlint@v${ACTIONLINT_VERSION}"; }

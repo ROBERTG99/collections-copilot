@@ -1,0 +1,43 @@
+# pre-commit install; hooks run the repository's own pinned tools (no hook repositories fetched).
+repos:
+  - repo: local
+    hooks:
+      - id: ruff
+        name: ruff check
+        entry: uv run --frozen ruff check --fix
+        language: system
+        types: [python]
+      - id: ruff-format
+        name: ruff format
+        entry: uv run --frozen ruff format
+        language: system
+        types: [python]
+      - id: gitleaks
+        name: gitleaks
+        entry: gitleaks protect --staged --redact --no-banner
+        language: system
+        pass_filenames: false
+      - id: terraform-fmt
+        name: terraform fmt
+        entry: terraform fmt -recursive infra/terraform
+        language: system
+        files: ^infra/terraform/.*\.tf$
+        pass_filenames: false
+      - id: prettier
+        name: prettier (web)
+        entry: bash -c 'cd web && pnpm exec prettier --check .'
+        language: system
+        files: ^web/
+        pass_filenames: false
+      - id: markdownlint
+        name: markdownlint
+        entry: pnpm run -s lint:md
+        language: system
+        types: [markdown]
+        pass_filenames: false
+      - id: actionlint
+        name: actionlint
+        entry: actionlint
+        language: system
+        files: ^\.github/workflows/
+        pass_filenames: false

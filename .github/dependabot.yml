@@ -1,0 +1,27 @@
+# Weekly dependency updates, grouped per ecosystem to keep the PR count low (BUILD.md §6).
+version: 2
+updates:
+  - package-ecosystem: uv
+    directory: /
+    schedule: { interval: weekly, day: monday }
+    groups:
+      python: { patterns: ["*"], update-types: [minor, patch] }
+  - package-ecosystem: npm
+    directory: /
+    schedule: { interval: weekly, day: monday }
+    groups:
+      web: { patterns: ["*"], update-types: [minor, patch] }
+  - package-ecosystem: docker
+    directories: [/docker, /web]
+    schedule: { interval: weekly, day: monday }
+  - package-ecosystem: docker-compose
+    directory: /
+    schedule: { interval: weekly, day: monday }
+  - package-ecosystem: github-actions
+    directories: [/, /.github/actions/setup]
+    schedule: { interval: weekly, day: monday }
+    groups:
+      actions: { patterns: ["*"] }
+  - package-ecosystem: terraform
+    directory: /infra/terraform/envs/dev
+    schedule: { interval: weekly, day: monday }

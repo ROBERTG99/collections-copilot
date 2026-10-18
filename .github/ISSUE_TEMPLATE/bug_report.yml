@@ -1,0 +1,23 @@
+name: Bug report
+description: Something behaves differently from the specification or the docs.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Use synthetic data only. Never paste real phone numbers, names, tokens or keys.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: Steps, expected and actual behaviour, and the `correlation_id` from the error if there is one.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Commit or version
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      render: text
