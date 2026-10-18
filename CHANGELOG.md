@@ -81,6 +81,11 @@ All notable changes to this project are documented in this file. The format is b
 - README, architecture, AI development, evaluation, security, runbook, design FAQ, contributing guide, known limitations, verification procedure and this changelog; ADRs 0001 to 0009 (T-50).
 - Operations commands `cc dlq peek`, `cc replay-dlq` and `cc dev-token`, the chain head lines printed by `cc audit verify`, and the SQS contract test against ElasticMQ and moto (T-50).
 
+#### M9 Reviews and verification (2026-10-18)
+
+- Final reviews by the reviewer, security, compliance and Terraform subagents until the reviewer's verdict was "ship" (T-51), and the clean-clone verification recorded in [docs/verification.md](docs/verification.md) (T-52).
+- A CI `security` job (gitleaks over the whole history, pip-audit, `pnpm audit`), and migration 0003 for scheduled promise write-back retries.
+
 ### Changed
 
 - Compliance rules for amounts and links fail closed, and text rules read NFKC-normalised text (M1 and M6 reviews).
@@ -100,7 +105,10 @@ All notable changes to this project are documented in this file. The format is b
 - M5 review and eval analysis findings.
 - S3 reads continue to the end of the body within the size cap.
 - M7 code review and Terraform review findings.
+- M8 review findings: `cc replay-dlq` keeps raw bodies and attributes, and the demo's STOP journey cancels a waiting draft.
+- T-51 review findings: a redelivered resume finishes a run that crashed mid-node, a stored auto-approval survives a crash, an analyst's edit is never overridden by auto-approval, template drafts always need a human, and transient ledger failures are retried with back-off instead of failing.
 
 ### Security
 
+- T-51 security audit findings: account names are redacted in every escaped form and normalised at ingest, phone numbers are redacted in national and grouped forms, ingest amounts are bounded plain decimals, gateway approval ids are validated, the auto-approval ceiling is bounded and fails closed, and release images build without the shared cache.
 - M6 review and security audit findings: exception messages kept off exported spans, Unicode look-alike links and invisible characters blocked, signed and replay-checked gateway webhooks, idempotency failing closed, synthetic numbers enforced outside production, and log redaction of tokens and phone numbers.
