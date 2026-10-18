@@ -286,6 +286,7 @@ class Demo:
         expect(cited and cited <= {n["id"] for n in detail["notes"]},
                "the next best action cites the account's note", cited=sorted(cited))  # fmt: skip
         draft = case["drafts"][-1]
+        self.log(f"  case {case_id}: {nba['status']} (the graph paused at the approval interrupt)")
         self.log(f"  NBA {nba['nba_action']} ({nba['nba_confidence']}) citing {len(cited)} note")
         self.log(f"  to {case['recipient_e164']}: {draft['body']!r}")
         self.log(f"  send at {case['precheck']['send_at']} (debtor time zone {self.zone})")
