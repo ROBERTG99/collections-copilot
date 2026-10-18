@@ -27,7 +27,7 @@ State on 2026-10-18, branch `feat/serene-gates-04qt5s`:
 
   | Suite | Result |
   |---|---|
-  | nba | accuracy 0.975, schema 1.0, citations 0.943, p95 55.0 ms |
+  | nba | accuracy 0.975, schema 1.0, citations 0.943, p95 78.4 ms (evals/REPORT.md at ff1e200) |
   | replies | macro-F1 0.8917 (FAIL), STOP recall 1.0, write-backs 0, PII 0, authorized write-back recall 1.0 |
   | compliance | violations 0, write-backs 0, PII 0, allowed sends 1.0 |
 
