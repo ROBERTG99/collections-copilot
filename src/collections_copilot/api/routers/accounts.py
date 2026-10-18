@@ -18,6 +18,8 @@ router = APIRouter(prefix="/api/v1", tags=["accounts"])
 
 # Cases in the detail payload; the open case is always the newest (one open case per account).
 ACCOUNT_HISTORY_LIMIT = 20
+# Messages and promises in the detail payload, newest first (messages: MessagesRepo's default).
+ACCOUNT_ITEMS_LIMIT = 50
 
 
 @router.get("/accounts/{account_id}", response_model=AccountDetail)
@@ -59,10 +61,12 @@ async def get_account(
         ],
         cases_total=await repos.cases.count_for_account(tenant, account.id),
         messages=[
-            views.message_out(m) for m in await repos.messages.for_account(tenant, account.id)
+            views.message_out(m)
+            for m in await repos.messages.for_account(tenant, account.id, ACCOUNT_ITEMS_LIMIT)
         ],
         promises=[
-            views.promise_out(p) for p in await repos.promises.for_account(tenant, account.id)
+            views.promise_out(p)
+            for p in await repos.promises.for_account(tenant, account.id, ACCOUNT_ITEMS_LIMIT)
         ],
         precheck=await views.live_precheck(repos, account, invoices, now),
     )

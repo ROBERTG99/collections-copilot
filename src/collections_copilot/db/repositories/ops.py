@@ -73,11 +73,14 @@ class PromisesRepo(Repo):
             .values(**fields)
         )
 
-    async def for_account(self, tenant_id: TenantId, account_id: uuid.UUID) -> list[Promise]:
+    async def for_account(
+        self, tenant_id: TenantId, account_id: uuid.UUID, limit: int | None = None
+    ) -> list[Promise]:
         stmt = (
             select(Promise)
             .where(Promise.tenant_id == tenant_id, Promise.account_id == account_id)
-            .order_by(Promise.created_at.desc())
+            .order_by(Promise.created_at.desc(), Promise.id)
+            .limit(limit)
         )
         return list((await self.s.execute(stmt)).scalars())
 

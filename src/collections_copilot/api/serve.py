@@ -2,13 +2,12 @@
 
 The API is CPU-bound per process (NFR-1, docs/DECISIONS.md), so the container runs several. With
 more than one, Prometheus multiprocess mode is switched on before the workers start, and values a
-previous run left in the directory are removed so counters start from zero with the container.
+previous run left in the directory (its *.db files) are removed so counters start from zero with the container.
 """
 
 from __future__ import annotations
 
 import os
-import shutil
 from pathlib import Path
 
 import uvicorn
@@ -21,8 +20,11 @@ METRICS_DIR = "/tmp/cc-prometheus"  # noqa: S108 - the container's writable /tmp
 
 
 def _reset(path: Path) -> None:
-    shutil.rmtree(path, ignore_errors=True)
-    path.mkdir(parents=True, mode=0o700)
+    """Remove the previous run's value files only: the directory may be one the launcher does
+    not own (PROMETHEUS_MULTIPROC_DIR set from outside), so nothing else in it is touched."""
+    path.mkdir(parents=True, mode=0o700, exist_ok=True)
+    for stale in path.glob("*.db"):
+        stale.unlink(missing_ok=True)
 
 
 def main(settings: Settings | None = None) -> None:

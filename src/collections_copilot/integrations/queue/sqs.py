@@ -138,3 +138,11 @@ class SqsQueueClient:
 
     async def purge(self, queue: str) -> None:
         await self._client.purge_queue(QueueUrl=await self.url(queue))
+
+    async def create(self, queue: str) -> None:
+        """A queue of its own for a test or a local run (ElasticMQ); AWS queues come from Terraform."""
+        await self._client.create_queue(QueueName=queue)
+
+    async def remove(self, queue: str) -> None:
+        await self._client.delete_queue(QueueUrl=await self.url(queue))
+        self._urls.pop(queue, None)

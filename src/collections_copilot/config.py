@@ -6,8 +6,10 @@ from functools import lru_cache
 from typing import Literal
 from urllib.parse import urlsplit
 
-from pydantic import Field, model_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+LOCAL_HOSTS = {"localhost", "127.0.0.1", "::1"}
 
 
 class Settings(BaseSettings):
@@ -95,6 +97,12 @@ class Settings(BaseSettings):
     # Outside production only +1555… and +34555… numbers are accepted at ingest or texted.
     synthetic_numbers_only: bool = True
 
+    @field_validator("sqs_endpoint_url", "s3_endpoint_url", "s3_public_endpoint_url", mode="before")
+    @classmethod
+    def _empty_means_aws_default(cls, value: object) -> object:
+        """ECS task definitions pass "" for an unset endpoint; botocore refuses "" (M7 review)."""
+        return None if value == "" else value
+
     @model_validator(mode="after")
     def _refuse_dev_defaults_in_prod(self) -> Settings:
         """In production, or whenever the API is reachable under a public hostname (a forgotten
@@ -118,6 +126,16 @@ class Settings(BaseSettings):
         ]
         if not self.oidc_issuer.startswith("https://") or "localhost" in self.oidc_issuer:
             problems.append("CC_OIDC_ISSUER (https, not localhost)")
+        # A service URL left at its local default would call this container, not the service.
+        for name, url in (
+            ("CC_TWILIO_BASE_URL", self.twilio_base_url),
+            ("CC_MCPGW_URL", self.mcpgw_url),
+            ("CC_MCPGW_ADMIN_URL", self.mcpgw_admin_url),
+            ("CC_SQS_ENDPOINT_URL", self.sqs_endpoint_url),
+            ("CC_S3_ENDPOINT_URL", self.s3_endpoint_url),
+        ):
+            if url and (urlsplit(url).hostname or "") in LOCAL_HOSTS:
+                problems.append(f"{name} (not localhost)")
         if problems:
             raise ValueError(f"production settings still use dev defaults: {', '.join(problems)}")
         return self

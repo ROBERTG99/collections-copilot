@@ -44,6 +44,12 @@ def test_prod_refuses_dev_secrets_and_local_issuer() -> None:
         twilio_auth_token="x" * 32,
         mcpgw_webhook_secret="y" * 32,
         oidc_issuer="https://cognito-idp.example/pool",
+        # production also needs real service URLs (test_prod_refuses_local_service_urls)
+        sqs_endpoint_url="",
+        s3_endpoint_url="",
+        twilio_base_url="https://twilio.example",
+        mcpgw_url="http://mcp-gateway:8344/mcp",
+        mcpgw_admin_url="http://mcp-gateway-admin:8348",
     )
     assert ok.env == "prod"
 
@@ -77,3 +83,39 @@ def test_real_numbers_only_in_production() -> None:
 
     with pytest.raises(ValueError, match="CC_SYNTHETIC_NUMBERS_ONLY"):
         Settings(env="dev", synthetic_numbers_only=False)
+
+
+PROD_OK = {
+    "env": "prod",
+    "twilio_auth_token": "x" * 32,
+    "mcpgw_webhook_secret": "y" * 32,
+    "oidc_issuer": "https://cognito-idp.example/pool",
+    "public_base_url": "https://collections.example.com",
+    "sqs_endpoint_url": "",
+    "s3_endpoint_url": "",
+    "twilio_base_url": "https://twilio.example",
+    "mcpgw_url": "http://mcp-gateway:8344/mcp",
+    "mcpgw_admin_url": "http://mcp-gateway-admin:8348",
+}
+
+
+def test_empty_endpoint_urls_mean_the_aws_default() -> None:
+    """M7 Terraform review M3: ECS passes "" for the SQS and S3 endpoints; botocore refuses ""."""
+    s = Settings(sqs_endpoint_url="", s3_endpoint_url="", s3_public_endpoint_url="")
+    assert (s.sqs_endpoint_url, s.s3_endpoint_url, s.s3_public_endpoint_url) == (None, None, None)
+
+
+def test_prod_refuses_local_service_urls() -> None:
+    """A variable missing from the task definition must fail at start-up, not call localhost."""
+    import pytest
+
+    assert Settings(**PROD_OK).sqs_endpoint_url is None
+    for name, local in (
+        ("twilio_base_url", "http://localhost:8342"),
+        ("mcpgw_url", "http://localhost:8344/mcp"),
+        ("mcpgw_admin_url", "http://127.0.0.1:8348"),
+        ("sqs_endpoint_url", "http://localhost:8340"),
+        ("s3_endpoint_url", "http://localhost:8341"),
+    ):
+        with pytest.raises(ValueError, match=f"CC_{name.upper()}"):
+            Settings(**{**PROD_OK, name: local})

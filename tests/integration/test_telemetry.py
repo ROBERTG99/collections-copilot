@@ -147,7 +147,7 @@ async def test_the_trace_crosses_a_real_queue(spans: InMemorySpanExporter) -> No
     queue = f"cc-telemetry-{uuid.uuid4().hex[:8]}"
     seen: list[int] = []
     async with SqsQueueClient(settings.aws_region, settings.sqs_endpoint_url) as client:
-        await client._client.create_queue(QueueName=queue)
+        await client.create(queue)
         with tracing.span("enqueue") as producer:
             await client.send(queue, {"kind": "probe"})
         consumer = Consumer(client, queue, lambda msg: _record(seen, msg), wait_seconds=1)
@@ -161,7 +161,7 @@ async def test_the_trace_crosses_a_real_queue(spans: InMemorySpanExporter) -> No
             consumer.stop()
 
         await asyncio.gather(consumer.run(), _record_and_stop())
-        await client._client.delete_queue(QueueUrl=await client.url(queue))
+        await client.remove(queue)
     assert seen == [producer.get_span_context().trace_id]
     process = [s for s in spans.get_finished_spans() if s.name == f"process {queue}"]
     assert len(process) == 1

@@ -18,7 +18,13 @@ echo "== NFR-2, NFR-4: case graph latency and the batch of 400"
 uv run --frozen pytest tests/perf -m perf -s -q
 
 echo "== NFR-1: queue and account routes (k6)"
-restore() { $COMPOSE up -d --wait api >/dev/null 2>&1 || true; }
+restore() {
+  # Recreated from this shell's environment: a stack started with `make observability` loses
+  # its trace export here; run `make observability` again afterwards.
+  if ! $COMPOSE up -d --wait api >/dev/null 2>&1; then
+    echo "WARNING: could not restore the API's default rate limit; run: $COMPOSE up -d --wait api" >&2
+  fi
+}
 trap restore EXIT
 CC_RATE_LIMIT_PER_MINUTE=1000000 $COMPOSE up -d --wait api
 k6 run --quiet --no-usage-report tests/perf/queue.k6.js

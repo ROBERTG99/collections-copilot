@@ -48,6 +48,8 @@ def test_launcher_runs_the_configured_workers(
 ) -> None:
     stale = tmp_path / "counter_123.db"
     stale.write_bytes(b"old")
+    unrelated = tmp_path / "notes.txt"  # never delete what the launcher did not write
+    unrelated.write_text("keep")
     calls: list[tuple[str, dict[str, Any]]] = []
     monkeypatch.setattr(serve.uvicorn, "run", lambda target, **kw: calls.append((target, kw)))
     monkeypatch.setenv("PROMETHEUS_MULTIPROC_DIR", str(tmp_path))
@@ -62,6 +64,7 @@ def test_launcher_runs_the_configured_workers(
     assert options["access_log"] is False
     assert options["server_header"] is False
     assert not stale.exists()  # counters of an earlier container run start from zero
+    assert unrelated.read_text() == "keep"
 
 
 def test_several_workers_get_a_metrics_directory(

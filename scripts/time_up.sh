@@ -1,13 +1,15 @@
 #!/usr/bin/env bash
-# make up (BUILD.md T-44, NFR-6): build and start the full stack, wait until every service with a
-# healthcheck is healthy, and fail if that takes longer than UP_BUDGET_S (default 300 s).
+# make up (BUILD.md T-44, NFR-6): build the images (not timed: NFR-6 is "with cached images"), then
+# start the full stack, wait until every service with a healthcheck is healthy, and fail if that
+# takes longer than UP_BUDGET_S (default 300 s).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 COMPOSE="${COMPOSE:-docker compose}"
 BUDGET="${UP_BUDGET_S:-300}"
 
+$COMPOSE build
 start=$(date +%s)
-$COMPOSE up -d --build --wait --wait-timeout "$BUDGET"
+$COMPOSE up -d --wait --wait-timeout "$BUDGET"
 elapsed=$(( $(date +%s) - start ))
 
 $COMPOSE ps --format 'table {{.Service}}\t{{.Status}}'

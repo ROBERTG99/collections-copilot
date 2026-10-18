@@ -9,7 +9,7 @@ from typing import Any
 import httpx
 import pytest
 
-from collections_copilot.api.routers.accounts import ACCOUNT_HISTORY_LIMIT
+from collections_copilot.api.routers.accounts import ACCOUNT_HISTORY_LIMIT, ACCOUNT_ITEMS_LIMIT
 from collections_copilot.db.repositories import Repos
 from collections_copilot.scoring.priority import inputs_from, score
 from tests.factories import make_account, make_tenant
@@ -150,6 +150,33 @@ async def test_account_detail_bounds_the_case_history(
     assert body["cases"][0]["id"] == str(open_case.id)
     created = [c["created_at"] for c in body["cases"]]
     assert created == sorted(created, reverse=True)
+
+
+async def test_account_detail_bounds_promises(
+    client: httpx.AsyncClient, sessionmaker: Any, tenant: uuid.UUID, auth: Any
+) -> None:
+    """M7 review: promises grew without bound like cases did; the newest 50 are returned."""
+    aid = await make_account(sessionmaker, tenant, invoices=[{"amount_cents": 5_000}])
+    start = datetime(2026, 1, 1, tzinfo=UTC)
+    async with sessionmaker() as s, s.begin():
+        promises = Repos(s).promises
+        for day in range(ACCOUNT_ITEMS_LIMIT + 5):
+            await promises.create_if_absent(
+                tenant,
+                account_id=aid,
+                amount_cents=1_000,
+                currency="USD",
+                promised_date=(start + timedelta(days=day)).date(),
+                invoice_numbers=[],
+                status="broken",
+                idempotency_key=f"ptp:{aid}:{day}",
+                created_at=start + timedelta(days=day),
+            )
+    resp = await client.get(f"/api/v1/accounts/{aid}", headers=auth("analyst"))
+    assert resp.status_code == 200, resp.text
+    dates = [p["promised_date"] for p in resp.json()["promises"]]
+    assert len(dates) == ACCOUNT_ITEMS_LIMIT == 50
+    assert dates[0] == (start + timedelta(days=ACCOUNT_ITEMS_LIMIT + 4)).date().isoformat()
 
 
 async def test_create_cases_enqueues_and_dedupes(

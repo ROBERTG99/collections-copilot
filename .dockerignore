@@ -11,8 +11,8 @@ web/coverage
 web/playwright-report
 web/test-results
 infra/terraform/**/.terraform
-.env
-.env.*
+**/.env
+**/.env.*
 !.env.example
 coverage.xml
 htmlcov
