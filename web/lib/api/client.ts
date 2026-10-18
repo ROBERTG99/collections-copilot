@@ -17,7 +17,7 @@ export type Problem = {
 
 export class ApiError extends Error {
   constructor(readonly problem: Problem) {
-    super(problem.detail ?? problem.title ?? `HTTP ${problem.status}`);
+    super(problem.detail || problem.title || `HTTP ${problem.status}`);
   }
 }
 
@@ -61,7 +61,7 @@ export function problemFrom(error: unknown, response: Response): Problem {
       : ({} as Partial<Problem>);
   return {
     ...body,
-    title: body.title ?? response.statusText ?? undefined,
+    title: body.title || response.statusText || undefined, // HTTP/2 has no reason phrase: ""
     detail: body.detail ?? (typeof error === "string" && error ? error.slice(0, 300) : undefined),
     correlation_id: body.correlation_id ?? response.headers.get("x-correlation-id") ?? undefined,
     status: response.status,

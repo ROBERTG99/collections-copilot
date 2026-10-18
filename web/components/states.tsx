@@ -48,7 +48,7 @@ export function ErrorState({ error, onRetry }: { error: unknown; onRetry?: () =>
   return (
     <div role="alert" className="rounded border border-danger p-4">
       <p className="font-semibold text-danger">
-        {signedOut ? "Your session has ended" : (problem?.title ?? "Something went wrong")}
+        {signedOut ? "Your session has ended" : problem?.title || "Something went wrong"}
         {problem ? ` (${problem.status})` : ""}
       </p>
       <p className="mt-1">{problem?.detail ?? (error instanceof Error ? error.message : "")}</p>

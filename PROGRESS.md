@@ -89,6 +89,7 @@ Verification at this handoff: `make check-fast`, integration + contract (not doc
 19. **Own guard hook blocked a doc edit again.** A Bash patch that quoted the forbidden Terraform command was blocked by `.claude/hooks/pre_tool_guard.py` (as in mistake 5); the line was edited with the Edit tool and reworded.
 20. **A capped S3 read truncated uploads (M6 fix).** `get_bytes` called `stream.read(max_bytes + 1)` once; one read returns what the network has delivered, so larger CSV uploads were cut mid-row and rejected at random (`test_duplicate_file_returns_original_batch` failed 2 of 3 runs). It now reads to EOF and stops past the cap; a chunked-stream unit test and a 1 MiB MinIO/moto contract test cover it.
 21. **A rate-limit test raced the minute boundary.** The limiter counts per calendar minute, and `test_random_tokens_share_the_ip_bucket` failed when a full run crossed one. `low_rate_limit` now holds the clock inside one window with `time-machine`.
+22. **Web unit coverage was 24.6% against a 70% target.** Most of the console was covered only by Playwright. Component and library tests (jsdom, mocked fetch, a local JWKS for the ID token) brought `pnpm run test:coverage` to 99.72% lines (161 tests), and `vitest.config.ts` now fails below 70%. They found that an error with no reason phrase (HTTP/2) got an empty title, so the error heading read " (500)"; `problemFrom` and `ErrorState` now fall back on an empty string as well.
 
 ## Tasks
 
