@@ -92,3 +92,13 @@ variable "webhook_path_prefix" {
     error_message = "webhook_path_prefix must start and end with a slash."
   }
 }
+
+variable "waf_webhook_rate_limit_per_5min" {
+  description = "Requests per source IP per 5 minutes to the webhook path (Twilio shares addresses)."
+  type        = number
+  default     = 10000
+  validation {
+    condition     = var.waf_webhook_rate_limit_per_5min >= 100
+    error_message = "waf_webhook_rate_limit_per_5min must be at least 100 (the WAF minimum)."
+  }
+}

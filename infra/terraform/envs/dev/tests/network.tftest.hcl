@@ -62,6 +62,9 @@ mock_provider "aws" {
   mock_resource "aws_wafv2_web_acl" {
     defaults = { arn = "arn:aws:wafv2:us-east-1:123456789012:regional/webacl/mock/00000000-0000-0000-0000-000000000003" }
   }
+  mock_resource "aws_vpc_endpoint" {
+    defaults = { prefix_list_id = "pl-63a5400a" }
+  }
   mock_resource "aws_lambda_function" {
     defaults = { arn = "arn:aws:lambda:us-east-1:123456789012:function:mock" }
   }
@@ -180,8 +183,40 @@ run "security_groups_admit_only_their_callers" {
     error_message = "ledger-mcp and mcp-gateway have no route to the internet."
   }
   assert {
-    condition     = alltrue([for name, svc in module.service : !contains(svc.security_group_rules.vpc_egress_ports, 22)])
-    error_message = "In-VPC egress is limited to the listed service ports."
+    condition = alltrue([for name, ports in {
+      api           = [5432, 6379, 8344, 8348]
+      worker        = [5432, 6379, 8344]
+      web           = [8310]
+      "ledger-mcp"  = [5432]
+      "mcp-gateway" = [5432, 8310, 8343]
+    } : toset(module.service[name].security_group_rules.vpc_egress_ports) == toset(ports)])
+    error_message = "Each service may open only the in-VPC ports it uses (database, cache, its peers)."
+  }
+  assert {
+    condition     = alltrue([for name, svc in module.service : svc.security_group_rules.s3_prefix_list == module.network.s3_prefix_list_id])
+    error_message = "Every task must reach S3 through the gateway endpoint to pull its image layers."
+  }
+  assert {
+    condition     = toset([for name, svc in module.service : name if svc.security_group_rules.smtp_egress]) == toset(["api", "worker"])
+    error_message = "Only the api and the worker send e-mail through the SMTP relay."
+  }
+  assert {
+    condition = toset([for k, p in output.internal_paths : "${k}:${p.port}"]) == toset([
+      "web-to-api:8310", "api-to-mcp-gateway:8344", "api-to-mcp-gateway-admin:8348",
+      "worker-to-mcp-gateway:8344", "gateway-to-ledger-mcp:8343", "gateway-to-api:8310",
+    ])
+    error_message = "Service-to-service ingress is exactly the documented internal paths."
+  }
+  assert {
+    condition = alltrue([for k, to in {
+      "web-to-api"               = "api"
+      "api-to-mcp-gateway"       = "mcp-gateway"
+      "api-to-mcp-gateway-admin" = "mcp-gateway"
+      "worker-to-mcp-gateway"    = "mcp-gateway"
+      "gateway-to-ledger-mcp"    = "ledger-mcp"
+      "gateway-to-api"           = "api"
+    } : output.internal_paths[k].to_group == module.service[to].security_group_id])
+    error_message = "Each internal path must open the receiving service's own security group."
   }
   assert {
     condition     = length(module.network.endpoint_ingress_cidrs) == 2 && !contains(module.network.endpoint_ingress_cidrs, "10.40.0.0/16")

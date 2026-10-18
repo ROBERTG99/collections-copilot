@@ -182,7 +182,7 @@ resource "aws_wafv2_web_acl" "this" {
       rate_based_statement {
         limit              = var.waf_rate_limit_per_5min
         aggregate_key_type = "IP"
-        # Twilio posts from shared addresses; the API limits webhooks per source itself.
+        # Twilio posts from shared addresses: webhooks get their own, higher limit below.
         scope_down_statement {
           not_statement {
             statement {
@@ -205,6 +205,37 @@ resource "aws_wafv2_web_acl" "this" {
     visibility_config {
       cloudwatch_metrics_enabled = true
       metric_name                = "rate-per-ip"
+      sampled_requests_enabled   = true
+    }
+  }
+  rule {
+    name     = "rate-per-ip-webhooks"
+    priority = 40
+    action {
+      block {}
+    }
+    statement {
+      rate_based_statement {
+        limit              = var.waf_webhook_rate_limit_per_5min
+        aggregate_key_type = "IP"
+        scope_down_statement {
+          byte_match_statement {
+            search_string         = var.webhook_path_prefix
+            positional_constraint = "STARTS_WITH"
+            field_to_match {
+              uri_path {}
+            }
+            text_transformation {
+              priority = 0
+              type     = "NONE"
+            }
+          }
+        }
+      }
+    }
+    visibility_config {
+      cloudwatch_metrics_enabled = true
+      metric_name                = "rate-per-ip-webhooks"
       sampled_requests_enabled   = true
     }
   }

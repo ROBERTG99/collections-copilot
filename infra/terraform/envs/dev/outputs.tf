@@ -46,3 +46,14 @@ output "container_insights_log_group" {
     retention_in_days = aws_cloudwatch_log_group.container_insights.retention_in_days
   }
 }
+
+output "internal_paths" {
+  description = "Service-to-service ingress rules (for the network tests)."
+  value = {
+    for k, r in aws_vpc_security_group_ingress_rule.internal : k => {
+      port       = r.from_port
+      to_group   = r.security_group_id
+      from_group = r.referenced_security_group_id
+    }
+  }
+}

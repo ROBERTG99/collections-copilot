@@ -56,3 +56,8 @@ output "endpoint_ingress_cidrs" {
   description = "Who may reach the interface endpoints (for the network tests)."
   value       = flatten([for r in aws_security_group.endpoints.ingress : r.cidr_blocks])
 }
+
+output "s3_prefix_list_id" {
+  description = "Prefix list of the S3 gateway endpoint (ECR image layers come from S3)."
+  value       = aws_vpc_endpoint.s3.prefix_list_id
+}

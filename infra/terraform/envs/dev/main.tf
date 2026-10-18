@@ -53,28 +53,32 @@ locals {
       cpu    = 512
       memory = 1024
       # uvicorn trusts X-Forwarded-For only from the load balancer's subnets (M6 audit M5).
-      env     = merge(local.app_env, { FORWARDED_ALLOW_IPS = join(",", module.network.public_subnet_cidrs) })
-      secrets = local.app_secrets
-      check   = ["CMD", "python", "-c", format(local.http_check_py, 8310)]
-      target  = "api"
-      ingress = [module.alb.security_group_id]
-      scaling = { min = 2, max = 6 }
-      extra   = {}
-      egress  = true # Twilio, Cognito keys
+      env       = merge(local.app_env, { FORWARDED_ALLOW_IPS = join(",", module.network.public_subnet_cidrs) })
+      secrets   = local.app_secrets
+      check     = ["CMD", "python", "-c", format(local.http_check_py, 8310)]
+      target    = "api"
+      ingress   = [module.alb.security_group_id]
+      scaling   = { min = 2, max = 6 }
+      extra     = {}
+      egress    = true # Twilio, Cognito keys
+      ports_out = [5432, 6379, 8344, 8348]
+      smtp      = var.smtp_port
     }
     worker = {
-      image   = "${module.ecr.repository_urls["worker"]}:${var.image_tag}"
-      port    = null
-      cpu     = 1024
-      memory  = 2048
-      env     = local.app_env
-      secrets = local.app_secrets
-      check   = ["CMD", "python", "-c", format(local.http_check_py, 8311)]
-      target  = null
-      ingress = []
-      scaling = { min = 1, max = var.worker_max_tasks, queue_name = "cc-tasks", backlog_per_task = 20 }
-      extra   = {}
-      egress  = true # Twilio, Bedrock
+      image     = "${module.ecr.repository_urls["worker"]}:${var.image_tag}"
+      port      = null
+      cpu       = 1024
+      memory    = 2048
+      env       = local.app_env
+      secrets   = local.app_secrets
+      check     = ["CMD", "python", "-c", format(local.http_check_py, 8311)]
+      target    = null
+      ingress   = []
+      scaling   = { min = 1, max = var.worker_max_tasks, queue_name = "cc-tasks", backlog_per_task = 20 }
+      extra     = {}
+      egress    = true # Twilio, Bedrock
+      ports_out = [5432, 6379, 8344]
+      smtp      = var.smtp_port
     }
     web = {
       image  = "${module.ecr.repository_urls["web"]}:${var.image_tag}"
@@ -91,27 +95,31 @@ locals {
         WEB_OIDC_TOKEN_URL     = "${module.cognito.hosted_ui_url}/oauth2/token"
         WEB_OIDC_LOGOUT_URL    = "${module.cognito.hosted_ui_url}/logout"
       }
-      secrets = { WEB_SESSION_SECRET = local.s["web-session-secret"] }
-      check   = ["CMD", "node", "-e", "fetch('http://127.0.0.1:8300/healthz').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
-      target  = "web"
-      ingress = [module.alb.security_group_id]
-      scaling = { min = 2, max = 4 }
-      extra   = {}
-      egress  = true # Cognito token endpoint and keys
+      secrets   = { WEB_SESSION_SECRET = local.s["web-session-secret"] }
+      check     = ["CMD", "node", "-e", "fetch('http://127.0.0.1:8300/healthz').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+      target    = "web"
+      ingress   = [module.alb.security_group_id]
+      scaling   = { min = 2, max = 4 }
+      extra     = {}
+      egress    = true # Cognito token endpoint and keys
+      ports_out = [8310]
+      smtp      = null
     }
     ledger-mcp = {
-      image   = "${module.ecr.repository_urls["ledger-mcp"]}:${var.image_tag}"
-      port    = 8343
-      cpu     = 256
-      memory  = 512
-      env     = {}
-      secrets = { LEDGER_DATABASE_URL = local.s["ledger-database-url"] }
-      check   = ["CMD", "python", "-c", format(local.http_check_py, 8343)]
-      target  = null
-      ingress = []
-      scaling = { min = 1, max = 2 }
-      extra   = {}
-      egress  = false # only the database
+      image     = "${module.ecr.repository_urls["ledger-mcp"]}:${var.image_tag}"
+      port      = 8343
+      cpu       = 256
+      memory    = 512
+      env       = {}
+      secrets   = { LEDGER_DATABASE_URL = local.s["ledger-database-url"] }
+      check     = ["CMD", "python", "-c", format(local.http_check_py, 8343)]
+      target    = null
+      ingress   = []
+      scaling   = { min = 1, max = 2 }
+      extra     = {}
+      egress    = false # only the database
+      ports_out = [5432]
+      smtp      = null
     }
     mcp-gateway = {
       image  = coalesce(var.mcp_gateway_image, "${module.ecr.repository_urls["mcp-gateway"]}:${var.image_tag}")
@@ -131,12 +139,14 @@ locals {
         MCPGW_APPROVAL_WEBHOOK_SECRET = local.s["mcpgw-webhook-secret"]
         MCPGW_DATABASE_URL            = local.s["mcpgw-database-url"]
       }
-      check   = ["CMD", "python", "-c", format(local.http_check_py, 8344)]
-      target  = null
-      ingress = []
-      scaling = { min = 1, max = 2 }
-      extra   = { "mcp-gateway-admin" = 8348 } # approvals API, reached by the api only
-      egress  = false
+      check     = ["CMD", "python", "-c", format(local.http_check_py, 8344)]
+      target    = null
+      ingress   = []
+      scaling   = { min = 1, max = 2 }
+      extra     = { "mcp-gateway-admin" = 8348 } # approvals API, reached by the api only
+      egress    = false
+      ports_out = [5432, 8343, 8310]
+      smtp      = null
     }
   }
 }
@@ -287,6 +297,9 @@ module "service" {
   autoscaling                   = each.value.scaling
   extra_ports                   = each.value.extra
   internet_egress               = each.value.egress
+  vpc_egress_ports              = each.value.ports_out
+  smtp_egress_port              = each.value.smtp
+  s3_prefix_list_id             = module.network.s3_prefix_list_id
 }
 
 # Service-to-service paths (Service Connect): web → api, api and worker → mcp-gateway, api →

@@ -17,7 +17,9 @@ locals {
           "cognito-idp:ListUsers", "cognito-idp:ListUsersInGroup", "cognito-idp:AdminGetUser",
           "sqs:ReceiveMessage", "secretsmanager:GetSecretValue", "kms:Decrypt",
           "ecr:BatchGetImage", "ecr:GetDownloadUrlForLayer", "dynamodb:GetItem", "dynamodb:Query",
-          "dynamodb:Scan",
+          "dynamodb:Scan", "logs:GetLogRecord", "lambda:GetFunction", "xray:BatchGetTraces",
+          "xray:GetTraceSummaries", "ssm:GetParameter", "ssm:GetParameters",
+          "ssm:GetParametersByPath", "athena:GetQueryResults", "cognito-idp:AdminListGroupsForUser",
         ]
         Resource = ["*"]
       },

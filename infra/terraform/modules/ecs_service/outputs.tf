@@ -30,6 +30,8 @@ output "security_group_rules" {
       from_cidr_ipv4 = r.cidr_ipv4
     }]
     internet_egress  = length(aws_vpc_security_group_egress_rule.https) > 0
-    vpc_egress_ports = sort([for r in aws_vpc_security_group_egress_rule.vpc : r.from_port])
+    s3_prefix_list   = aws_vpc_security_group_egress_rule.s3.prefix_list_id
+    smtp_egress      = length(aws_vpc_security_group_egress_rule.smtp) > 0
+    vpc_egress_ports = [for r in aws_vpc_security_group_egress_rule.vpc : r.from_port]
   }
 }

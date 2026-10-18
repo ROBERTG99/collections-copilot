@@ -153,9 +153,20 @@ variable "internet_egress" {
 variable "vpc_egress_ports" {
   description = "Ports the tasks may open inside the VPC: database, cache and Service Connect peers."
   type        = list(number)
-  default     = [5432, 6379, 8300, 8310, 8343, 8344, 8348]
+  default     = []
   validation {
     condition     = alltrue([for p in var.vpc_egress_ports : p > 0 && p < 65536])
     error_message = "vpc_egress_ports must be TCP ports."
   }
+}
+
+variable "s3_prefix_list_id" {
+  description = "Prefix list of the S3 gateway endpoint, for pulling image layers."
+  type        = string
+}
+
+variable "smtp_egress_port" {
+  description = "SMTP relay port the tasks may reach (null: the service sends no e-mail)."
+  type        = number
+  default     = null
 }

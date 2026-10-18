@@ -50,6 +50,29 @@ resource "aws_vpc_security_group_egress_rule" "https" {
   to_port           = 443
 }
 
+# Image layers: ECR serves them from S3 through the gateway endpoint, whose addresses are S3's
+# prefix list rather than the VPC CIDR. Every task needs it to pull its image.
+resource "aws_vpc_security_group_egress_rule" "s3" {
+  security_group_id = aws_security_group.this.id
+  description       = "HTTPS to S3 through the gateway endpoint (ECR image layers)"
+  prefix_list_id    = var.s3_prefix_list_id
+  ip_protocol       = "tcp"
+  from_port         = 443
+  to_port           = 443
+}
+
+# Supervisor e-mail through the SMTP relay, for services that send it.
+#trivy:ignore:AVD-AWS-0104
+resource "aws_vpc_security_group_egress_rule" "smtp" {
+  count             = var.smtp_egress_port == null ? 0 : 1
+  security_group_id = aws_security_group.this.id
+  description       = "SMTP submission to the mail relay"
+  cidr_ipv4         = "0.0.0.0/0"
+  ip_protocol       = "tcp"
+  from_port         = var.smtp_egress_port
+  to_port           = var.smtp_egress_port
+}
+
 # HTTPS to the VPC endpoints (ECR, logs, Secrets Manager, KMS, SQS) even without internet egress.
 resource "aws_vpc_security_group_egress_rule" "endpoints" {
   security_group_id = aws_security_group.this.id

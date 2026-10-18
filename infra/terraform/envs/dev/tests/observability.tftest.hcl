@@ -62,6 +62,9 @@ mock_provider "aws" {
   mock_resource "aws_wafv2_web_acl" {
     defaults = { arn = "arn:aws:wafv2:us-east-1:123456789012:regional/webacl/mock/00000000-0000-0000-0000-000000000003" }
   }
+  mock_resource "aws_vpc_endpoint" {
+    defaults = { prefix_list_id = "pl-63a5400a" }
+  }
   mock_resource "aws_lambda_function" {
     defaults = { arn = "arn:aws:lambda:us-east-1:123456789012:function:mock" }
   }

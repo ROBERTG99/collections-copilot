@@ -136,6 +136,7 @@ resource "aws_lambda_function" "pre_token" {
   #checkov:skip=CKV_AWS_117:the function calls no network service, so it runs outside the VPC
   #checkov:skip=CKV_AWS_272:one file deployed from this repository by Terraform; code signing is not set up for dev
   #checkov:skip=CKV_AWS_50:X-Ray tracing is not used in this environment (traces go through OpenTelemetry)
+  #checkov:skip=CKV_AWS_115:reserved concurrency is opt-in (pre_token_concurrency); new accounts' Lambda quota cannot reserve any
   function_name                  = "${var.name}-pre-token"
   role                           = aws_iam_role.pre_token.arn
   runtime                        = "python3.13"

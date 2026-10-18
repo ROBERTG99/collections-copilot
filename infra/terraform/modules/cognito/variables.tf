@@ -46,11 +46,11 @@ variable "kms_key_arn" {
 }
 
 variable "pre_token_concurrency" {
-  description = "Reserved concurrency of the Pre Token Generation trigger (sign-ins at once)."
+  description = "Reserved concurrency of the trigger (null: unreserved; new accounts' low Lambda quota cannot reserve any)."
   type        = number
-  default     = 20
+  default     = null
   validation {
-    condition     = var.pre_token_concurrency >= 1 && var.pre_token_concurrency <= 100
+    condition     = var.pre_token_concurrency == null || (var.pre_token_concurrency >= 1 && var.pre_token_concurrency <= 100)
     error_message = "pre_token_concurrency must be between 1 and 100."
   }
 }

@@ -74,10 +74,6 @@ jobs:
         run: |
           terraform plan -input=false -lock=false -no-color \
             -var-file=terraform.tfvars.example -var "image_tag=${IMAGE_TAG}" > plan.txt
+          # Only the counts leave the runner: the plan names the account and its ARNs, and logs,
+          # summaries and artifacts of a public repository are readable by anyone signed in.
           grep -E '^Plan:|^No changes' plan.txt >> "$GITHUB_STEP_SUMMARY" || true
-      # The plan names the account and its ARNs: an artifact (repository access), not the summary.
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: terraform-plan
-          path: infra/terraform/envs/dev/plan.txt
-          retention-days: 7
