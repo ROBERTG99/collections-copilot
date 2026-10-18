@@ -69,8 +69,8 @@ class AgingRow(BaseModel):
     @classmethod
     def _name(cls, v: str) -> str:
         """It reaches prompts and SMS: no markup, braces, backslashes or control and format
-        characters (T-51 security audit M1). Unicode spaces become one plain space, so the
-        redactor's deny list matches what the prompt shows."""
+        characters (T-51 security audit M1). Whitespace of any kind (tabs and line breaks too)
+        becomes one plain space, so the redactor's deny list matches what the prompt shows."""
         v = re.sub(r"\s+", " ", v).strip()
         if any(ch in "<>{}\\" or unicodedata.category(ch)[0] == "C" for ch in v):
             raise ValueError("name may not contain <, >, {, }, backslashes or control characters")

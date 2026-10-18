@@ -25,7 +25,7 @@ LEGAL_SUFFIXES = re.compile(
     r"\s+(LLC|Inc\.?|Co\.?|Group|Partners|S\.L\.?|Ltd\.?|S\.A\.?|GmbH)$", re.I
 )
 # Phone-number boundaries and separators: not inside a word, an amount or an identifier.
-_B = r"(?<![\w.,/-])"
+_B = r"(?<!\w)(?<!\d[.,/-])"  # "Tel.555…" is a number; "1.555…" is part of one
 _A = r"(?!\w|[.,/-]\d)"
 _S = r"[\s./_\-\u2010-\u2015\u2212]"
 PLACEHOLDER_PREFIX = {

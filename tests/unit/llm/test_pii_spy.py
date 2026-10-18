@@ -133,6 +133,10 @@ def test_phone_numbers_in_common_national_formats_are_redacted() -> None:
             f"call me on {number} please",
             f"my number is {number}.",
             f"{number}, thanks",
+            f"Tel.{number}",
+            f"call me,{number}",
+            f"John-{number}",
+            f"ref/{number}",
         ):
             redacted, _ = redactor.redact(sentence)
             assert number not in redacted, (number, sentence)

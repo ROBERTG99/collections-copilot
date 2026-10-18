@@ -359,12 +359,15 @@ class FollowUpsRepo(Repo):
         return (await self.s.execute(stmt)).scalars().first()
 
     async def cancel_for_case(self, tenant_id: TenantId, case_id: uuid.UUID) -> None:
+        """Closing a case cancels its pending work, except a promise write-back retry: the
+        promise was already made and must reach the ledger or fail visibly (T-51 round 3)."""
         await self.s.execute(
             update(FollowUp)
             .where(
                 FollowUp.tenant_id == tenant_id,
                 FollowUp.case_id == case_id,
                 FollowUp.status == "pending",
+                FollowUp.kind != "promise_write_back",
             )
             .values(status="cancelled")
         )

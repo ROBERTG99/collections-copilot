@@ -238,3 +238,28 @@ async def test_due_write_back_retry_enqueues_the_retry_task(sessionmaker, tenant
         await sched.lock.release()
     retries = [t for t in sink.for_tenant(tenant) if t.kind == "retry_write_back"]
     assert [t.resume for t in retries] == [{"promise_id": str(promise_id)}]
+
+
+async def test_closing_a_case_keeps_its_promise_write_back_retry(sessionmaker, tenant) -> None:  # type: ignore[no-untyped-def]
+    """T-51 round 3: a STOP closes the case and cancels its follow-ups; a promise already made
+    must still reach the ledger (or fail with a supervisor notice), not stay pending for good."""
+    account, promise_id = await _promise(sessionmaker, tenant, "open")
+    async with sessionmaker() as s, s.begin():
+        repos = Repos(s)
+        case = await repos.cases.create(tenant, account, status="awaiting_reply")
+        for kind in ("after_send", "promise_write_back"):
+            await repos.follow_ups.add(
+                tenant,
+                case_id=case.id,
+                account_id=account,
+                promise_id=promise_id,
+                kind=kind,
+                due_at=FIXED_NOW + timedelta(hours=1),
+                payload={"promise_id": str(promise_id)},
+            )
+    async with sessionmaker() as s, s.begin():
+        await Repos(s).follow_ups.cancel_for_case(tenant, case.id)
+    async with sessionmaker() as s:
+        repos = Repos(s)
+        assert await repos.follow_ups.pending_for_case(tenant, case.id, "after_send") is None
+        assert await repos.follow_ups.pending_for_case(tenant, case.id, "promise_write_back")
