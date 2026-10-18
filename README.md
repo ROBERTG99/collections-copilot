@@ -15,7 +15,7 @@ B2B collections agent that prioritizes past-due accounts, drafts messages with h
 
 Claude Code (web or local) at the repository root:
 
-```
+```text
 Read BUILD.md and execute it end to end. Do not stop until every item in the Global Definition of Done is checked.
 ```
 

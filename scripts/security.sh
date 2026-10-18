@@ -4,7 +4,7 @@
 # documented in docs/security.md ("Accepted findings"); lower severities are reported only.
 # Offline-friendly: vulnerability databases come through mirror.gcr.io.
 set -uo pipefail
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/.." || exit 1
 export PATH="$HOME/.local/bin:$HOME/go/bin:$PATH"
 
 BANDIT=bandit==1.8.6

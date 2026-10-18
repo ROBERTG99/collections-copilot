@@ -1,0 +1,28 @@
+// pnpm run lint:md (make lint). Long lines are allowed (tables, commands, URLs), duplicate headings
+// may repeat under different parents, and table pipes need not be padded. Not linted: the
+// maintainer's spec (BUILD.md, docs/specs/), prompts (their hashes are eval provenance) and the
+// harness files under .claude/ (front matter, no top heading).
+{
+  "config": {
+    "default": true,
+    "MD013": false,
+    "MD024": { "siblings_only": true },
+    "MD033": false,
+    "MD060": false
+  },
+  "globs": ["**/*.md"],
+  "ignores": [
+    "**/node_modules/**",
+    "**/.venv/**",
+    "web/.next/**",
+    "web/playwright-report/**",
+    "web/test-results/**",
+    "infra/terraform/**/.terraform/**",
+    ".pytest_cache/**",
+    ".evalgate/**",
+    "BUILD.md",
+    "docs/specs/**",
+    "prompts/**",
+    ".claude/**"
+  ]
+}

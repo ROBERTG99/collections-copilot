@@ -4,7 +4,7 @@ B2B collections agent: a deterministic priority queue, LLM-assisted next-best-ac
 
 ## Map (§4.8)
 
-```
+```text
 src/collections_copilot/  api/ agent/ compliance/ scoring/ llm/ integrations/{sms,storage,queue,mcp,email}/
                           db/ ingest/ observability/ evals/ worker/ cli.py config.py
 apps/                     dev-oidc/ ledger-mcp/ debtor-sim/        (uv workspace members)
