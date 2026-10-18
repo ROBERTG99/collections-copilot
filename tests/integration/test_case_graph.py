@@ -252,3 +252,52 @@ async def test_redelivered_resume_finishes_a_run_that_crashed_mid_send(
     async with sessionmaker() as s:
         retry = await Repos(s).follow_ups.pending_for_case(tenant, uuid.UUID(case_id), "send_retry")
     assert retry is not None
+
+
+async def test_crash_after_the_auto_approval_is_stored_still_sends_once(
+    sessionmaker, database_url, tenant
+) -> None:  # type: ignore[no-untyped-def]
+    """T-51 compliance re-check: the auto-approval row was committed, then the worker died
+    before the checkpoint. The re-run found the draft no longer pending and paused for a human,
+    who could not decide it (409 already_decided). The stored auto-approval is the decision."""
+    from collections_copilot.integrations.queue.messages import TaskMessage
+    from collections_copilot.worker.runner import CaseRunner
+
+    note = "AP contact confirmed the invoice was received and is in the approval queue."
+    account = await make_account(
+        sessionmaker, tenant, notes=[note], invoices=[{"amount_cents": 30_000, "days_past_due": 20}]
+    )
+    case_id = await new_case(sessionmaker, tenant, account)
+    sms = InMemorySmsSender()
+
+    class Confident(FakeLLM):
+        async def complete(self, request: ProviderRequest) -> ProviderResponse:
+            if request.route == "next_best_action":
+                body = '{"action": "remind", "rationale": "Routine reminder.", "confidence": 0.95, "cited_note_ids": []}'
+                return ProviderResponse(body, "end_turn", "fake")
+            return await super().complete(request)
+
+    services = make_services(sessionmaker, database_url, Confident(), sms)
+    original = services.store.record_auto_approval
+    crashed: list[bool] = []
+
+    async def record_then_die(*args: Any, **kwargs: Any) -> None:
+        await original(*args, **kwargs)
+        if not crashed:
+            crashed.append(True)
+            raise RuntimeError("worker killed after the auto-approval commit")
+
+    services.store.record_auto_approval = record_then_die  # type: ignore[method-assign]
+    async with case_graph(services, database_url) as graph:
+        runner = CaseRunner(graph)
+        task = TaskMessage(tenant_id=str(tenant), kind="process_case", case_id=case_id)
+        with pytest.raises(RuntimeError):
+            await runner.handle(task)
+        assert await runner.handle(task) == "recovered"  # the same SQS message, redelivered
+        snapshot = await graph.aget_state(config(case_id))
+    # Sent, now waiting for the debtor; never left waiting for a human who cannot decide.
+    assert [i.value["kind"] for i in snapshot.interrupts] == ["await_reply"]
+    assert len(sms.sent) == 1
+    async with sessionmaker() as s:
+        approvals = await Repos(s).approvals.for_case(tenant, uuid.UUID(case_id))
+    assert [a.decision for a in approvals] == ["auto_approve"]

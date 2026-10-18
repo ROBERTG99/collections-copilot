@@ -15,6 +15,7 @@ from mcp import Client
 from mcp.client.streamable_http import streamable_http_client
 from mcp.shared.exceptions import MCPError
 
+from collections_copilot.integrations.mcp.admin import APPROVAL_ID
 from collections_copilot.integrations.mcp.tokens import AgentTokenProvider
 from collections_copilot.observability import tracing
 
@@ -131,8 +132,9 @@ class McpLedgerTools:
         if result.is_error:
             if data.get("status") == "approval_required":
                 approval_id = data.get("approval_id")
-                if not isinstance(approval_id, str) or not approval_id:
-                    return LedgerResult("error", detail="approval_required without approval_id")
+                if not isinstance(approval_id, str) or not APPROVAL_ID.fullmatch(approval_id):
+                    # It goes into admin URL paths later (T-51 security re-check).
+                    return LedgerResult("error", detail="approval_required without a valid id")
                 return LedgerResult(
                     "approval_required",
                     approval_id=approval_id,

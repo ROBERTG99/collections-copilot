@@ -321,7 +321,7 @@ class FollowUp(Base):
         Index("ix_follow_ups_status_due", "status", "due_at"),
         CheckConstraint(
             "kind IN ('after_send', 'deferred_send', 'promise_due', 'approval_reminder',"
-            " 'payment_verification', 'send_retry')",
+            " 'payment_verification', 'send_retry', 'promise_write_back')",
             name="ck_follow_ups_kind",
         ),
         CheckConstraint(

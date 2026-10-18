@@ -287,7 +287,11 @@ def build_case_graph(services: Services, checkpointer: BaseCheckpointSaver[Any] 
                 segment=f.segment,
                 language=f.language,
                 notes=[UntrustedNote(n.id, n.source, n.body, n.created_at) for n in f.notes],
-                pii=AccountPII(name=f.name, phone_e164=f.phone_e164),
+                pii=AccountPII(
+                    name=f.name,
+                    phone_e164=f.phone_e164,
+                    keep=(f.external_ref, *(i.number for i in f.invoices)),
+                ),
             ),
         )
         cited = [n for n in decision.cited_note_ids]
@@ -363,7 +367,11 @@ def build_case_graph(services: Services, checkpointer: BaseCheckpointSaver[Any] 
                     InvoiceFacts(i.number, i.amount_cents, i.currency, i.status) for i in f.invoices
                 ],
                 pay_link=f"{services.pay_link_base}/{state['case_id'][:8]}",
-                pii=AccountPII(name=f.name, phone_e164=f.phone_e164),
+                pii=AccountPII(
+                    name=f.name,
+                    phone_e164=f.phone_e164,
+                    keep=(f.external_ref, *(i.number for i in f.invoices)),
+                ),
                 feedback=feedback,
             ),
         )
@@ -422,6 +430,20 @@ def build_case_graph(services: Services, checkpointer: BaseCheckpointSaver[Any] 
         # Only a still-pending, undecided draft may be auto-approved: on a resume after a human
         # decision (an edit is a new version) the human's record stands (T-51 review M1).
         undecided = fresh.approval is None and (fresh.draft or {}).get("status") == "pending"
+        stored = fresh.approval or {}
+        if stored.get("decision") == "auto_approve" and not fresh.case_closed:
+            # A crash after the auto-approval commit and before the checkpoint: the stored record
+            # is the decision (a human could not decide this version any more). send_sms re-checks
+            # the policy on fresh facts and reopens the draft for a human if it no longer matches.
+            return {
+                "approval": {
+                    "decision": "auto_approve",
+                    "version": d["version"],
+                    "actor": "system",
+                    "reason": "stored auto-approval",
+                    "send_at": stored.get("send_at") or post["send_at"],
+                }
+            }
         if ok and undecided and not fresh.case_closed:
             send_at = datetime.fromisoformat(post["send_at"])
             await store.record_auto_approval(state, int(d["version"]), effective.as_dict(), send_at)

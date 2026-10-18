@@ -15,7 +15,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from pydantic import BaseModel
-from sqlalchemy import select, text
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from collections_copilot.db.models import AuditEvent
@@ -202,6 +202,18 @@ async def has_event(
     if approval_id is not None:
         stmt = stmt.where(AuditEvent.payload_redacted["approval_id"].astext == approval_id)
     return (await session.execute(stmt.limit(1))).first() is not None
+
+
+async def count_events(
+    session: AsyncSession, tenant_id: uuid.UUID, action: str, entity_id: str
+) -> int:
+    """How many times this tenant's log holds the event for one entity (retry counting)."""
+    stmt = select(func.count()).where(
+        AuditEvent.tenant_id == tenant_id,
+        AuditEvent.action == action,
+        AuditEvent.entity_id == entity_id,
+    )
+    return int((await session.execute(stmt)).scalar_one())
 
 
 async def head(session: AsyncSession, tenant_id: uuid.UUID) -> tuple[int, str] | None:

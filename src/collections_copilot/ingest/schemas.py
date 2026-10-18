@@ -34,7 +34,7 @@ CSV_COLUMNS = [
 ]
 
 
-AMOUNT = re.compile(r"\d{1,11}(\.\d{1,2})?")  # major units, at most 99,999,999,999.99
+AMOUNT = re.compile(r"[0-9]{1,11}(\.[0-9]{1,2})?")  # major units, at most 99,999,999,999.99
 
 
 class AgingRow(BaseModel):
@@ -69,7 +69,9 @@ class AgingRow(BaseModel):
     @classmethod
     def _name(cls, v: str) -> str:
         """It reaches prompts and SMS: no markup, braces, backslashes or control and format
-        characters (T-51 security audit M1)."""
+        characters (T-51 security audit M1). Unicode spaces become one plain space, so the
+        redactor's deny list matches what the prompt shows."""
+        v = re.sub(r"\s+", " ", v).strip()
         if any(ch in "<>{}\\" or unicodedata.category(ch)[0] == "C" for ch in v):
             raise ValueError("name may not contain <, >, {, }, backslashes or control characters")
         return v

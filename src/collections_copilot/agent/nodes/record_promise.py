@@ -4,8 +4,10 @@ The promises row (unique idempotency_key) is created before the ledger call, so 
 reply reuses it, and the gateway replays the stored ledger result for the same key: one ledger
 row. `approval_required` holds the promise for a supervisor; the retry sends the same key plus
 `_meta.approval_id`. `-32040 idempotency_conflict` marks the promise failed with no retry.
-A transient failure (gateway down, `-32047` still in progress) leaves the promise pending and
-raises `LedgerUnavailableError`, so SQS redelivers the task and the same key is tried again.
+A transient failure (gateway down, `-32047` still in progress) leaves the promise open and
+schedules a `promise_write_back` follow-up with exponential back-off; the scheduler turns it into
+a `retry_write_back` task with the same key. After `MAX_WRITE_BACK_ATTEMPTS` the promise fails
+and a supervisor is told. The reply itself completes, so the stale-reply sweep leaves it alone.
 """
 
 from __future__ import annotations
@@ -25,8 +27,8 @@ from collections_copilot.integrations.mcp.ledger import LedgerResult, LedgerTool
 FINAL = {"recorded", "failed", "rejected", "kept", "broken"}
 
 
-class LedgerUnavailableError(RuntimeError):
-    """The write-back may not have happened yet; retry with the same key (T-51 review M2)."""
+MAX_WRITE_BACK_ATTEMPTS = 6  # retries after the first call: 2, 4, 8, 16, 32, 64 minutes
+RETRY_BASE = timedelta(minutes=2)
 
 
 OPEN = ("pending", "approval_required")
@@ -66,8 +68,11 @@ async def _apply(
         assert promise is not None
         if promise.status not in OPEN:
             return f"promise_{promise.status}"
-        if result.status == "unavailable":  # the promise stays open; the redelivery retries
-            raise LedgerUnavailableError(result.detail or "ledger unavailable")
+        retries = (
+            await audit.count_events(s, tenant, "promise.write_back_retry", str(promise_id))
+            if result.status == "unavailable"
+            else 0
+        )
         if result.status == "approval_required" and promise.status == "approval_required":
             return "promise_held"
         if result.status == "recorded":
@@ -98,6 +103,18 @@ async def _apply(
                 tenant, promise_id, status="approval_required", mcp_approval_id=result.approval_id
             )
             outcome, action = "promise_held", "promise.approval_required"
+        elif result.status == "unavailable" and retries < MAX_WRITE_BACK_ATTEMPTS:
+            # The write may not have happened yet: same key later, with back-off (T-51 reviews).
+            await repos.follow_ups.add(
+                tenant,
+                case_id=case_id,
+                account_id=account_id,
+                promise_id=promise_id,
+                kind="promise_write_back",
+                due_at=services.clock() + RETRY_BASE * 2**retries,
+                payload={"promise_id": str(promise_id), "attempt": retries + 1},
+            )
+            outcome, action = "promise_retry_scheduled", "promise.write_back_retry"
         elif result.status == "idempotency_conflict":
             await repos.promises.set(
                 tenant, promise_id, status="failed", failure_reason="idempotency_conflict"
@@ -183,7 +200,11 @@ async def retry_write_back(
         promise = await repos.promises.get(tenant, promise_id)
         if promise is None:
             raise LookupError("promise not found")
-        if promise.status != "approval_required" or not promise.mcp_approval_id:
+        if promise.status == "pending":
+            approval_id = None  # a transient failure before any decision: retry as it was
+        elif promise.status == "approval_required" and promise.mcp_approval_id:
+            approval_id = promise.mcp_approval_id
+        else:
             return f"promise_{promise.status}"
         account = await repos.accounts.get(tenant, promise.account_id)
         message = (
@@ -196,12 +217,7 @@ async def retry_write_back(
             else promise.idempotency_key.rsplit(":", 1)[-1]
         )
         args = _ledger_args(promise, account.external_ref, sid)
-        key, approval_id, account_id, case_id = (
-            promise.idempotency_key,
-            promise.mcp_approval_id,
-            account.id,
-            promise.case_id,
-        )
+        key, account_id, case_id = promise.idempotency_key, account.id, promise.case_id
     ledger: LedgerTools | None = services.ledger  # type: ignore[assignment]
     if ledger is None:
         result = LedgerResult("unavailable", detail="no ledger configured")

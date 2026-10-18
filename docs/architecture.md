@@ -134,7 +134,7 @@ flowchart TD
 
 ### Promise write-back
 
-`agent/nodes/record_promise.py` creates the `promises` row (unique key `ptp:<tenant>:<MessageSid>`) before calling `ledger.record_promise_to_pay` through mcp-gateway with that key in `params._meta.idempotency_key`. The gateway replays the stored result for a repeated key, so a crash after the call and a redelivery still produce one ledger row.
+`agent/nodes/record_promise.py` creates the `promises` row (unique key `ptp:<tenant>:<MessageSid>`) before calling `ledger.record_promise_to_pay` through mcp-gateway with that key in `params._meta.idempotency_key`. The gateway replays the stored result for a repeated key, so a crash after the call and a redelivery still produce one ledger row. If the gateway is unavailable (or the first call with the key is still in progress), the promise stays open and a `promise_write_back` follow-up retries the same key with back-off (2 to 64 minutes, six times), after which the promise fails and a supervisor is told.
 
 ```mermaid
 sequenceDiagram

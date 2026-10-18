@@ -213,3 +213,28 @@ async def test_failing_row_backs_off_without_stalling_others(sessionmaker, tenan
     assert backed_off.status == "pending"
     assert backed_off.payload["attempts"] == 1
     assert backed_off.due_at > FIXED_NOW
+
+
+async def test_due_write_back_retry_enqueues_the_retry_task(sessionmaker, tenant) -> None:  # type: ignore[no-untyped-def]
+    """T-51 re-review: a promise whose ledger write hit an outage is retried by the scheduler
+    (the reply itself is done, so the stale-reply sweep never re-enqueues it)."""
+    account, promise_id = await _promise(sessionmaker, tenant, "open")
+    async with sessionmaker() as s, s.begin():
+        repos = Repos(s)
+        await repos.promises.set(tenant, promise_id, status="pending")
+        await repos.follow_ups.add(
+            tenant,
+            account_id=account,
+            promise_id=promise_id,
+            kind="promise_write_back",
+            due_at=FIXED_NOW - timedelta(minutes=1),
+            payload={"promise_id": str(promise_id)},
+        )
+    sink = Sink()
+    sched = scheduler(sessionmaker, sink, f"test-{uuid.uuid4()}")
+    try:
+        await sched.tick()
+    finally:
+        await sched.lock.release()
+    retries = [t for t in sink.for_tenant(tenant) if t.kind == "retry_write_back"]
+    assert [t.resume for t in retries] == [{"promise_id": str(promise_id)}]

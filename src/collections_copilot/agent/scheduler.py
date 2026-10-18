@@ -12,6 +12,7 @@ think they lead still process each row once. Enqueued work is idempotent in the 
   approval_reminder    → still awaiting approval after 24 h: email the supervisor
   send_retry           → an SMS outcome is unknown: email the supervisor (never resent blindly)
   payment_verification → the debtor says paid: email the supervisor to verify the remittance
+  promise_write_back   → the ledger was unavailable: a `retry_write_back` task, same key
 """
 
 from __future__ import annotations
@@ -202,6 +203,17 @@ class Scheduler:
             return [self._resume(row, {"kind": "await_reply", "event": "no_reply"})]
         if row.kind == "promise_due":
             return await self._promise_due(repos, row, now)
+        if row.kind == "promise_write_back":
+            promise = await repos.promises.get(tenant, row.promise_id) if row.promise_id else None
+            if promise is None or promise.status not in ("pending", "approval_required"):
+                return []
+            return [
+                TaskMessage(
+                    tenant_id=str(tenant),
+                    kind="retry_write_back",
+                    resume={"promise_id": str(promise.id)},
+                )
+            ]
         if row.kind == "approval_reminder":
             if case is not None and case.status == "awaiting_approval":
                 await self.notifier.notify_supervisor(

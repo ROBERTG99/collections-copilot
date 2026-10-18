@@ -134,7 +134,11 @@ async def classify_text(
             schema=ReplyClassification,
             prompt_version=f"{rendered.name}.{rendered.version}",
             prompt_hash=rendered.hash,
-            pii=AccountPII(name=account.get("name", ""), phone_e164=account.get("phone_e164", "")),
+            pii=AccountPII(
+                name=account.get("name", ""),
+                phone_e164=account.get("phone_e164", ""),
+                keep=(account.get("external_ref", ""), *account.get("open_invoices", [])),
+            ),
             language=account.get("language", "en"),
         )
     if result.ok and result.parsed is not None:

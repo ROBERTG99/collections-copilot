@@ -20,3 +20,12 @@ def test_ordinary_names_are_accepted(name: str) -> None:
 def test_markup_and_control_characters_are_rejected(name: str) -> None:
     with pytest.raises(ValidationError, match="name"):
         AgingRow(**{**ROW, "name": name}, amount="10.00")
+
+
+@pytest.mark.parametrize(
+    "raw", ["Acme\u00a0Corp", "Acme\u2009 Corp", "Acme\u3000Corp", "Acme  Corp"]
+)
+def test_unicode_spaces_become_one_plain_space(raw: str) -> None:
+    """T-51 security re-check: the note fence drops non-printable spaces, so a name with a
+    no-break space no longer matched the redactor's deny list."""
+    assert AgingRow(**{**ROW, "name": raw}, amount="10.00").name == "Acme Corp"

@@ -213,27 +213,69 @@ class UnavailableOnce:
         return await self.inner.get_balance(tenant, account_ref)
 
 
-async def test_a_transient_ledger_failure_is_retried_by_redelivery(
+async def test_a_transient_ledger_failure_is_retried_with_back_off(
     sessionmaker, database_url, migrated_database, tenant, stack
 ) -> None:  # type: ignore[no-untyped-def]
-    """T-51 review M2: `unavailable` left the promise `failed` for good. It stays pending and
-    the reply is redelivered, so the same key is written once when the gateway is back."""
-    from collections_copilot.agent.nodes.record_promise import LedgerUnavailableError
-
+    """T-51 reviews: `unavailable` left the promise `failed` for good (round 1); redelivering the
+    reply instead flooded the DLQ through the stale-reply sweep (round 2). The reply completes,
+    the promise stays pending, and a backed-off follow-up retries the same key."""
     account, _ = await seeded_account(sessionmaker, stack, tenant, 120_000)
     tools = McpLedgerTools(stack.gateway_url, DevIssuerTokenProvider(stack.issuer_url))
-    graph = build_reply_graph(
-        services_with(sessionmaker, database_url, UnavailableOnce(tools)), sessionmaker
-    )
+    services = services_with(sessionmaker, database_url, UnavailableOnce(tools))
+    graph = build_reply_graph(services, sessionmaker)
     reply = await inbound(sessionmaker, tenant, account, "I can pay 1,200 on Friday")
-    payload = {"reply": reply.model_dump(mode="json", by_alias=True)}
     key = promise_key(str(tenant), reply.provider_sid)
-    with pytest.raises(LedgerUnavailableError):
-        await graph.ainvoke(payload)
+    result = await graph.ainvoke({"reply": reply.model_dump(mode="json", by_alias=True)})
+    assert result["outcome"] == "promise_retry_scheduled"
     async with sessionmaker() as s:
-        held = await Repos(s).promises.by_key(tenant, key)
-    assert held is not None
-    assert held.status == "pending"
-    result = await graph.ainvoke(payload)  # SQS redelivery
-    assert result["outcome"] == "promise_recorded"
+        repos = Repos(s)
+        held = await repos.promises.by_key(tenant, key)
+        assert held is not None
+        assert held.status == "pending"
+        retry = await repos.follow_ups.pending_for_promise(tenant, held.id, "promise_write_back")
+        message = await repos.messages.get(tenant, uuid.UUID(reply.message_id))
+    assert retry is not None
+    assert retry.payload["promise_id"] == str(held.id)
+    assert message is not None
+    assert message.status != "received"  # handled: the stale-reply sweep leaves it alone
+    # What the scheduler's retry_write_back task runs when the follow-up is due.
+    assert await retry_write_back(services, sessionmaker, str(tenant), str(held.id)) == (
+        "promise_recorded"
+    )
     assert ledger_rows(migrated_database, tenant) == [(key, 120_000)]
+
+
+class AlwaysUnavailable:
+    async def record_promise_to_pay(
+        self, tenant: str, args: dict[str, Any], **_: Any
+    ) -> LedgerResult:
+        return LedgerResult("unavailable", detail="ConnectError")
+
+    async def get_balance(self, tenant: str, account_ref: str) -> dict[str, Any]:
+        return {}
+
+
+async def test_write_back_gives_up_after_the_last_attempt(
+    sessionmaker, database_url, migrated_database, tenant, stack
+) -> None:  # type: ignore[no-untyped-def]
+    from collections_copilot.agent.nodes.record_promise import MAX_WRITE_BACK_ATTEMPTS
+
+    account, _ = await seeded_account(sessionmaker, stack, tenant, 120_000)
+    services = make_services(sessionmaker, database_url)
+    services.ledger = AlwaysUnavailable()
+    graph = build_reply_graph(services, sessionmaker)
+    reply = await inbound(sessionmaker, tenant, account, "I can pay 1,200 on Friday")
+    await graph.ainvoke({"reply": reply.model_dump(mode="json", by_alias=True)})
+    async with sessionmaker() as s:
+        promise = await Repos(s).promises.by_key(
+            tenant, promise_key(str(tenant), reply.provider_sid)
+        )
+    assert promise is not None
+    outcomes = [
+        await retry_write_back(services, sessionmaker, str(tenant), str(promise.id))
+        for _ in range(MAX_WRITE_BACK_ATTEMPTS)
+    ]
+    assert outcomes[:-1] == ["promise_retry_scheduled"] * (MAX_WRITE_BACK_ATTEMPTS - 1)
+    assert outcomes[-1] == "promise_failed"
+    assert services.notifier.sent  # a supervisor is told
+    assert ledger_rows(migrated_database, tenant) == []

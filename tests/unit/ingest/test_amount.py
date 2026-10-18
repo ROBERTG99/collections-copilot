@@ -32,7 +32,20 @@ def test_plain_amounts_are_accepted(amount: str) -> None:
 
 
 @pytest.mark.parametrize(
-    "amount", ["1e3", "1E999990", "100000000000.00", "1e20", "-5", "0", "1.234", "NaN", " 1_000"]
+    "amount",
+    [
+        "\uff11\uff12\uff13",
+        "\u0661\u0662",
+        "1e3",
+        "1E999990",
+        "100000000000.00",
+        "1e20",
+        "-5",
+        "0",
+        "1.234",
+        "NaN",
+        " 1_000",
+    ],
 )
 def test_exponents_huge_and_malformed_amounts_are_rejected(amount: str) -> None:
     started = time.process_time()

@@ -24,6 +24,10 @@ LANGUAGES = ("en", "es")
 LEGAL_SUFFIXES = re.compile(
     r"\s+(LLC|Inc\.?|Co\.?|Group|Partners|S\.L\.?|Ltd\.?|S\.A\.?|GmbH)$", re.I
 )
+# Phone-number boundaries and separators: not inside a word, an amount or an identifier.
+_B = r"(?<![\w.,/-])"
+_A = r"(?!\w|[.,/-]\d)"
+_S = r"[\s./_\-\u2010-\u2015\u2212]"
 PLACEHOLDER_PREFIX = {
     "ACCOUNT_NAME": "ACCOUNT_NAME",
     "PERSON": "PERSON",
@@ -88,15 +92,19 @@ def _engine() -> AnalyzerEngine:
                 supported_language=lang,
                 patterns=[
                     Pattern("e164", r"\+\d[\d\s().-]{7,18}\d", 0.7),
-                    Pattern("nanp", r"(?<!\w)\(?\d{3}\)?[\s.-]\d{3}[\s.-]\d{4}(?!\w)", 0.6),
-                    # Spanish local format without +34: "555 12 34 56", "555 123 456"
-                    Pattern("es_local_3222", r"(?<![\w.,])\d{3} \d{2} \d{2} \d{2}(?![\w.,])", 0.6),
-                    Pattern("es_local_333", r"(?<![\w.,])\d{3} \d{3} \d{3}(?![\w.,])", 0.5),
-                    # Unseparated or partly separated national forms (T-51 security audit M2):
-                    # "5550001234", "15550001234", "(555)000-1234", "555-0001234", "555123456".
-                    Pattern("digits", r"(?<![\w.,/-])\+?\d{9,15}(?![\w.,/-])", 0.5),
-                    Pattern("nanp_paren", r"\(\d{3}\)\s?\d{3}[\s.-]?\d{4}(?!\w)", 0.6),
-                    Pattern("split_3_7", r"(?<![\w.,/-])\d{3}[\s.-]\d{7}(?![\w.,/-])", 0.5),
+                    # National forms (T-51 security audit M2): grouped with spaces, dots, dashes,
+                    # slashes or Unicode dashes, or unseparated; a trailing "." or "," ends a
+                    # sentence, while a following digit means an amount or a date.
+                    Pattern("nanp", _B + r"\(?\d{3}\)?" + _S + r"?\d{3}" + _S + r"\d{4}" + _A, 0.6),
+                    Pattern(
+                        "nanp_3322", _B + rf"\d{{3}}{_S}\d{{3}}{_S}\d{{2}}{_S}\d{{2}}" + _A, 0.6
+                    ),
+                    Pattern(
+                        "es_local_3222", _B + rf"\d{{3}}{_S}\d{{2}}{_S}\d{{2}}{_S}\d{{2}}" + _A, 0.6
+                    ),
+                    Pattern("es_local_333", _B + rf"\d{{3}}{_S}\d{{3}}{_S}\d{{3}}" + _A, 0.5),
+                    Pattern("split_3_7", _B + rf"\d{{3}}{_S}\d{{7}}" + _A, 0.5),
+                    Pattern("digits", _B + r"\+?\d{9,15}" + _A, 0.5),
                 ],
             )
         )
@@ -119,6 +127,9 @@ class AccountPII:
     name: str = ""
     phone_e164: str = ""
     contacts: tuple[str, ...] = ()
+    # The account's own identifiers (invoice numbers, reference): never redacted as phone
+    # numbers, since drafts and citations need them (T-51 re-review).
+    keep: tuple[str, ...] = ()
 
     def deny_terms(self) -> list[tuple[str, str]]:
         terms: list[tuple[str, str]] = []
@@ -144,10 +155,12 @@ class AccountPII:
 
 
 def _escaped_forms(term: str) -> list[str]:
+    printable = "".join(ch for ch in term if ch.isprintable())  # what the note fence keeps
+    fenced = printable.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
     as_json = json.dumps(term, ensure_ascii=False)[1:-1]
     as_json = as_json.replace("&", "\\u0026").replace("<", "\\u003c").replace(">", "\\u003e")
     as_html = term.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-    return [term, as_json, as_html]
+    return [term, as_json, as_html, printable, fenced]
 
 
 @dataclass
@@ -164,7 +177,11 @@ class Redactor:
     ) -> tuple[str, dict[str, str]]:
         spans: list[tuple[int, int, str]] = []
         for entity, term in pii.deny_terms() if pii else []:
-            for m in re.finditer(re.escape(term), text, re.I):
+            pattern = re.escape(term)
+            if entity == "PHONE_NUMBER" and re.fullmatch(r"\+?\d+", term):
+                # The account's own number in any spacing: up to two separators between digits.
+                pattern = r"(?<!\d)\+?" + r"\D{0,2}".join(term.lstrip("+")) + r"(?!\d)"
+            for m in re.finditer(pattern, text, re.I):
                 spans.append((m.start(), m.end(), entity))
         results = _engine().analyze(
             text=text,
@@ -172,7 +189,10 @@ class Redactor:
             entities=list(self.entities),
             score_threshold=self.score_threshold,
         )
-        spans += [(r.start, r.end, r.entity_type) for r in results]
+        keep = {k for k in pii.keep if k} if pii else set()
+        spans += [
+            (r.start, r.end, r.entity_type) for r in results if text[r.start : r.end] not in keep
+        ]
         # Longest span wins on overlap.
         spans.sort(key=lambda s: (s[0], -(s[1] - s[0])))
         merged: list[tuple[int, int, str]] = []

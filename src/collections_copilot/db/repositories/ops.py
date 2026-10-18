@@ -347,6 +347,17 @@ class FollowUpsRepo(Repo):
             stmt = stmt.where(FollowUp.due_at > due_after)
         return (await self.s.execute(stmt)).scalars().first()
 
+    async def pending_for_promise(
+        self, tenant_id: TenantId, promise_id: uuid.UUID, kind: str
+    ) -> FollowUp | None:
+        stmt = select(FollowUp).where(
+            FollowUp.tenant_id == tenant_id,
+            FollowUp.promise_id == promise_id,
+            FollowUp.kind == kind,
+            FollowUp.status == "pending",
+        )
+        return (await self.s.execute(stmt)).scalars().first()
+
     async def cancel_for_case(self, tenant_id: TenantId, case_id: uuid.UUID) -> None:
         await self.s.execute(
             update(FollowUp)
