@@ -219,7 +219,7 @@ Architecture decision records live in [docs/adr/](docs/adr/), each naming the re
 
 ## Status and limitations
 
-The build has completed milestones M0 to M8 and the M9 reviews (T-51); the final verification (T-52) is recorded in [docs/verification.md](docs/verification.md). `make verify` is red on the replies gate described above. Open items, including the evalgate and mcp-gateway releases this repository currently replaces with contract fallbacks in `third_party/`, are listed under "Needs the maintainer" in [PROGRESS.md](PROGRESS.md). Everything else that is missing or compromised is in [docs/KNOWN_LIMITATIONS.md](docs/KNOWN_LIMITATIONS.md).
+Milestones M0 to M9 are complete, and the final verification on 2026-10-18 is recorded in [docs/verification.md](docs/verification.md). Two gates are not green there: `make verify` stops at the replies gate described above, and `make bench` missed the NFR-1 account-route budget on the verification host (274.77 ms against 200 ms; the same commit range met it at 174.41 ms earlier that day, see the Performance budgets section and docs/KNOWN_LIMITATIONS.md). Open items, including the evalgate and mcp-gateway releases this repository currently replaces with contract fallbacks in `third_party/`, are listed under "Needs the maintainer" in [PROGRESS.md](PROGRESS.md). Everything else that is missing or compromised is in [docs/KNOWN_LIMITATIONS.md](docs/KNOWN_LIMITATIONS.md).
 
 ## Licence
 

@@ -1,10 +1,75 @@
 # Final verification
 
-The §19 procedure of `docs/specs/000-build-spec.md`, run on a fresh clone with no `.env` file and no provider keys. Results are recorded here by T-52 from the commands' own output; until then this page lists the procedure only.
+The §19 procedure of `docs/specs/000-build-spec.md`, run on a fresh clone with no `.env` file and no provider keys. Results are copied from the commands' own output.
 
 ## Status
 
-Not run yet. T-52 replaces this section with the date, the commit, and the result line of each step below.
+Run on 2026-10-18 on a Claude Code on the web container (Linux 6.18, 4 CPUs, Docker 29.8.2, Python 3.13.16, Node 22.22.0), in fresh clones with no `.env` file, no provider keys and `CC_LLM_PROVIDER=fake`. Every line below is copied from the commands' own output (logs `/tmp/verify-cc.log`, `/tmp/verify-cc.<step>.log` and `/tmp/verify-cc2.<step>.log` on that container).
+
+**Result: not every gate is green.** Two items stay open, both recorded in `docs/KNOWN_LIMITATIONS.md`: the replies macro-F1 gate (needs the maintainer) and the NFR-1 account-route budget on this host at verification time.
+
+### Pass 1: `make verify-clean` at `6531af0`
+
+`scripts/verify_clean.sh` cloned the committed tree to `/tmp/verify-cc` and ran `make bootstrap` and `make verify` (7 min 51 s until it stopped):
+
+| Step | Result |
+|---|---|
+| `make bootstrap` | passed |
+| `make lint` | passed: ruff "All checks passed!", import-linter "Contracts: 2 kept, 0 broken", prettier, eslint, markdownlint, `terraform fmt` |
+| `make typecheck` | passed: mypy "Success: no issues found in 123 source files", tsc |
+| `make test` | passed: 720 Python tests (unit, harness, integration, contract), coverage gate scoring 100.00 %, compliance 99.33 %, agent 92.85 %, llm 95.48 %, api 85.71 %, overall 87.11 %; Vitest "Test Files 20 passed (20), Tests 161 passed (161)", lines 99.72 % |
+| `make security` | "make security: PASS" (gitleaks, bandit, pip-audit, pnpm audit, trivy fs and all 8 images, hadolint, checkov, tflint, actionlint, licences) |
+| `make tf-check` | "Success! 28 passed, 0 failed."; checkov "Passed checks: 341, Failed checks: 0, Skipped checks: 32" |
+| `make eval` | **failed**: "nba: PASS (120 test cases)", "replies: FAIL (80 test cases) FAIL reply_macro_f1: threshold value=0.891667 threshold=0.9", "compliance: PASS (30 test cases)" |
+| `make bench` | not reached inside `make verify` (run separately below) |
+
+The steps after `make verify` ran on their own in the same clone (compose project `cc-verify`):
+
+| Step | Result | Duration |
+|---|---|---|
+| `docker compose build` | passed | 163 s |
+| `docker compose -p cc-verify up -d --wait` | passed, every service healthy | 29 s |
+| `make seed` | passed: acme-distribution 400 accounts, tenant-b-supplies 40 accounts | 12 s |
+| `make demo` | passed: "demo: every §3.4 journey completed and checked" | 22 s |
+| `make e2e` | passed: "35 passed (3.7m)" | 225 s |
+| `make test-docker` | **failed**: `tests/integration/test_walking_skeleton.py::test_case_reaches_approval_interrupt` (the demo no longer printed `awaiting_approval`; fixed in `180ca64`) | 228 s |
+| `make bench` | **failed**: account p95 298.62 ms (budget 200 ms); queue p95 206.27 ms (budget 300 ms) passed | 186 s |
+| `docker compose down -v` | passed | 13 s |
+
+### Pass 2: fresh clone at `180ca64`
+
+| Step | Result | Duration |
+|---|---|---|
+| `make bootstrap`, `docker compose build`, `up -d --wait`, `make seed` | passed | 4 s, 184 s, 29 s, 13 s |
+| `make test-docker` | passed: 724 tests (720 in the tools image, 4 `-m docker` from the host), 0 failed | 261 s |
+| `docker compose down -v`, then a fresh `up -d --wait` and `make seed` | passed | 18 s, 27 s, 13 s |
+| `make bench` | **failed on NFR-1 account only**: account p95 274.77 ms (budget 200 ms); queue p95 174.05 ms (budget 300 ms); 175 req/s, 0 failed requests; NFR-2 case graph p95 168 ms over 82 of 100 cases (budget 300 ms); NFR-4 batch of 400 in 52.7 s (budget 180 s) | 185 s |
+
+The same host had slowed down since the morning: `make bench` at `dde18c3` (the M8 commit), on a fresh stack right after pass 2, measured account p95 **281.09 ms**, while the same commit had measured 174.41 ms earlier on 2026-10-18 (PROGRESS.md, M8 review row). The code path of the account route did not change in between; NFR-1 is therefore not met on this host at verification time. NFR-6: `make up` reported "every service healthy in 28s (budget 300s)" on the dev stack (106 s after a rebuild earlier the same day).
+
+### Acceptance test results
+
+Every FR row in the table below passed in `make test` above (52 node ids including parametrised cases; the FR-14 Playwright spec in `make e2e`; FR-15 in `make tf-check`).
+
+### Reviews (§19 step 3)
+
+- `reviewer` over the whole history, three rounds (T-51 row in PROGRESS.md): final verdict **"ship"** at `1d77cee`.
+- `security-auditor`, `compliance-reviewer` and `terraform-reviewer`: findings fixed or recorded (PROGRESS.md, Milestone reviews, M9).
+- `security-review` skill over the branch: no vulnerabilities at or above 0.7 confidence.
+- The `code-review` skill was not run separately; the `reviewer` subagent's three rounds covered correctness.
+
+### Live evals (§19 step 4)
+
+No provider key is set (`ANTHROPIC_API_KEY` unset): live evals were not run, and `evals/REPORT.md` says so.
+
+### Authorship (§19 step 5)
+
+```text
+$ git log --format='%an <%ae> | %cn <%ce>' | sort -u
+ROBERTG99 <54124633+ROBERTG99@users.noreply.github.com> | ROBERTG99 <54124633+ROBERTG99@users.noreply.github.com>
+$ git log --format=%B | grep -E 'Co-Authored-By|Claude-Session|Generated with Claude Code'
+(no output, exit 1)
+```
 
 ## Procedure
 
@@ -15,7 +80,7 @@ Not run yet. T-52 replaces this section with the date, the commit, and the resul
 
 ## Acceptance tests (spec §3.1)
 
-Each functional requirement's *given/when/then* is checked by the tests below; T-52 records the result of each row from the final run.
+Each functional requirement's *given/when/then* is checked by the tests below; all passed in the final run (see Status).
 
 | FR | Acceptance test |
 |---|---|
