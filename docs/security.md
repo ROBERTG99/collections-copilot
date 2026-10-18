@@ -1,6 +1,6 @@
 # Security
 
-Threat model, controls and scan results for collections-copilot (BUILD.md §15, NFR-10). The system only ever handles synthetic data: phone numbers in `+1555…` and `+34555…`, `example` domains, generator seed 4242. Report vulnerabilities as described in [`SECURITY.md`](../SECURITY.md).
+Threat model, controls and scan results for collections-copilot (docs/specs/000-build-spec.md §15, NFR-10). The system only ever handles synthetic data: phone numbers in `+1555…` and `+34555…`, `example` domains, generator seed 4242. Report vulnerabilities as described in [`SECURITY.md`](../SECURITY.md).
 
 ## Assets and trust boundaries
 
@@ -33,7 +33,7 @@ Untrusted input crosses into the system at four points: CRM data in uploaded fil
 | BFF | I, E: path smuggling to internal routes | Every path segment is checked after Next decodes it (no `/`, `\`, `.`, `..` or empty segment, no `webhooks`), and the final URL must stay under `/api/v1/` outside `/api/v1/webhooks/` | `web/lib/proxy.ts` (`apiTarget`), `web/tests/unit/proxy.test.ts` |
 | BFF | D: large bodies | Request bodies read with a running 1 MiB cap (413) | `web/lib/proxy.ts` (`readCapped`) |
 | API | S: forged tokens | JWKS-verified RS256 JWT (`kid`, issuer, audience, expiry), `token_use` must be `access`, roles and `tenant_id` from claims | `src/collections_copilot/api/deps/auth.py`, `tests/integration/test_rbac.py` |
-| API | E: role escalation | `require_roles` on every `/api/v1` route, tested as a matrix that fails if a route is missing. `/healthz`, `/readyz` and `/metrics/` are unauthenticated and never routed publicly; `/docs` and `/openapi.json` are off in production | `src/collections_copilot/api/deps/auth.py`, `src/collections_copilot/api/main.py` |
+| API | E: role escalation | `require_roles` on every `/api/v1` route, tested as a matrix that fails if a route is missing. `/healthz`, `/readyz`, `/metrics/` and `/.well-known/agent-jwks.json` (public keys only) are unauthenticated and never routed publicly; `/docs` and `/openapi.json` are off in production | `src/collections_copilot/api/deps/auth.py`, `src/collections_copilot/api/main.py` |
 | API | I: cross-tenant reads | Every table has `tenant_id`; repositories take the tenant as their first argument; raw SQL outside `db/` is banned by ruff. The only cross-tenant lookups are by provider ids in webhooks and the scheduler | `src/collections_copilot/db/repositories/`, `pyproject.toml` |
 | API | D: floods and large bodies | Redis rate limit (120 requests a minute per user, 600 per source IP for webhooks), body and upload size limits, row limits; progress streams use their own Redis pool and at most 5 per user. If Redis fails the rate limit lets requests through (availability over throttling) | `src/collections_copilot/api/middleware/limits.py`, `src/collections_copilot/api/routers/events.py` |
 | API | R: duplicated decisions | `Idempotency-Key` on mutating routes, failing closed (503 `Retry-After`) when the store is down; approval retries are answered from the stored decision | `src/collections_copilot/api/middleware/limits.py`, `src/collections_copilot/api/routers/approvals.py` |
@@ -46,7 +46,7 @@ Untrusted input crosses into the system at four points: CRM data in uploaded fil
 | SMS sender | I: texting real people | Outside production only `+1555…` and `+34555…` numbers are accepted at ingest and texted (`CC_SYNTHETIC_NUMBERS_ONLY`, which may be off only with `CC_ENV=prod`); Twilio error bodies are masked before they are stored | `src/collections_copilot/integrations/sms/`, `src/collections_copilot/ingest/schemas.py` |
 | mcp-gateway and ledger | S, E: writes without authority | Short-lived agent JWT scoped to tenant and `ledger:write`; policy requires an approval id for promises above the threshold; idempotency key per write | `third_party/mcp-gateway/`, `deploy/mcpgw/policy/`, `src/collections_copilot/integrations/mcp/` |
 | Audit log | T, R: edited history | Hash chain over canonical records, verified per tenant (`chain_ok`) | `src/collections_copilot/db/audit.py` |
-| SQS | D: poison messages | Redrive to DLQs after 5 receives; `CCDLQNotEmpty` alert; replay procedure in the runbook (M8) | `deploy/elasticmq.conf`, `deploy/prometheus/alerts.yml` |
+| SQS | D: poison messages | Redrive to DLQs after 5 receives; `CCDLQNotEmpty` alert; replay procedure in `docs/runbook.md` (`cc dlq peek`, `cc replay-dlq`) | `deploy/elasticmq.conf`, `deploy/prometheus/alerts.yml`, `src/collections_copilot/cli.py` |
 | Logs, traces, metrics | I: data leaking into telemetry | JSON logs mask phone numbers (international and national formats, also URL-encoded), e-mail addresses, JWTs, bearer and `*token=` values and API keys, and drop body, recipient and credential fields; uvicorn's access log (raw query strings) is off and the middleware logs the route template instead. Spans carry ids and the exception type only, never its message or stack; metric labels never carry tenant or case | `src/collections_copilot/observability/`, `tests/unit/test_log_redaction.py`, `tests/unit/test_telemetry_middleware.py` |
 | Configuration | S: published dev secrets accepted | Dev defaults for shared secrets and an HTTP issuer are refused with `CC_ENV=prod` or whenever the public base URL is not local; KMS agent tokens need a key id; the web's dev-secret escape hatch works only on a localhost URL | `src/collections_copilot/config.py`, `web/lib/config.ts` |
 | Images | E: container compromise | Non-root UID 10001, slim bases, no pip in runtime images, healthchecks; containers install nothing at runtime | `docker/python.Dockerfile` |
@@ -88,7 +88,7 @@ The latest result is recorded in `PROGRESS.md` and, at the end of the build, in 
 
 | Finding | Reason | Revisit |
 |---|---|---|
-| gitleaks `generic-api-key` in `web/tests/unit/session.test.ts:5` (`.gitleaksignore`) | A dummy secret used only to seal a test session. | Never shipped. |
+| gitleaks `generic-api-key` in `web/tests/unit/session.test.ts:5`, `web/tests/unit/session-helpers.test.ts:13`, `web/tests/unit/server-session.test.ts:30` and `tests/unit/test_log_redaction.py:108` (`.gitleaksignore`) | Dummy secrets that seal test sessions, and fake token strings that the log-redaction test proves are masked. | Never shipped. |
 | pnpm `braces` GHSA-vfj7-8cjw-p6xm (high, no patched release), via `markdownlint-cli2` and `eslint-config-next` | Both are dev-only tools run on the repository's own files; no untrusted patterns reach them. Ignored in `pnpm-workspace.yaml`. | When a fixed `braces` ships. |
 | trivy AVD-AWS-0053 (public load balancer), `infra/terraform/modules/alb/main.tf` | The console is an internet-facing site; the ALB has a WAF (managed rule sets, per-IP rate limit, logging), HTTPS with TLS 1.3 and a redirect-only port 80. | — |
 | trivy AVD-AWS-0104 (egress to any IP on 443), `infra/terraform/modules/ecs_service/main.tf` | Twilio and the identity provider publish no fixed address ranges; egress is HTTPS only, through the NAT gateway, and AWS APIs go through VPC endpoints. | An egress proxy with a domain allowlist. |
@@ -102,7 +102,7 @@ Fixed while adding the scans: `smol-toml` and `katex` advisories (pnpm overrides
 
 - Locally: `.env` from `.env.example`, which holds only dummy values.
 - AWS: Secrets Manager entries created without values by Terraform (`infra/terraform/modules/secrets`, M7), injected into ECS tasks.
-- Rotation and replay procedures: `docs/runbook.md` (M8).
+- Rotation and replay procedures: `docs/runbook.md`.
 - gitleaks scans the whole history in `make security`; a PreToolUse hook blocks edits to frozen eval datasets and destructive commands such as applying or destroying Terraform (`.claude/hooks/pre_tool_guard.py`).
 
 ## Residual risks
@@ -111,7 +111,7 @@ Each is also listed in `docs/KNOWN_LIMITATIONS.md`.
 
 - **Names of people in notes and replies** ("spoke to Laura Gómez") reach the model provider: redaction covers the account's own name and phone, contact data patterns and cards, but there is no offline person-name recogniser and the CRM import has no contact list to deny.
 - **Presigned uploads** do not sign the object size; the API reads at most the configured limit of the exact version it checked (`If-Match` and a byte range), so an oversized or swapped object is refused rather than buffered.
-- **Rate limits fail open** when Redis is unavailable (idempotency fails closed). Behind a proxy, uvicorn must trust the proxy's addresses (`FORWARDED_ALLOW_IPS`, set to the VPC range in Terraform) or every webhook shares one bucket.
+- **Rate limits fail open** when Redis is unavailable (idempotency fails closed). Behind a proxy, uvicorn must trust the proxy's addresses (`FORWARDED_ALLOW_IPS`, set in `infra/terraform/envs/dev/main.tf:56` to the CIDRs of the public subnets the ALB runs in) or every webhook shares one bucket.
 - **Sessions are stateless**: logout clears the cookie and calls the issuer's logout but does not revoke the refresh token; a stolen cookie stays valid until it expires. The BFF's single-flight refresh map is per process.
 - **Agent token scopes are chosen by the caller** in KMS mode (one signing key for the API and the worker; the gateway verifies against the API's `/.well-known/agent-jwks.json`); the dev issuer mints any scope and is bound to 127.0.0.1.
 - **The console's CSP** keeps `'unsafe-inline'` scripts for Next.js bootstrap code (docs/DECISIONS.md).

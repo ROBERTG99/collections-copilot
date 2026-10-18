@@ -124,6 +124,8 @@ class Settings(BaseSettings):
             )
             if not value or value.startswith("dev-")
         ]
+        if self.twilio_from == Settings.model_fields["twilio_from"].default:
+            problems.append("CC_TWILIO_FROM (the tenant's sending number)")
         if not self.oidc_issuer.startswith("https://") or "localhost" in self.oidc_issuer:
             problems.append("CC_OIDC_ISSUER (https, not localhost)")
         # A service URL left at its local default would call this container, not the service.

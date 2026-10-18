@@ -78,14 +78,15 @@ All notable changes to this project are documented in this file. The format is b
 #### M8 Docs and demo (2026-10-18)
 
 - `make demo` runs the four user journeys of spec §3.4 and checks the state after each step; `docs/images/demo.webm` records the main journey.
-- README, architecture, AI development, contributing guide and this changelog (T-50, in progress).
+- README, architecture, AI development, evaluation, security, runbook, design FAQ, contributing guide, known limitations, verification procedure and this changelog; ADRs 0001 to 0009 (T-50).
+- Operations commands `cc dlq peek`, `cc replay-dlq` and `cc dev-token`, the chain head lines printed by `cc audit verify`, and the SQS contract test against ElasticMQ and moto (T-50).
 
 ### Changed
 
 - Compliance rules for amounts and links fail closed, and text rules read NFKC-normalised text (M1 and M6 reviews).
 - Every SMS send re-reads the case, the draft, its approval record and the debtor's facts from the database (M2 review).
 - The API container runs several uvicorn processes, and the account detail returns the newest 20 cases (M7, performance budgets).
-- The ALB routes only `/api/v1/webhooks/twilio/*` to the API, and Cognito access tokens carry the tenant through a Pre Token Generation trigger (M7 reviews).
+- The ALB routes only `/api/v1/webhooks/twilio/*` to the API, and Cognito access tokens carry the tenant through a Pre Token Generation trigger; the API publishes the agent JWKS at `/.well-known/agent-jwks.json` for KMS-signed gateway tokens (M7 reviews).
 
 ### Fixed
 

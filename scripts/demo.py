@@ -27,6 +27,7 @@ import time
 import uuid
 from collections.abc import Callable
 from datetime import UTC, date, datetime, timedelta
+from decimal import Decimal
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -133,15 +134,16 @@ class Demo:
     # -- setup -----------------------------------------------------------------------------------
 
     def account(self, persona: str, balance_cents: int, *, days_past_due: int = 35,
-                note: str = "", name: str | None = None) -> dict[str, Any]:  # fmt: skip
+                note: str = "", name: str | None = None,
+                phone: str | None = None) -> dict[str, Any]:  # fmt: skip
         """Import one synthetic account and return its queue row."""
         self.index += 1
         ref = f"{self.prefix}-{self.index:02d}"
-        due = date.today() - timedelta(days=days_past_due)
+        due = datetime.now(ZoneInfo(self.zone)).date() - timedelta(days=days_past_due)
         row = {
             "external_ref": ref,
             "name": name or f"Demo Account {self.run_id:04d}-{self.index:02d}",
-            "phone_e164": synthetic_phone(self.run_id, self.index, persona),
+            "phone_e164": phone or synthetic_phone(self.run_id, self.index, persona),
             "timezone": self.zone,
             "segment": "smb",
             "language": "en",
@@ -175,6 +177,30 @@ class Demo:
             )
         finally:
             await store.close()
+
+    def ledger_promises(self, ref: str) -> list[dict[str, Any]]:
+        """The promise rows in the customer's ledger for one account."""
+        from ledger_mcp.store import LedgerStore
+
+        async def read() -> list[dict[str, Any]]:
+            store = LedgerStore(LEDGER_DB)
+            await store.open()
+            try:
+                return await store.promises_for(self.tenant, ref)
+            finally:
+                await store.close()
+
+        return asyncio.run(read())
+
+    def one_ledger_row(self, ref: str, ledger_ref: str) -> int:
+        """Exactly one ledger row, written under the key `ptp:<tenant>:<MessageSid>`."""
+        rows = self.ledger_promises(ref)
+        expect(len(rows) == 1 and rows[0]["ledger_ref"] == ledger_ref,
+               "exactly one ledger row", rows=len(rows))  # fmt: skip
+        key = f"ptp:{self.tenant}:{rows[0]['source_message_sid']}"
+        expect(rows[0]["idempotency_key"] == key, "the write uses the promise key",
+               key=rows[0]["idempotency_key"])  # fmt: skip
+        return len(rows)
 
     def open_case(self, client: httpx.Client, account_id: str) -> str:
         created = ok(client.post("/api/v1/cases", json={"account_ids": [account_id]}))
@@ -216,12 +242,6 @@ class Demo:
             return found[0] if found else None
 
         return poll(probe, f"a {status} promise")
-
-    def audit_count(self, action: str, entity_id: str) -> int:
-        page = ok(self.supervisor.get(
-            "/api/v1/audit", params={"action": action, "entity_id": entity_id, "limit": 50}
-        ))  # fmt: skip
-        return len(page["items"])
 
     def sse_nodes(self, case_id: str, wanted: set[str], timeout_s: float = 60) -> list[str]:
         """Node names from the case's progress stream (history first, then live)."""
@@ -289,8 +309,7 @@ class Demo:
                reply=reply["body"], label=reply["classification"])  # fmt: skip
         self.log(f"  debtor: {reply['body']!r} → {reply['classification']}")
         promise = self.promise(account_id, "recorded")
-        writes = self.audit_count("promise.recorded", promise["id"])
-        expect(writes == 1 and promise["ledger_ref"], "exactly one ledger write", writes=writes)
+        writes = self.one_ledger_row(row["external_ref"], promise["ledger_ref"])
         follow_up = self.follow_up(promise["id"])
         weekday = datetime.fromisoformat(follow_up["due_at"]).strftime("%A")
         self.log(f"  promise {promise['amount_cents'] / 100:,.2f} {promise['currency']} on "
@@ -322,9 +341,10 @@ class Demo:
         return poll(probe, "the promise's follow-up", timeout_s=30)
 
     def batch(self, count: int = 20) -> dict[str, Any]:
-        """sam.supervisor approves 20 reminders at once, then tightens auto-approval."""
+        """sam.supervisor approves 20 reminders at once, then tightens auto-approval (the tenant's
+        policy keeps min_confidence 0.95 on this stack afterwards)."""
         policy = ok(self.supervisor.get("/api/v1/settings/auto-approval"))
-        above_ceiling = int(policy["max_usd"] * 100) + 10_000  # never auto-approved
+        above_ceiling = int(Decimal(str(policy["max_usd"])) * 100) + 10_000  # never auto-approved
         rows = [self.account("silent", above_ceiling + i * 1_000) for i in range(count)]
         ids = [r["account_id"] for r in rows]
         ok(self.supervisor.post("/api/v1/cases", json={"account_ids": ids}))
@@ -369,8 +389,7 @@ class Demo:
         self.log(f"held: {held['amount_cents'] / 100:,.2f} USD promise awaits a supervisor")
         decided = ok(self.supervisor.post(f"/api/v1/promises/{held['id']}:approve"))
         recorded = self.promise(row["account_id"], "recorded")
-        writes = self.audit_count("promise.recorded", held["id"])
-        expect(writes == 1 and recorded["ledger_ref"], "exactly one ledger row", writes=writes)
+        writes = self.one_ledger_row(row["external_ref"], recorded["ledger_ref"])  # retry, same key
         again = self.supervisor.post(f"/api/v1/promises/{held['id']}:approve")
         expect(
             again.status_code == 409, "a second approval writes nothing", status=again.status_code
@@ -387,27 +406,50 @@ class Demo:
         }
 
     def stop(self) -> dict[str, Any]:
-        """The debtor answers STOP: the rule opts the number out and the case closes."""
-        row = self.account("stop", 70_000)
+        """The debtor answers STOP: the rule opts the number out, the case closes, and a draft
+        waiting for approval on another account with the same number is cancelled."""
+        phone = synthetic_phone(self.run_id, self.index + 1, "stop")
+        row = self.account("stop", 70_000, phone=phone)
+        other = self.account("stop", 65_000, phone=phone)
+        waiting_id = self.open_case(self.analyst, other["account_id"])
+        waiting = self.awaiting_approval(waiting_id)
         account_id = row["account_id"]
         case_id = self.open_case(self.analyst, account_id)
         case = self.awaiting_approval(case_id)
         self.approve(self.analyst, case_id, case["drafts"][-1]["version"])
         reply = self.inbound(account_id)
 
-        def closed() -> dict[str, Any] | None:
-            body = self.case(case_id)
-            return body if body["case"]["status"] == "closed" else None
+        def closed(cid: str) -> Callable[[], dict[str, Any] | None]:
+            def probe() -> dict[str, Any] | None:
+                body = self.case(cid)
+                return body if body["case"]["status"] == "closed" else None
 
-        final = poll(closed, "the case to close after STOP")
+            return probe
+
+        final = poll(closed(case_id), "the case to close after STOP")
+        other_final = poll(closed(waiting_id), "the other case on the number to close")
         detail = ok(self.analyst.get(f"/api/v1/accounts/{account_id}"))
-        pending = [d for d in final["drafts"] if d["status"] in ("pending", "awaiting_approval")]
+        pending = [d for d in final["drafts"] + other_final["drafts"]
+                   if d["status"] in ("pending", "awaiting_approval")]  # fmt: skip
+        late = self.analyst.post(
+            f"/api/v1/cases/{waiting_id}/approval",
+            json={"decision": "approve", "draft_version": waiting["drafts"][-1]["version"]},
+            headers={"Idempotency-Key": f"demo-{uuid.uuid4()}"},
+        )
         expect(reply["classification"] == "stop" and detail["opted_out"] and not pending,
                "STOP opts the number out and nothing is left to send",
-               label=reply["classification"], opted_out=detail["opted_out"])  # fmt: skip
-        self.log(f"stop: {reply['body']!r} → opted out by {reply['classification_source']}")
+               label=reply["classification"], opted_out=detail["opted_out"],
+               pending=len(pending))  # fmt: skip
+        expect(late.status_code == 409, "the cancelled draft can no longer be approved",
+               status=late.status_code)  # fmt: skip
+        self.log(f"stop: {reply['body']!r} → opted out by {reply['classification_source']}; "
+                 f"the other case on the number closed, its draft cancelled "
+                 f"(approve answers {late.status_code})")  # fmt: skip
         return {"reply_label": reply["classification"], "opted_out": detail["opted_out"],
-                "case_status": final["case"]["status"], "pending_drafts": len(pending)}  # fmt: skip
+                "case_status": final["case"]["status"],
+                "other_case_status": other_final["case"]["status"],
+                "other_draft_status": other_final["drafts"][-1]["status"],
+                "pending_drafts": len(pending), "late_approve_status": late.status_code}  # fmt: skip
 
 
 def run(log: Callable[[str], None] = print) -> dict[str, Any]:

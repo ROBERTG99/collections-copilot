@@ -54,7 +54,12 @@ def test_demo_steps_assert_state() -> None:
     assert main["cited_notes"] >= 1
     assert main["edited"]
     assert main["postcheck_ok"]
-    assert "+" in main["diff"]
+    added = [
+        line
+        for line in main["diff"].splitlines()
+        if line.startswith("+") and not line.startswith("+++")
+    ]
+    assert any("Thank you for working with us." in line for line in added)
     assert {"send_sms", "await_reply"} <= set(main["events"])
     assert main["reply_label"] == "promise_to_pay"
     assert main["promise_status"] == "recorded"
@@ -79,3 +84,6 @@ def test_demo_steps_assert_state() -> None:
     assert stop["opted_out"]
     assert stop["case_status"] == "closed"
     assert stop["pending_drafts"] == 0
+    assert stop["other_case_status"] == "closed"  # a draft waiting on the same number
+    assert stop["other_draft_status"] not in ("pending", "awaiting_approval")
+    assert stop["late_approve_status"] == 409

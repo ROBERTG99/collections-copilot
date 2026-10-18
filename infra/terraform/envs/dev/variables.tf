@@ -124,6 +124,15 @@ variable "smtp_host" {
   }
 }
 
+variable "twilio_from_number" {
+  description = "The Twilio sending number in E.164 (CC_TWILIO_FROM); the API refuses the local default in production."
+  type        = string
+  validation {
+    condition     = can(regex("^\\+[1-9][0-9]{7,14}$", var.twilio_from_number))
+    error_message = "twilio_from_number must be an E.164 number such as +15550001234."
+  }
+}
+
 variable "smtp_port" {
   description = "SMTP relay port."
   type        = number

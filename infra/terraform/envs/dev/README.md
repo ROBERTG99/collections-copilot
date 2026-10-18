@@ -55,6 +55,7 @@
 | <a name="input_public_hostname"></a> [public\_hostname](#input\_public\_hostname) | Hostname the console is served on (OAuth callbacks and CC\_PUBLIC\_BASE\_URL). | `string` | `"collections.example.com"` | no |
 | <a name="input_smtp_host"></a> [smtp\_host](#input\_smtp\_host) | SMTP relay for supervisor notifications (an SES SMTP endpoint, for example). | `string` | n/a | yes |
 | <a name="input_smtp_port"></a> [smtp\_port](#input\_smtp\_port) | SMTP relay port. | `number` | `587` | no |
+| <a name="input_twilio_from_number"></a> [twilio\_from\_number](#input\_twilio\_from\_number) | The Twilio sending number in E.164 (CC\_TWILIO\_FROM); the API refuses the local default in production. | `string` | n/a | yes |
 | <a name="input_worker_max_tasks"></a> [worker\_max\_tasks](#input\_worker\_max\_tasks) | Upper bound for worker autoscaling. | `number` | `10` | no |
 
 ## Outputs

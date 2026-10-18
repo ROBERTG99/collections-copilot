@@ -178,3 +178,14 @@ class LedgerStore:
             )
             row = await cur.fetchone()
             return int(row[0]) if row else 0
+
+    async def promises_for(self, tenant: str, ref: str) -> list[dict[str, Any]]:
+        """The account's promise rows (the demo counts them and checks their keys)."""
+        async with self.pool.connection() as conn:
+            cur = await conn.execute(
+                "SELECT ledger_ref, idempotency_key, source_message_sid FROM ledger.promises "
+                "WHERE tenant=%s AND account_ref=%s ORDER BY ledger_ref",
+                (tenant, ref),
+            )
+            cols = [c.name for c in cur.description or []]
+            return [dict(zip(cols, r, strict=True)) for r in await cur.fetchall()]

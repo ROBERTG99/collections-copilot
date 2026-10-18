@@ -6,7 +6,8 @@ import { expect, type Page, test } from "@playwright/test";
 import { expectAccessible, signIn } from "./helpers";
 
 /**
- * T-49: the §3.4 main journey in the console, recorded to docs/images/demo.webm. The account comes
+ * T-49: the §3.4 main journey in the console, saved to docs/images/demo.webm when CC_RECORD_DEMO=1
+ * (the demo-capture skill), so `make e2e` leaves the committed video alone. The account comes
  * from `scripts/demo.py --prepare main` (a USD 1,200.00 balance, a note about instalments, a
  * time zone where it is midday, a debtor-sim number that promises the balance on Friday).
  */
@@ -74,6 +75,8 @@ test("main journey: queue → NBA citing a note → edit and approve → promise
   const drawer = page.getByRole("dialog", { name: /Review SMS draft/ });
   await expect(drawer.getByTestId("recipient")).toHaveText(/^\+1555/);
   await expect(drawer.getByTestId("postcheck-ok")).toBeVisible();
+  await expect(drawer.getByTestId("send-time")).toContainText("as soon as approved");
+  await expect(drawer.getByText(/No ledger write/)).toBeVisible(); // the ledger effect
 
   await drawer.getByRole("button", { name: "Edit" }).click();
   const box = drawer.getByLabel(/Message/);
@@ -101,5 +104,5 @@ test("main journey: queue → NBA citing a note → edit and approve → promise
 
   const video = page.video();
   await page.close();
-  await video?.saveAs(VIDEO);
+  if (process.env.CC_RECORD_DEMO === "1") await video?.saveAs(VIDEO);
 });

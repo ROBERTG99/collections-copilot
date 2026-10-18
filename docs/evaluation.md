@@ -29,13 +29,13 @@ The last two in each row guard against over-blocking: a bug that blocked every s
 
 Informational (not gated): `citations_supported` (NBA decisions cite the note that carries the signal; it checks recall only, so citing every note would score 1.0), `promise_extraction` (amount and date exactly right), `resumes_exhausted` (compliance cases the careless approver was still pushing after 8 resumes; the edit rows, where the graph keeps refusing a blocked edit).
 
-The spies are the point of the compliance and replies suites: `SpyProvider` records any account name, phone, email or card number that reaches a provider request; `SpyLedger` records every write-back the graph would make; `ClockedSms` records the debtor-local hour of every send. Each violation is counted from the row's own labels, so a send outside the window, without an approval record, without the opt-out footer or with a forbidden substring each counts once.
+The spies are the point of the compliance and replies suites: `SpyProvider` records any account name, phone, e-mail or card number that reaches a provider request; `SpyLedger` records every write-back the graph would make; `ClockedSms` records the debtor-local hour of every send. Each violation is counted from the row's own labels, so a send outside the window, without an approval record, without the opt-out footer or with a forbidden substring each counts once.
 
 ## Running
 
 ```bash
 make eval                                   # offline, FakeLLM; gates the test split, reports dev for information
-uv run python scripts/eval_report.py --suite replies --no-dev
+uv run evalgate run evals/suites/replies.yaml --split dev --out .evalgate/replies-dev.json   # dev split only, for tuning
 uv run python scripts/eval_report.py --update-baseline   # only after reviewing why the numbers moved
 ```
 
@@ -60,7 +60,7 @@ Live numbers come only from `make eval-live` (real models, within `LIVE_EVAL_BUD
 ## Changing prompts, rules or the fake
 
 1. Change the prompt (`prompts/<name>.v<N+1>.md`), rule or fake.
-2. Run the dev split only and look at its failures: `uv run python scripts/eval_report.py --suite replies` writes `evals/reports/replies.dev.json`.
+2. Run the dev split only and look at its failures: `uv run evalgate run evals/suites/replies.yaml --split dev --out .evalgate/replies-dev.json`. (`scripts/eval_report.py` always runs the test split and rewrites `evals/REPORT.md`, so it is not a tuning command.)
 3. When dev is right, run `make eval` once. If the test split fails, do not read the failing test rows to fix them: that turns the test split into a second dev split. Record the gap in `docs/KNOWN_LIMITATIONS.md` instead and find more signal on dev or in a new dataset version.
 
 ## Judge calibration

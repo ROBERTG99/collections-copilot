@@ -50,6 +50,7 @@ def test_prod_refuses_dev_secrets_and_local_issuer() -> None:
         twilio_base_url="https://twilio.example",
         mcpgw_url="http://mcp-gateway:8344/mcp",
         mcpgw_admin_url="http://mcp-gateway-admin:8348",
+        twilio_from="+15550007777",
     )
     assert ok.env == "prod"
 
@@ -96,7 +97,16 @@ PROD_OK = {
     "twilio_base_url": "https://twilio.example",
     "mcpgw_url": "http://mcp-gateway:8344/mcp",
     "mcpgw_admin_url": "http://mcp-gateway-admin:8348",
+    "twilio_from": "+15550007777",
 }
+
+
+def test_prod_refuses_the_default_sending_number() -> None:
+    """M8 review: a task definition without CC_TWILIO_FROM must not send from the dev number."""
+    import pytest
+
+    with pytest.raises(ValueError, match="CC_TWILIO_FROM"):
+        Settings(**{**PROD_OK, "twilio_from": "+15550001000"})
 
 
 def test_empty_endpoint_urls_mean_the_aws_default() -> None:

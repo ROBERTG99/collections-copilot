@@ -83,10 +83,11 @@ override_resource {
 }
 
 variables {
-  image_tag       = "0.1.0"
-  certificate_arn = "arn:aws:acm:us-east-1:123456789012:certificate/00000000-0000-0000-0000-000000000000"
-  alarm_email     = "alerts@example.com"
-  smtp_host       = "email-smtp.example.com"
+  image_tag          = "0.1.0"
+  certificate_arn    = "arn:aws:acm:us-east-1:123456789012:certificate/00000000-0000-0000-0000-000000000000"
+  alarm_email        = "alerts@example.com"
+  smtp_host          = "email-smtp.example.com"
+  twilio_from_number = "+15550001234"
 }
 
 run "valid_inputs_plan" {
@@ -208,6 +209,14 @@ run "smtp_host_is_not_localhost" {
     smtp_host = "localhost"
   }
   expect_failures = [var.smtp_host]
+}
+
+run "twilio_from_number_is_e164" {
+  command = plan
+  variables {
+    twilio_from_number = "555-0100"
+  }
+  expect_failures = [var.twilio_from_number]
 }
 
 run "gateway_image_needs_a_tag_or_digest" {

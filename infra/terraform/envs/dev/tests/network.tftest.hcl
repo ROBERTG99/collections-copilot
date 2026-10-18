@@ -83,10 +83,11 @@ override_resource {
 }
 
 variables {
-  image_tag       = "0.1.0"
-  certificate_arn = "arn:aws:acm:us-east-1:123456789012:certificate/00000000-0000-0000-0000-000000000000"
-  alarm_email     = "alerts@example.com"
-  smtp_host       = "email-smtp.example.com"
+  image_tag          = "0.1.0"
+  certificate_arn    = "arn:aws:acm:us-east-1:123456789012:certificate/00000000-0000-0000-0000-000000000000"
+  alarm_email        = "alerts@example.com"
+  smtp_host          = "email-smtp.example.com"
+  twilio_from_number = "+15550001234"
 }
 
 run "database_and_tasks_stay_private" {

@@ -20,6 +20,7 @@ class QueueMessage:
     body: dict[str, Any]
     receive_count: int = 1
     attributes: dict[str, str] = field(default_factory=dict)
+    raw: str = ""  # the body as received, so a replay can return it unchanged
 
 
 class QueueUnavailableError(RuntimeError):
@@ -73,12 +74,14 @@ class SqsQueueClient:
         self, queue: str, body: Mapping[str, Any], attributes: Mapping[str, str] | None = None
     ) -> str:
         carrier = tracing.inject(dict(attributes or {}))  # §14: the trace crosses the queue
-        attrs = {k: {"DataType": "String", "StringValue": v} for k, v in carrier.items()}
+        return await self.send_raw(queue, json.dumps(body, default=str), carrier)
+
+    async def send_raw(self, queue: str, body: str, attributes: Mapping[str, str]) -> str:
+        """Send a body and attributes as given (no trace injection), e.g. a DLQ replay."""
+        attrs = {k: {"DataType": "String", "StringValue": v} for k, v in attributes.items()}
         try:
             resp = await self._client.send_message(
-                QueueUrl=await self.url(queue),
-                MessageBody=json.dumps(body, default=str),
-                MessageAttributes=attrs,
+                QueueUrl=await self.url(queue), MessageBody=body, MessageAttributes=attrs
             )
         except QueueUnavailableError:
             raise
@@ -116,6 +119,7 @@ class SqsQueueClient:
                     body=body,
                     receive_count=int(m.get("Attributes", {}).get("ApproximateReceiveCount", "1")),
                     attributes=attrs,
+                    raw=m["Body"],
                 )
             )
         return out

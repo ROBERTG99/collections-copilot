@@ -33,7 +33,7 @@ From [CLAUDE.md](CLAUDE.md) and `.claude/rules/`:
 - **Tenancy:** every table has `tenant_id`. Read and write data only through `collections_copilot.db.repositories`, whose methods take the tenant as their first argument. Raw SQL is banned outside `collections_copilot.db` by a ruff rule.
 - **Money** is `bigint` cents plus a `currency` code; never floats. **Times** are timezone-aware (`timestamptz`); debtor-local times use `zoneinfo`.
 - **Deterministic code owns decisions with side effects:** the priority score, compliance, amounts, STOP handling and every send or write permission. The LLM only reads notes and replies and drafts text.
-- **LLM code:** only `collections_copilot.llm` imports provider SDKs (import-linter checks it). Model IDs come from `CC_MODEL_FAST` and `CC_MODEL_REASONING`. Prompts are versioned files `prompts/<name>.v<N>.md`; untrusted text appears only inside `<untrusted_note>` blocks after the instructions. Every output is validated against its schema, with one retry and then the deterministic fallback.
+- **LLM code:** only `collections_copilot.llm` imports provider SDKs (import-linter checks it). Model IDs come from `CC_MODEL_FAST` and `CC_MODEL_REASONING` (`CC_BEDROCK_MODEL_FAST` and `CC_BEDROCK_MODEL_REASONING` on Bedrock). Prompts are versioned files `prompts/<name>.v<N>.md`; untrusted text appears only inside `<untrusted_note>` blocks after the instructions. Every output is validated against its schema, with one retry and then the deterministic fallback.
 - **API:** errors are RFC 9457 problem details with a `correlation_id`; mutating routes accept `Idempotency-Key`. After an API change, run `make gen-types` to regenerate the console's types.
 - **Settings** come from `collections_copilot.config.Settings` (`CC_*`); document every new variable in `.env.example`.
 - **Logs** are JSON through `collections_copilot.observability.logging`; never log phone numbers, message bodies or tokens.
@@ -59,7 +59,7 @@ From [CLAUDE.md](CLAUDE.md) and `.claude/rules/`:
 
 ## Adding an eval case
 
-Eval datasets are frozen once committed: `evals/datasets/*.v1.jsonl` and their digests in `evals/datasets/MANIFEST.json` are never edited, and the agent hook blocks edits to them. The `add-eval-case` skill (`.claude/skills/add-eval-case/SKILL.md`) describes the steps:
+Eval datasets are frozen once committed: `evals/datasets/*.v1.jsonl` and their existing digests in `evals/datasets/MANIFEST.json` are never edited (a new version adds its own entry), and the agent hook blocks edits to existing dataset files. The `add-eval-case` skill (`.claude/skills/add-eval-case/SKILL.md`) describes the steps:
 
 1. Extend `data/generator/evals.py` with the new scenario. Labels are set by construction, from how the row is built, never by a model.
 2. Write a new dataset version (`*.v2.jsonl`) instead of editing a committed `*.v1.jsonl` file, and update `evals/datasets/MANIFEST.json`.

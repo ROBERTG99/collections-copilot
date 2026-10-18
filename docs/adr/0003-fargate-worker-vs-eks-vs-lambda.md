@@ -17,7 +17,7 @@ Each case run holds a per-case `pg_advisory_xact_lock` on a pooled connection fo
 
 - All five services, including the worker, are ECS services on Fargate (`infra/terraform/modules/ecs_service/main.tf:98`, `:149`): private subnets, no public IP, Service Connect between services, and a deployment circuit breaker with rollback (`infra/terraform/modules/ecs_service/main.tf:155`).
 - The worker runs the `worker` target of `docker/python.Dockerfile:54-58`, the same image as in compose.
-- The worker scales between 1 and `worker_max_tasks` tasks on SQS backlog per running task, computed from `ApproximateNumberOfMessagesVisible` and `RunningTaskCount` (`infra/terraform/modules/ecs_service/main.tf:212-268`; `infra/terraform/envs/dev/main.tf:77`). Each task runs one process and the service scales out by tasks (docs/DECISIONS.md, 2026-10-17, `CC_API_WORKERS`).
+- The worker scales between 1 and `worker_max_tasks` tasks on SQS backlog per running task, computed from `ApproximateNumberOfMessagesVisible` and `RunningTaskCount` (`infra/terraform/modules/ecs_service/main.tf:212-268`; `infra/terraform/envs/dev/main.tf:77`). Each worker task runs one process with `CC_WORKER_CONCURRENCY` slots per queue, and the service scales out by tasks.
 - Lambda is used where a short stateless hook fits: the Cognito pre-token trigger (`infra/terraform/modules/cognito/lambda/pre_token.py`).
 
 ## Alternatives considered

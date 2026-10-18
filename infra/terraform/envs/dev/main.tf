@@ -33,6 +33,7 @@ locals {
     CC_MCPGW_URL               = "http://mcp-gateway:8344/mcp"
     CC_MCPGW_ADMIN_URL         = "http://mcp-gateway-admin:8348"
     CC_TWILIO_BASE_URL         = "https://api.twilio.com"
+    CC_TWILIO_FROM             = var.twilio_from_number
     CC_SMTP_HOST               = var.smtp_host
     CC_SMTP_PORT               = tostring(var.smtp_port)
     CC_AGENT_TOKEN_PROVIDER    = "kms"

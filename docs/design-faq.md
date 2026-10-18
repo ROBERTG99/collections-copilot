@@ -13,7 +13,8 @@ case, the draft row for the exact version and its approval record
 unless the decision is `approve`, `edit` or `auto_approve`. It then runs the compliance post-check
 again on the stored text (`src/collections_copilot/agent/case_graph.py:540-548`) and claims the
 outbound row under a lock on the case, re-checking the opt-out
-(`src/collections_copilot/agent/store.py:327-357`).
+(`src/collections_copilot/agent/store.py:327-357`). Only after that claim does it call the SMS
+provider (`src/collections_copilot/agent/case_graph.py:605`).
 
 Approval records come from two places only:
 
@@ -87,7 +88,7 @@ than 60 days out (`deploy/mcpgw/policy/collections.yaml:16-19`). The flow:
    `LedgerResult` (`src/collections_copilot/integrations/mcp/ledger.py:130-139`).
 2. The promise moves to `approval_required` with the `mcp_approval_id`, audited
    (`src/collections_copilot/agent/nodes/record_promise.py:86-90`). The webhook links the approval to
-   the promise and emails a supervisor once
+   the promise and e-mails a supervisor once
    (`src/collections_copilot/api/routers/webhooks.py:274-337`).
 3. A supervisor calls `POST /api/v1/promises/{id}:approve` or `:reject`. Approve refuses if no
    invoice is open any more, records the decision at the gateway, audits, commits and then enqueues
@@ -130,7 +131,7 @@ An import-linter contract forbids `scoring` and `compliance` from importing the 
 
 - The gateway redacts the user turn before any provider call; the system prompt is static and holds
   no case data (`src/collections_copilot/llm/gateway.py:276-277`).
-- The redactor runs Presidio offline with pattern recognizers for phone numbers, emails, cards and
+- The redactor runs Presidio offline with pattern recognizers for phone numbers, e-mails, cards and
   IBANs, plus a deny list per account: the company name, its short forms, contact names when given,
   and the account phone (`src/collections_copilot/llm/redaction.py:111-130`,
   `src/collections_copilot/llm/redaction.py:142-184`).
@@ -232,7 +233,7 @@ carry no timestamp, so replays are handled by deduplication:
 The mcp-gateway webhook is HMAC-SHA256 over `{timestamp}.{raw body}`; a bad signature or a
 timestamp more than `MCPGW_MAX_SKEW_S` = 300 seconds off is refused and audited (throttled)
 (`src/collections_copilot/api/routers/webhooks.py:271-295`). A replay inside that window is
-recognised from the audit log by `approval_id` and answered without a new event or email
+recognised from the audit log by `approval_id` and answered without a new event or e-mail
 (`src/collections_copilot/api/routers/webhooks.py:310-321`, `src/collections_copilot/db/audit.py:188-204`).
 
 ## Why are offline eval numbers meaningful?

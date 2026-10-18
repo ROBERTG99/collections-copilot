@@ -96,10 +96,13 @@ in `deploy/elasticmq.conf`). The worker leaves a message undeleted whenever its 
 logging `handler failed` with the queue and SQS message id. DLQs keep messages for 14 days.
 
 Two commands handle a DLQ (`src/collections_copilot/cli.py`; the `replay-dlq` skill):
-`uv run cc dlq peek --queue cc-tasks-dlq --max 10` lists task ids, kinds, tenants, cases and receive
-counts (never bodies) and leaves the messages in place, and
-`uv run cc replay-dlq --queue cc-tasks-dlq --max 10` moves messages back to the source queue
-unchanged, deleting each from the DLQ only after it was sent.
+`uv run cc dlq peek --queue cc-tasks-dlq --max 10` prints one line per message,
+`msg_id=… task_id=… kind=… case=… tenant=… receives=…` (for `cc.reply.v1` bodies,
+`reply=<message_id> sid=<provider_sid>` instead of the task, kind and case), plus
+`invalid_json=true` when the body is not JSON; it never prints bodies and leaves the messages in
+place. `uv run cc replay-dlq --queue cc-tasks-dlq --max 10` sends each message back to its source
+queue with the same raw body and the original message attributes (the same `task_id` and trace
+context; no new trace is injected), deleting it from the DLQ only after the send succeeded.
 
 1. Inspect with `cc dlq peek` (locally, or in AWS as a one-off task from the `api` image), or
    in the SQS console with operator credentials (the GitHub plan role is denied

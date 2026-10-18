@@ -69,7 +69,8 @@ def dlq_peek(
     queue: str = typer.Option(..., "--queue", help="Dead-letter queue, e.g. cc-tasks-dlq"),
     max_messages: int = typer.Option(10, "--max", min=1, max=10),
 ) -> None:
-    """List messages by id, kind, tenant and case (never their bodies); they stay in the queue."""
+    """List messages by id, kind, tenant and case (never their bodies); they stay in the queue.
+    Reply messages also show their reply id and provider SID."""
     from collections_copilot.integrations.queue.sqs import SqsQueueClient
 
     async def run() -> None:
@@ -77,9 +78,15 @@ def dlq_peek(
         async with SqsQueueClient(settings.aws_region, settings.sqs_endpoint_url) as client:
             for m in await client.receive(queue, max_messages=max_messages, wait_seconds=1):
                 b = m.body
+                ids = (
+                    f"reply={b.get('message_id')} sid={b.get('provider_sid')}"
+                    if b.get("schema") == "cc.reply.v1"
+                    else f"task_id={b.get('task_id')} kind={b.get('kind')} case={b.get('case_id')}"
+                )
+                invalid = " invalid_json=true" if b.get("__invalid__") else ""
                 typer.echo(
-                    f"task_id={b.get('task_id')} kind={b.get('kind')} tenant={b.get('tenant_id')} "
-                    f"case={b.get('case_id')} receives={m.receive_count}"
+                    f"msg_id={m.message_id} {ids} tenant={b.get('tenant_id')} "
+                    f"receives={m.receive_count}{invalid}"
                 )
                 await client.extend_visibility(queue, m.receipt_handle, 0)  # visible again
 
@@ -91,8 +98,9 @@ def replay_dlq(
     queue: str = typer.Option(..., "--queue", help="Dead-letter queue, e.g. cc-tasks-dlq"),
     max_messages: int = typer.Option(10, "--max", min=1, max=100),
 ) -> None:
-    """Move messages back to the source queue unchanged (same task_id: handlers stay idempotent).
-    Fix the cause first; a poison message only fills the DLQ again."""
+    """Move messages back to the source queue unchanged: the same body bytes and message
+    attributes, so the same task_id and trace context (handlers stay idempotent). Fix the cause
+    first; a poison message only fills the DLQ again."""
     from collections_copilot.integrations.queue.sqs import SqsQueueClient
 
     if not queue.endswith(DLQ_SUFFIX):
@@ -111,7 +119,7 @@ def replay_dlq(
                 if not batch:
                     break
                 for m in batch:
-                    await client.send(source, m.body)
+                    await client.send_raw(source, m.raw, m.attributes)
                     await client.delete(queue, m.receipt_handle)  # only after the send succeeded
                     moved += 1
         return moved
@@ -126,10 +134,15 @@ def dev_token(
     ),
     scope: list[str] = typer.Option(["ledger:read"], "--scope", help="Repeat for more scopes"),
 ) -> None:
-    """A dev agent JWT from mcp-gateway's dev issuer, for calling the ledger through the gateway."""
+    """A dev agent JWT from mcp-gateway's dev issuer, for calling the ledger through the gateway.
+    Local dev only: refused in production and where agent tokens are KMS-signed."""
     from collections_copilot.integrations.mcp.tokens import DevIssuerTokenProvider
 
-    provider = DevIssuerTokenProvider(get_settings().mcpgw_issuer_url)
+    settings = get_settings()
+    if settings.env == "prod" or settings.agent_token_provider != "dev":  # noqa: S105
+        typer.echo("dev-token is for local dev only (CC_ENV=dev, dev agent tokens)", err=True)
+        raise typer.Exit(2)
+    provider = DevIssuerTokenProvider(settings.mcpgw_issuer_url)
     typer.echo(asyncio.run(provider.token(tenant, list(scope))))
 
 
