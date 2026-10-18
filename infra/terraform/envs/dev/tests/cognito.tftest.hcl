@@ -63,6 +63,9 @@ mock_provider "aws" {
   mock_resource "aws_wafv2_web_acl" {
     defaults = { arn = "arn:aws:wafv2:us-east-1:123456789012:regional/webacl/mock/00000000-0000-0000-0000-000000000003" }
   }
+  mock_resource "aws_lambda_function" {
+    defaults = { arn = "arn:aws:lambda:us-east-1:123456789012:function:mock" }
+  }
   mock_resource "aws_db_instance" {
     defaults = { arn = "arn:aws:rds:us-east-1:123456789012:db:mock", endpoint = "mock.abc.us-east-1.rds.amazonaws.com:5432" }
   }
@@ -81,6 +84,7 @@ variables {
   image_tag       = "0.1.0"
   certificate_arn = "arn:aws:acm:us-east-1:123456789012:certificate/00000000-0000-0000-0000-000000000000"
   alarm_email     = "alerts@example.com"
+  smtp_host       = "email-smtp.example.com"
 }
 
 run "console_identity" {
@@ -92,7 +96,19 @@ run "console_identity" {
   }
   assert {
     condition     = toset(module.cognito.client_flows.flows) == toset(["code"]) && !module.cognito.client_flows.generate_secret
-    error_message = "The web client uses only the authorization code flow with PKCE, as a public client (the BFF holds no secret)."
+    error_message = "The web client uses only the authorization code flow, as a public client (no secret). Cognito does not enforce PKCE; the BFF always sends S256 (web/tests/unit/oidc.test.ts)."
+  }
+  assert {
+    condition     = module.cognito.pre_token_trigger.user_pool_tier == "ESSENTIALS" && module.cognito.pre_token_trigger.lambda_version == "V2_0"
+    error_message = "A V2 Pre Token Generation trigger (Essentials tier) must put custom:tenant_id into access tokens, which the API reads."
+  }
+  assert {
+    condition     = module.cognito.pre_token_trigger.invoke_principal == "cognito-idp.amazonaws.com"
+    error_message = "Only Cognito may invoke the trigger."
+  }
+  assert {
+    condition     = module.cognito.mfa == "ON"
+    error_message = "MFA is required: supervisors and admins approve sends."
   }
   assert {
     condition     = alltrue([for u in module.cognito.client_flows.callback_urls : startswith(u, "https://")])

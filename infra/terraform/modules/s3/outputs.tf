@@ -35,3 +35,8 @@ output "policy_documents" {
   description = "Bucket policy (for the IAM tests)."
   value       = { uploads_bucket = local.bucket_policy }
 }
+
+output "expire_days" {
+  description = "Days before an upload expires (for the tests)."
+  value       = one(aws_s3_bucket_lifecycle_configuration.this.rule[0].expiration[*].days)
+}

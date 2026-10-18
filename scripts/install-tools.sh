@@ -20,6 +20,7 @@ CHECKOV_VERSION=3.3.29
 PRE_COMMIT_VERSION=4.7.0
 SHELLCHECK_VERSION=0.11.0
 AWS_PROVIDER_VERSION=6.68.0
+ARCHIVE_PROVIDER_VERSION=2.8.1
 
 OS="$(uname -s | tr '[:upper:]' '[:lower:]')"   # linux | darwin
 ARCH="$(uname -m)"
@@ -98,13 +99,17 @@ if have uv; then
   have pre-commit || { log "pre-commit $PRE_COMMIT_VERSION"; uv tool install --quiet "pre-commit==${PRE_COMMIT_VERSION}"; }
 fi
 
-# The AWS provider in Terraform's implicit local mirror, so `terraform init` works offline
+# The Terraform providers in Terraform's implicit local mirror, so `terraform init` works offline
 # (registry.terraform.io is blocked in the cloud container; releases.hashicorp.com is not).
-PROVIDER_DIR="$HOME/.terraform.d/plugins/registry.terraform.io/hashicorp/aws/${AWS_PROVIDER_VERSION}/${OS}_${ARCH}"
-if [ ! -d "$PROVIDER_DIR" ]; then
-  log "terraform provider hashicorp/aws $AWS_PROVIDER_VERSION"
-  fetch "https://releases.hashicorp.com/terraform-provider-aws/${AWS_PROVIDER_VERSION}/terraform-provider-aws_${AWS_PROVIDER_VERSION}_${OS}_${ARCH}.zip" "$TMP/provider.zip"
-  mkdir -p "$PROVIDER_DIR" && unzip -oq "$TMP/provider.zip" -d "$PROVIDER_DIR"
-fi
+mirror_provider() { # name version
+  local dir="$HOME/.terraform.d/plugins/registry.terraform.io/hashicorp/$1/$2/${OS}_${ARCH}"
+  if [ ! -d "$dir" ]; then
+    log "terraform provider hashicorp/$1 $2"
+    fetch "https://releases.hashicorp.com/terraform-provider-$1/$2/terraform-provider-$1_$2_${OS}_${ARCH}.zip" "$TMP/provider-$1.zip"
+    mkdir -p "$dir" && unzip -oq "$TMP/provider-$1.zip" -d "$dir"
+  fi
+}
+mirror_provider aws "$AWS_PROVIDER_VERSION"
+mirror_provider archive "$ARCHIVE_PROVIDER_VERSION"
 
 log "done; ensure $BIN is on PATH"

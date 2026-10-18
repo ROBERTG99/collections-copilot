@@ -14,7 +14,7 @@ locals {
   # Values are set out of band (docs/runbook.md); Terraform creates empty entries only.
   secret_names = [
     "database-url", "ledger-database-url", "redis-url", "twilio-account-sid", "twilio-auth-token",
-    "mcpgw-webhook-secret", "web-session-secret",
+    "mcpgw-webhook-secret", "mcpgw-database-url", "web-session-secret",
   ]
   public_url = "https://${var.public_hostname}"
   s          = module.secrets.secret_arns
@@ -31,6 +31,10 @@ locals {
     CC_OIDC_AUDIENCE           = module.cognito.client_id
     CC_PUBLIC_BASE_URL         = local.public_url
     CC_MCPGW_URL               = "http://mcp-gateway:8344/mcp"
+    CC_MCPGW_ADMIN_URL         = "http://mcp-gateway-admin:8348"
+    CC_TWILIO_BASE_URL         = "https://api.twilio.com"
+    CC_SMTP_HOST               = var.smtp_host
+    CC_SMTP_PORT               = tostring(var.smtp_port)
     CC_AGENT_TOKEN_PROVIDER    = "kms"
     CC_AGENT_KMS_KEY_ID        = module.kms.signing_key_arn
   }
@@ -49,12 +53,14 @@ locals {
       cpu    = 512
       memory = 1024
       # uvicorn trusts X-Forwarded-For only from the load balancer's subnets (M6 audit M5).
-      env     = merge(local.app_env, { FORWARDED_ALLOW_IPS = module.network.vpc_cidr_block })
+      env     = merge(local.app_env, { FORWARDED_ALLOW_IPS = join(",", module.network.public_subnet_cidrs) })
       secrets = local.app_secrets
       check   = ["CMD", "python", "-c", format(local.http_check_py, 8310)]
       target  = "api"
       ingress = [module.alb.security_group_id]
       scaling = { min = 2, max = 6 }
+      extra   = {}
+      egress  = true # Twilio, Cognito keys
     }
     worker = {
       image   = "${module.ecr.repository_urls["worker"]}:${var.image_tag}"
@@ -67,6 +73,8 @@ locals {
       target  = null
       ingress = []
       scaling = { min = 1, max = var.worker_max_tasks, queue_name = "cc-tasks", backlog_per_task = 20 }
+      extra   = {}
+      egress  = true # Twilio, Bedrock
     }
     web = {
       image  = "${module.ecr.repository_urls["web"]}:${var.image_tag}"
@@ -88,6 +96,8 @@ locals {
       target  = "web"
       ingress = [module.alb.security_group_id]
       scaling = { min = 2, max = 4 }
+      extra   = {}
+      egress  = true # Cognito token endpoint and keys
     }
     ledger-mcp = {
       image   = "${module.ecr.repository_urls["ledger-mcp"]}:${var.image_tag}"
@@ -100,18 +110,33 @@ locals {
       target  = null
       ingress = []
       scaling = { min = 1, max = 2 }
+      extra   = {}
+      egress  = false # only the database
     }
     mcp-gateway = {
-      image   = var.mcp_gateway_image
-      port    = 8344
-      cpu     = 256
-      memory  = 512
-      env     = { MCPGW_UPSTREAM_URL = "http://ledger-mcp:8343/mcp" }
-      secrets = { MCPGW_WEBHOOK_SECRET = local.s["mcpgw-webhook-secret"] }
-      check   = null
+      image  = coalesce(var.mcp_gateway_image, "${module.ecr.repository_urls["mcp-gateway"]}:${var.image_tag}")
+      port   = 8344
+      cpu    = 256
+      memory = 512
+      # Names as read by mcp-gateway (third_party/mcp-gateway/src/mcpgw_lite/config.py).
+      env = {
+        MCPGW_UPSTREAMS            = "ledger=http://ledger-mcp:8343/mcp"
+        MCPGW_POLICY_FILE          = "/app/deploy/mcpgw/policy/collections.yaml"
+        MCPGW_JWKS_URL             = "http://api:8310/.well-known/agent-jwks.json"
+        MCPGW_TRUSTED_ISSUERS      = "collections-copilot"
+        MCPGW_APPROVAL_WEBHOOK_URL = "http://api:8310/api/v1/webhooks/mcpgw/approvals"
+        MCPGW_DEV_ISSUER           = "false"
+      }
+      secrets = {
+        MCPGW_APPROVAL_WEBHOOK_SECRET = local.s["mcpgw-webhook-secret"]
+        MCPGW_DATABASE_URL            = local.s["mcpgw-database-url"]
+      }
+      check   = ["CMD", "python", "-c", format(local.http_check_py, 8344)]
       target  = null
       ingress = []
       scaling = { min = 1, max = 2 }
+      extra   = { "mcp-gateway-admin" = 8348 } # approvals API, reached by the api only
+      egress  = false
     }
   }
 }
@@ -153,22 +178,22 @@ module "secrets" {
 module "ecr" {
   source       = "../../modules/ecr"
   prefix       = var.project
-  repositories = ["api", "worker", "web", "ledger-mcp"]
+  repositories = ["api", "worker", "web", "ledger-mcp", "mcp-gateway"]
   kms_key_arn  = module.kms.data_key_arn
 }
 
 module "iam" {
-  source             = "../../modules/iam"
-  project            = var.project
-  environment        = var.environment
-  services           = local.services
-  secret_arns        = module.secrets.secret_arns
-  data_key_arn       = module.kms.data_key_arn
-  signing_key_arn    = module.kms.signing_key_arn
-  queue_arns         = module.sqs.queue_arns
-  dlq_arns           = module.sqs.dlq_arns
-  uploads_bucket_arn = module.s3.bucket_arn
-  bedrock_model_ids  = var.bedrock_model_ids
+  source              = "../../modules/iam"
+  project             = var.project
+  environment         = var.environment
+  services            = local.services
+  service_secret_arns = { for k, v in local.service_config : k => values(v.secrets) }
+  data_key_arn        = module.kms.data_key_arn
+  signing_key_arn     = module.kms.signing_key_arn
+  queue_arns          = module.sqs.queue_arns
+  dlq_arns            = module.sqs.dlq_arns
+  uploads_bucket_arn  = module.s3.bucket_arn
+  bedrock_model_ids   = var.bedrock_model_ids
 }
 
 module "cognito" {
@@ -177,6 +202,7 @@ module "cognito" {
   domain_prefix = local.name
   callback_urls = ["${local.public_url}/auth/callback"]
   logout_urls   = ["${local.public_url}/"]
+  kms_key_arn   = module.kms.data_key_arn
 }
 
 module "alb" {
@@ -190,8 +216,8 @@ module "alb" {
   default_target    = "web"
   targets = {
     web = { port = 8300, health_path = "/healthz" }
-    # Provider webhooks (Twilio, mcp-gateway) are the only public routes to the API.
-    api = { port = 8310, health_path = "/healthz", path_patterns = ["/webhooks/*"], priority = 10 }
+    # Twilio's webhooks are the only public route to the API; the gateway's stays in the VPC.
+    api = { port = 8310, health_path = "/healthz", path_patterns = ["/api/v1/webhooks/twilio/*"], priority = 10 }
   }
 }
 
@@ -220,6 +246,15 @@ resource "aws_ecs_cluster" "this" {
     name  = "containerInsights"
     value = "enabled"
   }
+  depends_on = [aws_cloudwatch_log_group.container_insights]
+}
+
+# Created first so Container Insights does not create it without a key or a retention.
+resource "aws_cloudwatch_log_group" "container_insights" {
+  #checkov:skip=CKV_AWS_338:§16.3 sets 30-day retention for this environment
+  name              = "/aws/ecs/containerinsights/${local.name}/performance"
+  retention_in_days = 30
+  kms_key_id        = module.kms.data_key_arn
 }
 
 resource "aws_service_discovery_http_namespace" "this" {
@@ -245,21 +280,26 @@ module "service" {
   subnet_ids                    = module.network.private_subnet_ids
   ingress_security_group_ids    = each.value.ingress
   target_group_arn              = each.value.target == null ? null : module.alb.target_group_arns[each.value.target]
-  execution_role_arn            = module.iam.execution_role_arn
+  execution_role_arn            = module.iam.execution_role_arns[each.key]
   task_role_arn                 = module.iam.task_role_arns[each.key]
   log_group_name                = module.observability.log_group_names[each.key]
   service_connect_namespace_arn = aws_service_discovery_http_namespace.this.arn
   autoscaling                   = each.value.scaling
+  extra_ports                   = each.value.extra
+  internet_egress               = each.value.egress
 }
 
-# Service-to-service paths (Service Connect): web → api, api and worker → mcp-gateway,
-# mcp-gateway → ledger-mcp.
+# Service-to-service paths (Service Connect): web → api, api and worker → mcp-gateway, api →
+# the gateway's approvals API, mcp-gateway → ledger-mcp, and mcp-gateway → api (its approval
+# webhook and the agent JWKS).
 locals {
   internal_paths = {
-    "web-to-api"            = { from = "web", to = "api", port = 8310 }
-    "api-to-mcp-gateway"    = { from = "api", to = "mcp-gateway", port = 8344 }
-    "worker-to-mcp-gateway" = { from = "worker", to = "mcp-gateway", port = 8344 }
-    "gateway-to-ledger-mcp" = { from = "mcp-gateway", to = "ledger-mcp", port = 8343 }
+    "web-to-api"               = { from = "web", to = "api", port = 8310 }
+    "api-to-mcp-gateway"       = { from = "api", to = "mcp-gateway", port = 8344 }
+    "api-to-mcp-gateway-admin" = { from = "api", to = "mcp-gateway", port = 8348 }
+    "worker-to-mcp-gateway"    = { from = "worker", to = "mcp-gateway", port = 8344 }
+    "gateway-to-ledger-mcp"    = { from = "mcp-gateway", to = "ledger-mcp", port = 8343 }
+    "gateway-to-api"           = { from = "mcp-gateway", to = "api", port = 8310 }
   }
 }
 
@@ -278,6 +318,6 @@ module "rds" {
   name                       = local.name
   vpc_id                     = module.network.vpc_id
   subnet_ids                 = module.network.private_subnet_ids
-  allowed_security_group_ids = { for s in ["api", "worker", "ledger-mcp"] : s => module.service[s].security_group_id }
+  allowed_security_group_ids = { for s in ["api", "worker", "ledger-mcp", "mcp-gateway"] : s => module.service[s].security_group_id }
   kms_key_arn                = module.kms.data_key_arn
 }

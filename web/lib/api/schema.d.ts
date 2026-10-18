@@ -4,6 +4,27 @@
  */
 
 export interface paths {
+    "/.well-known/agent-jwks.json": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Agent Jwks
+         * @description The key mcp-gateway verifies agent tokens with (MCPGW_JWKS_URL). With KMS-signed
+         *     tokens it is the signing key's public half, read once; the dev issuer publishes its own.
+         */
+        get: operations["agent_jwks__well_known_agent_jwks_json_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/accounts/{account_id}": {
         parameters: {
             query?: never;
@@ -1362,6 +1383,26 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    agent_jwks__well_known_agent_jwks_json_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
     get_account_api_v1_accounts__account_id__get: {
         parameters: {
             query?: never;

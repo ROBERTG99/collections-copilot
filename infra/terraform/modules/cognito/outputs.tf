@@ -34,3 +34,35 @@ output "tenant_attribute" {
     mutable = s.mutable
   } if s.name == "tenant_id"]
 }
+
+output "pre_token_trigger" {
+  description = "How access tokens get custom:tenant_id (for the tests)."
+  value = {
+    user_pool_tier   = aws_cognito_user_pool.this.user_pool_tier
+    lambda_version   = one(aws_cognito_user_pool.this.lambda_config[0].pre_token_generation_config[*].lambda_version)
+    lambda_arn       = aws_lambda_function.pre_token.arn
+    log_kms_key_id   = aws_cloudwatch_log_group.pre_token.kms_key_id
+    log_retention    = aws_cloudwatch_log_group.pre_token.retention_in_days
+    invoke_principal = aws_lambda_permission.cognito.principal
+  }
+}
+
+output "mfa" {
+  description = "MFA requirement of the user pool."
+  value       = aws_cognito_user_pool.this.mfa_configuration
+}
+
+output "log_groups" {
+  description = "Log groups created by this module, with key and retention (for the tests)."
+  value = {
+    (aws_cloudwatch_log_group.pre_token.name) = {
+      kms_key_id        = aws_cloudwatch_log_group.pre_token.kms_key_id
+      retention_in_days = aws_cloudwatch_log_group.pre_token.retention_in_days
+    }
+  }
+}
+
+output "policy_documents" {
+  description = "Inline identity policies created here (for the IAM tests)."
+  value       = { cognito_pre_token = aws_iam_role_policy.pre_token.policy }
+}

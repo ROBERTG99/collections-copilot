@@ -17,3 +17,9 @@ variable "state_bucket_arn" {
   type        = string
   default     = null
 }
+
+variable "oidc_provider_arn" {
+  description = "Existing GitHub OIDC provider in the account (null creates one)."
+  type        = string
+  default     = null
+}

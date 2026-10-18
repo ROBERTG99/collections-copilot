@@ -62,6 +62,9 @@ mock_provider "aws" {
   mock_resource "aws_wafv2_web_acl" {
     defaults = { arn = "arn:aws:wafv2:us-east-1:123456789012:regional/webacl/mock/00000000-0000-0000-0000-000000000003" }
   }
+  mock_resource "aws_lambda_function" {
+    defaults = { arn = "arn:aws:lambda:us-east-1:123456789012:function:mock" }
+  }
   mock_resource "aws_db_instance" {
     defaults = { arn = "arn:aws:rds:us-east-1:123456789012:db:mock", endpoint = "mock.abc.us-east-1.rds.amazonaws.com:5432" }
   }
@@ -80,6 +83,7 @@ variables {
   image_tag       = "0.1.0"
   certificate_arn = "arn:aws:acm:us-east-1:123456789012:certificate/00000000-0000-0000-0000-000000000000"
   alarm_email     = "alerts@example.com"
+  smtp_host       = "email-smtp.example.com"
 }
 
 run "everything_is_encrypted_with_the_data_key" {
@@ -102,6 +106,10 @@ run "everything_is_encrypted_with_the_data_key" {
     error_message = "The uploads bucket must block public access and keep versions."
   }
   assert {
+    condition     = module.s3.expire_days == 30
+    error_message = "Uploads (debtor data) expire after 30 days."
+  }
+  assert {
     condition     = length(module.sqs.encryption) == 4 && alltrue([for q, key in module.sqs.encryption : key == module.kms.data_key_arn])
     error_message = "Every queue and dead-letter queue must use the data key."
   }
@@ -116,6 +124,20 @@ run "everything_is_encrypted_with_the_data_key" {
   assert {
     condition     = alltrue([for g, v in module.observability.log_groups : v.kms == module.kms.data_key_arn]) && module.network.flow_log_group.kms == module.kms.data_key_arn && module.alb.waf_log_group.kms == module.kms.data_key_arn
     error_message = "Every log group must be encrypted with the data key."
+  }
+  assert {
+    condition = alltrue([for t in module.rds.log_exports : contains(keys(module.rds.log_groups), "/aws/rds/instance/collections-copilot-dev/${t}")]) && alltrue([
+      for g, v in merge(module.rds.log_groups, module.cognito.log_groups) : v.kms_key_id == module.kms.data_key_arn && v.retention_in_days == 30
+    ])
+    error_message = "Log groups AWS services write to (RDS exports, the Cognito trigger) must exist up front, with the data key and 30 days."
+  }
+  assert {
+    condition     = output.container_insights_log_group.kms_key_id == module.kms.data_key_arn && output.container_insights_log_group.retention_in_days == 30
+    error_message = "The Container Insights log group must be created with the data key and 30 days."
+  }
+  assert {
+    condition     = module.rds.parameters["log_parameter_max_length"] == "0" && module.rds.parameters["log_parameter_max_length_on_error"] == "0" && module.rds.parameters["rds.force_ssl"] == "1"
+    error_message = "Database logs never carry bind values (debtor data), and TLS is required."
   }
   assert {
     condition     = module.observability.topic_kms == module.kms.data_key_arn

@@ -9,3 +9,4 @@ alarm_email        = "alerts@example.com"
 monthly_budget_usd = 150
 bedrock_model_ids  = ["anthropic.claude-haiku-5-5", "anthropic.claude-opus-5-5"]
 worker_max_tasks   = 10
+smtp_host          = "email-smtp.us-east-1.amazonaws.com"

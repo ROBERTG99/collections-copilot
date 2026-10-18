@@ -11,6 +11,7 @@ locals {
 }
 
 data "aws_region" "current" {}
+data "aws_caller_identity" "current" {}
 
 resource "aws_vpc" "this" {
   cidr_block           = var.cidr_block
@@ -92,14 +93,14 @@ resource "aws_route_table_association" "private" {
 
 resource "aws_security_group" "endpoints" {
   name_prefix = "${local.name}-endpoints-"
-  description = "HTTPS from inside the VPC to the interface endpoints"
+  description = "HTTPS from the private subnets (the tasks) to the interface endpoints"
   vpc_id      = aws_vpc.this.id
   ingress {
-    description = "HTTPS from the VPC"
+    description = "HTTPS from the private subnets"
     from_port   = 443
     to_port     = 443
     protocol    = "tcp"
-    cidr_blocks = [var.cidr_block]
+    cidr_blocks = local.private_cidrs
   }
   lifecycle {
     create_before_destroy = true
@@ -141,6 +142,7 @@ resource "aws_iam_role" "flow" {
       Effect    = "Allow"
       Principal = { Service = "vpc-flow-logs.amazonaws.com" }
       Action    = "sts:AssumeRole"
+      Condition = { StringEquals = { "aws:SourceAccount" = data.aws_caller_identity.current.account_id } }
     }]
   })
 }

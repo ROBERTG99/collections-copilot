@@ -73,9 +73,11 @@ jobs:
           IMAGE_TAG: ${{ github.sha }}
         run: |
           terraform plan -input=false -lock=false -no-color \
-            -var-file=terraform.tfvars.example -var "image_tag=${IMAGE_TAG}" | tee plan.txt
-          {
-            echo '```text'
-            tail -n 60 plan.txt
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
+            -var-file=terraform.tfvars.example -var "image_tag=${IMAGE_TAG}" > plan.txt
+          grep -E '^Plan:|^No changes' plan.txt >> "$GITHUB_STEP_SUMMARY" || true
+      # The plan names the account and its ARNs: an artifact (repository access), not the summary.
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: terraform-plan
+          path: infra/terraform/envs/dev/plan.txt
+          retention-days: 7

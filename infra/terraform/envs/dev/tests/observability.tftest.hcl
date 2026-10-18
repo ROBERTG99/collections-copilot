@@ -62,6 +62,9 @@ mock_provider "aws" {
   mock_resource "aws_wafv2_web_acl" {
     defaults = { arn = "arn:aws:wafv2:us-east-1:123456789012:regional/webacl/mock/00000000-0000-0000-0000-000000000003" }
   }
+  mock_resource "aws_lambda_function" {
+    defaults = { arn = "arn:aws:lambda:us-east-1:123456789012:function:mock" }
+  }
   mock_resource "aws_db_instance" {
     defaults = { arn = "arn:aws:rds:us-east-1:123456789012:db:mock", endpoint = "mock.abc.us-east-1.rds.amazonaws.com:5432" }
   }
@@ -80,6 +83,7 @@ variables {
   image_tag       = "0.1.0"
   certificate_arn = "arn:aws:acm:us-east-1:123456789012:certificate/00000000-0000-0000-0000-000000000000"
   alarm_email     = "alerts@example.com"
+  smtp_host       = "email-smtp.example.com"
 }
 
 run "logs_keep_30_days_and_alarms_exist" {

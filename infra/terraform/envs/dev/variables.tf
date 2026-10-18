@@ -106,7 +106,30 @@ variable "worker_max_tasks" {
 }
 
 variable "mcp_gateway_image" {
-  description = "mcp-gateway image (the upstream release, pinned by tag)."
+  description = "mcp-gateway image pinned by tag or digest (null: this repository's build in ECR)."
   type        = string
-  default     = "ghcr.io/robertg99/mcp-gateway:v0.1.0"
+  default     = null
+  validation {
+    condition     = var.mcp_gateway_image == null || can(regex("(:[A-Za-z0-9._-]{1,128}|@sha256:[a-f0-9]{64})$", var.mcp_gateway_image))
+    error_message = "mcp_gateway_image must end in an explicit tag or an @sha256 digest."
+  }
+}
+
+variable "smtp_host" {
+  description = "SMTP relay for supervisor notifications (an SES SMTP endpoint, for example)."
+  type        = string
+  validation {
+    condition     = length(var.smtp_host) > 0 && !contains(["localhost", "127.0.0.1"], var.smtp_host)
+    error_message = "smtp_host must name a reachable relay, not localhost."
+  }
+}
+
+variable "smtp_port" {
+  description = "SMTP relay port."
+  type        = number
+  default     = 587
+  validation {
+    condition     = contains([25, 465, 587, 2465, 2587], var.smtp_port)
+    error_message = "smtp_port must be an SMTP port (25, 465, 587, 2465 or 2587)."
+  }
 }

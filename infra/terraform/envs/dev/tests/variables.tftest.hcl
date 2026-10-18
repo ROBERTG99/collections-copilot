@@ -62,6 +62,9 @@ mock_provider "aws" {
   mock_resource "aws_wafv2_web_acl" {
     defaults = { arn = "arn:aws:wafv2:us-east-1:123456789012:regional/webacl/mock/00000000-0000-0000-0000-000000000003" }
   }
+  mock_resource "aws_lambda_function" {
+    defaults = { arn = "arn:aws:lambda:us-east-1:123456789012:function:mock" }
+  }
   mock_resource "aws_db_instance" {
     defaults = { arn = "arn:aws:rds:us-east-1:123456789012:db:mock", endpoint = "mock.abc.us-east-1.rds.amazonaws.com:5432" }
   }
@@ -80,6 +83,7 @@ variables {
   image_tag       = "0.1.0"
   certificate_arn = "arn:aws:acm:us-east-1:123456789012:certificate/00000000-0000-0000-0000-000000000000"
   alarm_email     = "alerts@example.com"
+  smtp_host       = "email-smtp.example.com"
 }
 
 run "valid_inputs_plan" {
@@ -161,4 +165,52 @@ run "kms_deletion_window_bounded" {
     deletion_window_days = 3
   }
   expect_failures = [var.deletion_window_days]
+}
+
+run "region_must_be_an_aws_region" {
+  command = plan
+  variables {
+    aws_region = "mars-1"
+  }
+  expect_failures = [var.aws_region]
+}
+
+run "environment_is_dev_staging_or_prod" {
+  command = plan
+  variables {
+    environment = "qa"
+  }
+  expect_failures = [var.environment]
+}
+
+run "project_name_is_a_dns_label" {
+  command = plan
+  variables {
+    project = "Collections_Copilot"
+  }
+  expect_failures = [var.project]
+}
+
+run "public_hostname_is_a_hostname" {
+  command = plan
+  variables {
+    public_hostname = "https://collections.example.com/"
+  }
+  expect_failures = [var.public_hostname]
+}
+
+run "smtp_host_is_not_localhost" {
+  command = plan
+  variables {
+    smtp_host = "localhost"
+  }
+  expect_failures = [var.smtp_host]
+}
+
+run "gateway_image_needs_a_tag_or_digest" {
+  command = plan
+  variables {
+    mcp_gateway_image = "ghcr.io/robertg99/mcp-gateway"
+  }
+  expect_failures = [var.mcp_gateway_image]
 }

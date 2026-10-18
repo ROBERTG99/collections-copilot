@@ -13,9 +13,9 @@ variable "services" {
   type        = list(string)
 }
 
-variable "secret_arns" {
-  description = "Secrets the execution role may read, by name."
-  type        = map(string)
+variable "service_secret_arns" {
+  description = "Secrets each service's execution role may read (its task definition's secrets)."
+  type        = map(list(string))
 }
 
 variable "data_key_arn" {
@@ -24,7 +24,7 @@ variable "data_key_arn" {
 }
 
 variable "signing_key_arn" {
-  description = "RSA signing key for agent JWTs (kms:Sign for the worker only)."
+  description = "RSA signing key for agent JWTs (kms:Sign for the api and the worker only)."
   type        = string
 }
 

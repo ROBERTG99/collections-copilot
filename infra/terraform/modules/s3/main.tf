@@ -1,7 +1,7 @@
 # Uploads bucket (CSV imports): versioned, SSE-KMS, public access blocked, TLS only.
 
 resource "aws_s3_bucket" "this" {
-  #checkov:skip=CKV_AWS_18:object access is recorded by CloudTrail data events, not a second logging bucket
+  #checkov:skip=CKV_AWS_18:no access-log bucket in dev (cost); every applied import is audited (ingest.completed or ingest.rejected)
   #checkov:skip=CKV_AWS_144:uploads are transient CSV imports; cross-region replication adds cost without a recovery need
   #checkov:skip=CKV2_AWS_62:the API reads uploads on request; no event-driven consumer exists
   bucket        = var.bucket_name
@@ -49,6 +49,9 @@ resource "aws_s3_bucket_lifecycle_configuration" "this" {
     filter {}
     abort_incomplete_multipart_upload {
       days_after_initiation = 1
+    }
+    expiration {
+      days = var.expire_days # imports are applied at upload time; the file is not kept
     }
     noncurrent_version_expiration {
       noncurrent_days = var.noncurrent_days

@@ -18,11 +18,11 @@ variable "cluster_arn" {
 }
 
 variable "image" {
-  description = "Container image with an immutable tag."
+  description = "Container image with an explicit tag or a sha256 digest (never :latest)."
   type        = string
   validation {
-    condition     = !endswith(var.image, ":latest")
-    error_message = "image must use an immutable tag, never :latest."
+    condition     = can(regex("(:[A-Za-z0-9._-]{1,128}|@sha256:[a-f0-9]{64})$", var.image)) && !endswith(var.image, ":latest")
+    error_message = "image must end in an explicit tag or @sha256 digest, and never use :latest."
   }
 }
 
@@ -135,5 +135,27 @@ variable "autoscaling" {
   validation {
     condition     = var.autoscaling.min >= 1 && var.autoscaling.max >= var.autoscaling.min
     error_message = "autoscaling needs 1 <= min <= max."
+  }
+}
+
+variable "extra_ports" {
+  description = "More container ports published through Service Connect, by DNS name (e.g. an admin port)."
+  type        = map(number)
+  default     = {}
+}
+
+variable "internet_egress" {
+  description = "Allow HTTPS to the internet through NAT (Twilio, Bedrock, Cognito)."
+  type        = bool
+  default     = true
+}
+
+variable "vpc_egress_ports" {
+  description = "Ports the tasks may open inside the VPC: database, cache and Service Connect peers."
+  type        = list(number)
+  default     = [5432, 6379, 8300, 8310, 8343, 8344, 8348]
+  validation {
+    condition     = alltrue([for p in var.vpc_egress_ports : p > 0 && p < 65536])
+    error_message = "vpc_egress_ports must be TCP ports."
   }
 }

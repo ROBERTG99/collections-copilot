@@ -82,3 +82,13 @@ variable "kms_key_arn" {
   description = "KMS key for the WAF log group."
   type        = string
 }
+
+variable "webhook_path_prefix" {
+  description = "Path prefix of the provider webhooks, exempt from the per-IP WAF rate limit."
+  type        = string
+  default     = "/api/v1/webhooks/twilio/"
+  validation {
+    condition     = startswith(var.webhook_path_prefix, "/") && endswith(var.webhook_path_prefix, "/")
+    error_message = "webhook_path_prefix must start and end with a slash."
+  }
+}

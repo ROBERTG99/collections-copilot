@@ -46,3 +46,13 @@ output "policy_documents" {
   description = "IAM policy documents created by this module (for the IAM tests)."
   value       = { vpc_flow_logs = local.flow_policy }
 }
+
+output "public_subnet_cidrs" {
+  description = "Public subnet CIDRs (the load balancer's addresses come from these)."
+  value       = aws_subnet.public[*].cidr_block
+}
+
+output "endpoint_ingress_cidrs" {
+  description = "Who may reach the interface endpoints (for the network tests)."
+  value       = flatten([for r in aws_security_group.endpoints.ingress : r.cidr_blocks])
+}

@@ -62,6 +62,9 @@ mock_provider "aws" {
   mock_resource "aws_wafv2_web_acl" {
     defaults = { arn = "arn:aws:wafv2:us-east-1:123456789012:regional/webacl/mock/00000000-0000-0000-0000-000000000003" }
   }
+  mock_resource "aws_lambda_function" {
+    defaults = { arn = "arn:aws:lambda:us-east-1:123456789012:function:mock" }
+  }
   mock_resource "aws_db_instance" {
     defaults = { arn = "arn:aws:rds:us-east-1:123456789012:db:mock", endpoint = "mock.abc.us-east-1.rds.amazonaws.com:5432" }
   }
@@ -80,6 +83,7 @@ variables {
   image_tag       = "0.1.0"
   certificate_arn = "arn:aws:acm:us-east-1:123456789012:certificate/00000000-0000-0000-0000-000000000000"
   alarm_email     = "alerts@example.com"
+  smtp_host       = "email-smtp.example.com"
 }
 
 run "database_and_tasks_stay_private" {
@@ -125,12 +129,12 @@ run "database_and_tasks_stay_private" {
   }
 }
 
-run "only_webhooks_reach_the_api_publicly" {
+run "only_twilio_webhooks_reach_the_api_publicly" {
   command = apply
 
   assert {
-    condition     = keys(module.alb.routes) == ["api"] && toset(module.alb.routes["api"]) == toset(["/webhooks/*"])
-    error_message = "The ALB may route only /webhooks/* to the API; everything else goes to the web BFF."
+    condition     = keys(module.alb.routes) == ["api"] && toset(module.alb.routes["api"]) == toset(["/api/v1/webhooks/twilio/*"])
+    error_message = "The ALB may route only Twilio's webhooks (/api/v1/webhooks/twilio/*) to the API; everything else goes to the web BFF."
   }
   assert {
     condition     = module.alb.listeners.http_redirect == "redirect"
@@ -143,5 +147,48 @@ run "only_webhooks_reach_the_api_publicly" {
   assert {
     condition     = module.alb.listeners.idle_timeout == 120
     error_message = "The idle timeout must be 120 s for SSE progress streams."
+  }
+}
+
+run "security_groups_admit_only_their_callers" {
+  command = apply
+
+  assert {
+    condition     = toset([for r in module.alb.ingress_rules : "${r.cidr_ipv4}:${r.port}-${r.to_port}"]) == toset(["0.0.0.0/0:443-443", "0.0.0.0/0:80-80"])
+    error_message = "Only the load balancer is open to the internet, on 80 (redirect) and 443."
+  }
+  assert {
+    condition = alltrue(flatten([
+      for name, svc in module.service : [for r in svc.security_group_rules.ingress : r.from_cidr_ipv4 == null]
+    ]))
+    error_message = "No task accepts traffic from an address range; only from named security groups."
+  }
+  assert {
+    condition     = toset(flatten([for r in module.service["api"].security_group_rules.ingress : r.from_group])) == toset([module.alb.security_group_id])
+    error_message = "The api's own ingress rule admits the load balancer only (peers use internal_paths)."
+  }
+  assert {
+    condition     = toset(keys(module.rds.ingress_security_group_ids)) == toset(["api", "worker", "ledger-mcp", "mcp-gateway"])
+    error_message = "PostgreSQL admits exactly the api, worker, ledger-mcp and mcp-gateway tasks."
+  }
+  assert {
+    condition     = alltrue([for k, sg in module.rds.ingress_security_group_ids : sg == module.service[k].security_group_id])
+    error_message = "Each database ingress rule must reference that service's own security group."
+  }
+  assert {
+    condition     = module.service["ledger-mcp"].security_group_rules.internet_egress == false && module.service["mcp-gateway"].security_group_rules.internet_egress == false
+    error_message = "ledger-mcp and mcp-gateway have no route to the internet."
+  }
+  assert {
+    condition     = alltrue([for name, svc in module.service : !contains(svc.security_group_rules.vpc_egress_ports, 22)])
+    error_message = "In-VPC egress is limited to the listed service ports."
+  }
+  assert {
+    condition     = length(module.network.endpoint_ingress_cidrs) == 2 && !contains(module.network.endpoint_ingress_cidrs, "10.40.0.0/16")
+    error_message = "The interface endpoints admit the private subnets only, not the whole VPC."
+  }
+  assert {
+    condition     = module.rds.posture.backup_retention >= 7
+    error_message = "The composed database keeps at least seven days of backups."
   }
 }

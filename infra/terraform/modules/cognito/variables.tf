@@ -33,9 +33,24 @@ variable "logout_urls" {
 variable "mfa" {
   description = "MFA requirement: OPTIONAL or ON."
   type        = string
-  default     = "OPTIONAL"
+  default     = "ON" # supervisors and admins approve sends
   validation {
     condition     = contains(["OPTIONAL", "ON"], var.mfa)
     error_message = "mfa must be OPTIONAL or ON."
+  }
+}
+
+variable "kms_key_arn" {
+  description = "KMS key for the trigger's log group."
+  type        = string
+}
+
+variable "pre_token_concurrency" {
+  description = "Reserved concurrency of the Pre Token Generation trigger (sign-ins at once)."
+  type        = number
+  default     = 20
+  validation {
+    condition     = var.pre_token_concurrency >= 1 && var.pre_token_concurrency <= 100
+    error_message = "pre_token_concurrency must be between 1 and 100."
   }
 }

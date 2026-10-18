@@ -6,9 +6,14 @@ data "aws_region" "current" {}
 
 locals {
   scale_on_queue = var.autoscaling.queue_name != null
-  port_mappings = var.container_port == null ? [] : [{
-    name          = var.name
-    containerPort = var.container_port
+  # The main port is published under the service name; extra ports under their own names.
+  ports = merge(
+    var.container_port == null ? {} : { (var.name) = var.container_port },
+    var.extra_ports,
+  )
+  port_mappings = [for name, port in local.ports : {
+    name          = name
+    containerPort = port
     protocol      = "tcp"
   }]
 }
@@ -32,9 +37,11 @@ resource "aws_vpc_security_group_ingress_rule" "from" {
   to_port                      = var.container_port
 }
 
-# Twilio and the identity provider publish no fixed IP ranges; egress is HTTPS only, through NAT.
+# Twilio and the identity provider publish no fixed IP ranges; egress is HTTPS only, through NAT,
+# and only for services that call out (internet_egress).
 #trivy:ignore:AVD-AWS-0104
 resource "aws_vpc_security_group_egress_rule" "https" {
+  count             = var.internet_egress ? 1 : 0
   security_group_id = aws_security_group.this.id
   description       = "HTTPS to AWS endpoints, Twilio and the identity provider"
   cidr_ipv4         = "0.0.0.0/0"
@@ -43,13 +50,24 @@ resource "aws_vpc_security_group_egress_rule" "https" {
   to_port           = 443
 }
 
-resource "aws_vpc_security_group_egress_rule" "vpc" {
+# HTTPS to the VPC endpoints (ECR, logs, Secrets Manager, KMS, SQS) even without internet egress.
+resource "aws_vpc_security_group_egress_rule" "endpoints" {
   security_group_id = aws_security_group.this.id
-  description       = "Database, cache and Service Connect peers inside the VPC"
+  description       = "HTTPS to the VPC interface endpoints"
   cidr_ipv4         = var.vpc_cidr_block
   ip_protocol       = "tcp"
-  from_port         = 1024
-  to_port           = 65535
+  from_port         = 443
+  to_port           = 443
+}
+
+resource "aws_vpc_security_group_egress_rule" "vpc" {
+  for_each          = toset([for p in var.vpc_egress_ports : tostring(p)])
+  security_group_id = aws_security_group.this.id
+  description       = "Port ${each.key} inside the VPC (database, cache or a Service Connect peer)"
+  cidr_ipv4         = var.vpc_cidr_block
+  ip_protocol       = "tcp"
+  from_port         = tonumber(each.key)
+  to_port           = tonumber(each.key)
 }
 
 resource "aws_ecs_task_definition" "this" {
@@ -73,11 +91,15 @@ resource "aws_ecs_task_definition" "this" {
     essential              = true
     user                   = "10001"
     readonlyRootFilesystem = true
-    command                = var.command
-    portMappings           = local.port_mappings
-    environment            = [for k, v in var.environment : { name = k, value = v }]
-    secrets                = [for k, arn in var.secrets : { name = k, valueFrom = arn }]
-    mountPoints            = [{ sourceVolume = "tmp", containerPath = "/tmp", readOnly = false }]
+    linuxParameters = {
+      capabilities       = { drop = ["ALL"] }
+      initProcessEnabled = true
+    }
+    command      = var.command
+    portMappings = local.port_mappings
+    environment  = [for k, v in var.environment : { name = k, value = v }]
+    secrets      = [for k, arn in var.secrets : { name = k, valueFrom = arn }]
+    mountPoints  = [{ sourceVolume = "tmp", containerPath = "/tmp", readOnly = false }]
     healthCheck = var.health_check_command == null ? null : {
       command     = var.health_check_command
       interval    = 15
@@ -128,12 +150,12 @@ resource "aws_ecs_service" "this" {
     enabled   = true
     namespace = var.service_connect_namespace_arn
     dynamic "service" {
-      for_each = var.container_port == null ? [] : [var.container_port]
+      for_each = local.ports
       content {
-        port_name = var.name
+        port_name = service.key
         client_alias {
           port     = service.value
-          dns_name = var.name
+          dns_name = service.key
         }
       }
     }

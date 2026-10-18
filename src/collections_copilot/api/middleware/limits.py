@@ -31,7 +31,7 @@ from collections_copilot.api.errors import problem
 
 log = logging.getLogger(__name__)
 MUTATING = {"POST", "PUT", "PATCH", "DELETE"}
-EXEMPT_PREFIXES = ("/healthz", "/readyz", "/docs", "/openapi.json")
+EXEMPT_PREFIXES = ("/healthz", "/readyz", "/docs", "/openapi.json", "/.well-known/")
 WEBHOOK_PREFIX = "/api/v1/webhooks/"
 PENDING_TTL_S = 60
 NOT_STORED = {401, 403, 429}

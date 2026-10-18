@@ -41,3 +41,12 @@ output "waf_log_group" {
   description = "WAF log group retention and key (for the tests)."
   value       = { retention = aws_cloudwatch_log_group.waf.retention_in_days, kms = aws_cloudwatch_log_group.waf.kms_key_id }
 }
+
+output "ingress_rules" {
+  description = "Ingress of the load balancer's security group (for the network tests)."
+  value = [for r in [aws_vpc_security_group_ingress_rule.https, aws_vpc_security_group_ingress_rule.http_redirect] : {
+    cidr_ipv4 = r.cidr_ipv4
+    port      = r.from_port
+    to_port   = r.to_port
+  }]
+}

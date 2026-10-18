@@ -1,5 +1,6 @@
-# ECS execution role and one task role per service. Every statement names its resources; the
-# only wildcard is inside AWS's managed execution-role policy (envs/dev/tests/iam.tftest.hcl).
+# One execution role (reads only that service's secrets) and one task role per service. Every
+# statement names its resources; the only wildcard is inside AWS's managed execution-role policy
+# (envs/dev/tests/iam.tftest.hcl).
 
 data "aws_caller_identity" "current" {}
 data "aws_region" "current" {}
@@ -34,23 +35,35 @@ locals {
     Resource = [var.data_key_arn]
   }
 
-  execution_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Sid      = "ReadTaskSecrets"
-        Effect   = "Allow"
-        Action   = ["secretsmanager:GetSecretValue"]
-        Resource = values(var.secret_arns)
-      },
-      {
-        Sid      = "DecryptTaskSecrets"
-        Effect   = "Allow"
-        Action   = ["kms:Decrypt"]
-        Resource = [var.data_key_arn]
-      },
-    ]
-  })
+  # Services whose task definition injects no secret get the managed policy only.
+  execution_policies = {
+    for svc, arns in var.service_secret_arns : svc => jsonencode({
+      Version = "2012-10-17"
+      Statement = [
+        {
+          Sid      = "ReadTaskSecrets"
+          Effect   = "Allow"
+          Action   = ["secretsmanager:GetSecretValue"]
+          Resource = sort(distinct(arns))
+        },
+        {
+          Sid      = "DecryptTaskSecrets"
+          Effect   = "Allow"
+          Action   = ["kms:Decrypt"]
+          Resource = [var.data_key_arn]
+        },
+      ]
+    }) if length(arns) > 0
+  }
+
+  # Agent JWTs are RS256 (KMS RSASSA_PKCS1_V1_5_SHA_256); no other algorithm may be used.
+  sign_agent_tokens = {
+    Sid       = "SignAgentTokens"
+    Effect    = "Allow"
+    Action    = ["kms:Sign"]
+    Resource  = [var.signing_key_arn]
+    Condition = { StringEquals = { "kms:SigningAlgorithm" = "RSASSA_PKCS1_V1_5_SHA_256" } }
+  }
 
   task_policies = {
     api = jsonencode({
@@ -86,6 +99,8 @@ locals {
           Action   = ["kms:GetPublicKey"]
           Resource = [var.signing_key_arn]
         },
+        # cc-api tokens with scope mcpgw:approve for a supervisor's promise approval.
+        local.sign_agent_tokens,
         local.data_key_use,
       ]
     })
@@ -113,12 +128,7 @@ locals {
           Action   = ["bedrock:InvokeModel", "bedrock:InvokeModelWithResponseStream"]
           Resource = local.model_arns
         },
-        {
-          Sid      = "SignAgentTokens"
-          Effect   = "Allow"
-          Action   = ["kms:Sign"]
-          Resource = [var.signing_key_arn]
-        },
+        local.sign_agent_tokens,
         local.data_key_use,
       ]
     })
@@ -128,18 +138,21 @@ locals {
 }
 
 resource "aws_iam_role" "execution" {
-  name_prefix        = "${local.name}-exec-"
+  for_each           = local.roles
+  name_prefix        = "cc-${var.environment}-${each.key}-exec-" # 38 characters at most
   assume_role_policy = local.ecs_trust
 }
 
 resource "aws_iam_role_policy_attachment" "execution_managed" {
-  role       = aws_iam_role.execution.name
+  for_each   = local.roles
+  role       = aws_iam_role.execution[each.key].name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
 
 resource "aws_iam_role_policy" "execution" {
-  role   = aws_iam_role.execution.id
-  policy = local.execution_policy
+  for_each = local.execution_policies
+  role     = aws_iam_role.execution[each.key].id
+  policy   = each.value
 }
 
 resource "aws_iam_role" "task" {

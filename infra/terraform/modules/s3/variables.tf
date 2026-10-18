@@ -21,3 +21,13 @@ variable "noncurrent_days" {
     error_message = "noncurrent_days must be at least 30."
   }
 }
+
+variable "expire_days" {
+  description = "Days before an upload (the current version) expires."
+  type        = number
+  default     = 30
+  validation {
+    condition     = var.expire_days >= 1 && var.expire_days <= 365
+    error_message = "expire_days must be between 1 and 365."
+  }
+}

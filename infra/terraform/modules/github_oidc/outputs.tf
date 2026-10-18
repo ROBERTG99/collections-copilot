@@ -10,7 +10,10 @@ output "trust_policy" {
 
 output "policy_documents" {
   description = "Inline policies (for the IAM tests)."
-  value       = local.state_policy == null ? {} : { github_plan_state = local.state_policy }
+  value = merge(
+    { github_plan_deny_data = local.deny_data },
+    local.state_policy == null ? {} : { github_plan_state = local.state_policy },
+  )
 }
 
 output "managed_policy_arns" {

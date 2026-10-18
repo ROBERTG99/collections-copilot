@@ -1,5 +1,21 @@
 # PostgreSQL 16 in the private subnets only: KMS-encrypted storage, an RDS-managed master password
 # in Secrets Manager, TLS required, backups for at least 7 days, reachable only from the tasks.
+# The exported log groups are created here first (KMS, 30 days); otherwise RDS creates them with
+# neither. Statement logs never carry bind values (debtor data).
+
+data "aws_caller_identity" "current" {}
+
+locals {
+  log_exports = toset(["postgresql", "upgrade"])
+}
+
+resource "aws_cloudwatch_log_group" "exports" {
+  #checkov:skip=CKV_AWS_338:§16.3 sets 30-day retention for this environment
+  for_each          = local.log_exports
+  name              = "/aws/rds/instance/${var.name}/${each.key}"
+  retention_in_days = 30
+  kms_key_id        = var.kms_key_arn
+}
 
 resource "aws_db_subnet_group" "this" {
   name_prefix = "${var.name}-"
@@ -36,6 +52,14 @@ resource "aws_db_parameter_group" "this" {
     name  = "log_min_duration_statement"
     value = "500"
   }
+  parameter {
+    name  = "log_parameter_max_length"
+    value = "0"
+  }
+  parameter {
+    name  = "log_parameter_max_length_on_error"
+    value = "0"
+  }
   lifecycle {
     create_before_destroy = true
   }
@@ -49,6 +73,7 @@ resource "aws_iam_role" "monitoring" {
       Effect    = "Allow"
       Principal = { Service = "monitoring.rds.amazonaws.com" }
       Action    = "sts:AssumeRole"
+      Condition = { StringEquals = { "aws:SourceAccount" = data.aws_caller_identity.current.account_id } }
     }]
   })
 }
@@ -60,7 +85,7 @@ resource "aws_iam_role_policy_attachment" "monitoring" {
 
 resource "aws_db_instance" "this" {
   #checkov:skip=CKV_AWS_157:Multi-AZ is the multi_az variable; dev runs a single instance for cost (docs/runbook.md)
-  identifier_prefix                     = "${var.name}-"
+  identifier                            = var.name # the exported log groups are named after it
   engine                                = "postgres"
   engine_version                        = var.engine_version
   instance_class                        = var.instance_class
@@ -91,4 +116,5 @@ resource "aws_db_instance" "this" {
   enabled_cloudwatch_logs_exports       = ["postgresql", "upgrade"]
   monitoring_interval                   = 60
   monitoring_role_arn                   = aws_iam_role.monitoring.arn
+  depends_on                            = [aws_cloudwatch_log_group.exports]
 }

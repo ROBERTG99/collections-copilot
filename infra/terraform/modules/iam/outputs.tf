@@ -1,6 +1,6 @@
-output "execution_role_arn" {
-  description = "ECS task execution role."
-  value       = aws_iam_role.execution.arn
+output "execution_role_arns" {
+  description = "ECS task execution role per service."
+  value       = { for k, r in aws_iam_role.execution : k => r.arn }
 }
 
 output "task_role_arns" {
@@ -11,8 +11,8 @@ output "task_role_arns" {
 output "policy_documents" {
   description = "Every inline identity policy created here, by name (for the IAM tests)."
   value = merge(
-    { execution = local.execution_policy },
-    { for k, v in local.task_policies : "task-${k}" => v if contains(var.services, k) },
+    { for k, p in aws_iam_role_policy.execution : "execution-${k}" => p.policy },
+    { for k, p in aws_iam_role_policy.task : "task-${k}" => p.policy },
   )
 }
 
@@ -23,5 +23,5 @@ output "trust_policy" {
 
 output "managed_policy_arns" {
   description = "AWS-managed policies attached (documented exceptions)."
-  value       = [aws_iam_role_policy_attachment.execution_managed.policy_arn]
+  value       = distinct([for a in aws_iam_role_policy_attachment.execution_managed : a.policy_arn])
 }

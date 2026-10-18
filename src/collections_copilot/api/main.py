@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from collections.abc import AsyncIterator
 from contextlib import AsyncExitStack, asynccontextmanager
@@ -41,8 +42,9 @@ from collections_copilot.api.routers.events import StreamSlots
 from collections_copilot.config import Settings, get_settings
 from collections_copilot.db.session import make_engine, make_sessionmaker, ping
 from collections_copilot.integrations.email.smtp import Notifier, SmtpNotifier
-from collections_copilot.integrations.mcp import build_gateway_admin
+from collections_copilot.integrations.mcp import build_gateway_admin, build_token_provider
 from collections_copilot.integrations.mcp.admin import GatewayAdmin
+from collections_copilot.integrations.mcp.tokens import KmsTokenProvider
 from collections_copilot.integrations.queue.sqs import QueueClient, SqsQueueClient
 from collections_copilot.integrations.sms import build_sms_sender
 from collections_copilot.integrations.sms.base import SmsSender
@@ -159,6 +161,20 @@ def create_app(
         return JSONResponse(
             {"status": "ok" if ok else "unavailable"}, status_code=200 if ok else 503
         )
+
+    @app.get("/.well-known/agent-jwks.json", tags=["health"])
+    async def agent_jwks(request: Request) -> JSONResponse:
+        """The key mcp-gateway verifies agent tokens with (MCPGW_JWKS_URL). With KMS-signed
+        tokens it is the signing key's public half, read once; the dev issuer publishes its own."""
+        state = request.app.state
+        if getattr(state, "agent_jwks", None) is None:
+            provider = build_token_provider(settings)
+            state.agent_jwks = (
+                await asyncio.to_thread(provider.jwks)
+                if isinstance(provider, KmsTokenProvider)
+                else {"keys": []}
+            )
+        return JSONResponse(state.agent_jwks, headers={"Cache-Control": "public, max-age=300"})
 
     return app
 

@@ -1,6 +1,6 @@
 # Internet-facing ALB: HTTPS only (HTTP redirects), TLS 1.3 policy, 120 s idle timeout for SSE.
-# Everything goes to the web BFF except provider webhooks (`/webhooks/*`), which go to the API.
-# The API's /metrics is never routed.
+# Everything goes to the web BFF except Twilio's webhooks (`/api/v1/webhooks/twilio/*`), which go
+# to the API. The gateway's approval webhook stays inside the VPC; the API's /metrics is never routed.
 
 resource "aws_security_group" "this" {
   name_prefix = "${var.name}-alb-"
@@ -139,6 +139,13 @@ resource "aws_wafv2_web_acl" "this" {
       managed_rule_group_statement {
         vendor_name = "AWS"
         name        = "AWSManagedRulesCommonRuleSet"
+        # 8 KB is below the console's JSON bodies; the BFF and the API cap bodies at 1 MiB.
+        rule_action_override {
+          name = "SizeRestrictions_BODY"
+          action_to_use {
+            count {}
+          }
+        }
       }
     }
     visibility_config {
@@ -175,6 +182,24 @@ resource "aws_wafv2_web_acl" "this" {
       rate_based_statement {
         limit              = var.waf_rate_limit_per_5min
         aggregate_key_type = "IP"
+        # Twilio posts from shared addresses; the API limits webhooks per source itself.
+        scope_down_statement {
+          not_statement {
+            statement {
+              byte_match_statement {
+                search_string         = var.webhook_path_prefix
+                positional_constraint = "STARTS_WITH"
+                field_to_match {
+                  uri_path {}
+                }
+                text_transformation {
+                  priority = 0
+                  type     = "NONE"
+                }
+              }
+            }
+          }
+        }
       }
     }
     visibility_config {
