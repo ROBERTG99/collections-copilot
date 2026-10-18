@@ -113,7 +113,7 @@ Each is also listed in `docs/KNOWN_LIMITATIONS.md`.
 - **Presigned uploads** do not sign the object size; the API reads at most the configured limit of the exact version it checked (`If-Match` and a byte range), so an oversized or swapped object is refused rather than buffered.
 - **Rate limits fail open** when Redis is unavailable (idempotency fails closed). Behind a proxy, uvicorn must trust the proxy's addresses (`FORWARDED_ALLOW_IPS`, set to the VPC range in Terraform) or every webhook shares one bucket.
 - **Sessions are stateless**: logout clears the cookie and calls the issuer's logout but does not revoke the refresh token; a stolen cookie stays valid until it expires. The BFF's single-flight refresh map is per process.
-- **Agent token scopes are chosen by the caller** in KMS mode (one signing key for the API and the worker), and the agent JWKS route the gateway needs in AWS is not built yet; the dev issuer mints any scope and is bound to 127.0.0.1.
+- **Agent token scopes are chosen by the caller** in KMS mode (one signing key for the API and the worker; the gateway verifies against the API's `/.well-known/agent-jwks.json`); the dev issuer mints any scope and is bound to 127.0.0.1.
 - **The console's CSP** keeps `'unsafe-inline'` scripts for Next.js bootstrap code (docs/DECISIONS.md).
 - **Containers are not network-isolated locally**: the compose network has internet access; nothing in the code calls out except the configured providers. Each runtime image contains every workspace package.
 - **Direct API callers** can supply their own `traceparent` and `x-correlation-id` (sanitised, but trusted for correlation).

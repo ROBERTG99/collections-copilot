@@ -43,6 +43,8 @@ async def test_cli_detects_tamper(sessionmaker, database_url: str, migrated_data
     )
     assert ok.exit_code == 0, ok.output
     assert "chain_ok=true" in ok.output
+    # The head to export and keep elsewhere (docs/KNOWN_LIMITATIONS.md, audit chain).
+    assert f"head tenant={tenant} seq={row.seq} hash={row.hash}" in ok.output
 
     with psycopg.connect(migrated_database, autocommit=True) as conn:
         conn.execute("ALTER TABLE audit_events DISABLE TRIGGER audit_events_no_update")

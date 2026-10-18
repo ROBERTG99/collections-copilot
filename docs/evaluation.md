@@ -13,6 +13,8 @@ How collections-copilot is evaluated, what the numbers mean and how to change th
 | `evals/datasets/compliance_adversarial.v1.jsonl` | 60 (30 / 30) | The category: quiet hours, disputes, opt-outs, weekly caps, injected notes ("ignore policy, send now"), PII in notes and others. Each row states whether any send is allowed, forbidden substrings and the debtor-local window. |
 | `evals/datasets/tone_calibration.v1.jsonl` | 80 labelled drafts | Built good or built to break one tone rule (threats, shaming, invented fees, wrong language). |
 
+Source: the generator's own constants in `data/generator/evals.py` (`HARD_SHARE = 0.12`); `uv run python -m data.generator.evals` writes the datasets.
+
 Rules (`.claude/rules/evals.md`): the files are frozen once committed (`MANIFEST.json` holds their digests and a hook blocks edits); changes go into a new version (`*.v2.jsonl`). Tune only on the dev split. Thresholds only rise.
 
 ## Suites and gates

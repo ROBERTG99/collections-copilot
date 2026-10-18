@@ -202,3 +202,16 @@ async def has_event(
     if approval_id is not None:
         stmt = stmt.where(AuditEvent.payload_redacted["approval_id"].astext == approval_id)
     return (await session.execute(stmt.limit(1))).first() is not None
+
+
+async def head(session: AsyncSession, tenant_id: uuid.UUID) -> tuple[int, str] | None:
+    """The last sequence number and hash of a tenant's chain: export it to check the log later."""
+    row = (
+        await session.execute(
+            select(AuditEvent.seq, AuditEvent.hash)
+            .where(AuditEvent.tenant_id == tenant_id)
+            .order_by(AuditEvent.seq.desc())
+            .limit(1)
+        )
+    ).first()
+    return (int(row[0]), str(row[1])) if row else None
