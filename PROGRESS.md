@@ -21,7 +21,7 @@ chore: configure commit attribution
 
 State on 2026-10-18, branch `feat/serene-gates-04qt5s`:
 
-- **Done:** M0 to M7 (T-01 to T-48), T-49 and T-50. Every milestone review's blockers and majors are fixed (see "Milestone reviews"); M7's reviews and fixes are recorded there.
+- **Done:** M0 to M8 (T-01 to T-50). Every milestone review's blockers and majors are fixed (see "Milestone reviews"); M7's reviews and fixes are recorded there.
 - **Open gate:** `make eval` exits 1 on one gate only, `reply_macro_f1` on the replies test split (0.8917 < 0.90, offline, FakeLLM). Dev is 1.0; 7 of the 9 test misses are reworded `hard` rows, and dev has almost none of them. The fix within the rules needs the maintainer: recorded live cassettes (`make record-fixtures` with a key) or an approved `replies.v2` with dev and test built from disjoint paraphrase templates. Do not read failing test rows or lower the threshold. Because of it `evals.yml` and `make verify` are red (docs/KNOWN_LIMITATIONS.md "Gates").
 - **Offline eval numbers now** (`evals/REPORT.md`, test split):
 
@@ -31,7 +31,7 @@ State on 2026-10-18, branch `feat/serene-gates-04qt5s`:
   | replies | macro-F1 0.8917 (FAIL), STOP recall 1.0, write-backs 0, PII 0, authorized write-back recall 1.0 |
   | compliance | violations 0, write-backs 0, PII 0, allowed sends 1.0 |
 
-- **Next:** M8 milestone review (reviewer, docs-editor) and fixes, then M9: T-51 reviews (reviewer, security-auditor, compliance-reviewer, terraform-reviewer) until "ship"; T-52 `make verify-clean`, fill in `docs/verification.md`, authorship check, README and CHANGELOG status lines, `git mv -f BUILD.md docs/specs/000-build-spec.md`, PR without attribution.
+- **Next:** M8 is reviewed and fixed (row M8 below). T-51: the four final reviews (reviewer, security-auditor, compliance-reviewer, terraform-reviewer) were started on 2026-10-18 at commit dde18c3; fix their blockers and repeat until the reviewer says "ship". Then T-52: `make verify-clean`, fill in `docs/verification.md` (FR-1…FR-15 rows: the acceptance tests are listed per FR in that file), authorship check, README and CHANGELOG status lines, `git mv -f BUILD.md docs/specs/000-build-spec.md`, PR without attribution.
 - **Tooling:** `make lint` (markdownlint configured), `make tf-check` (26 Terraform tests, checkov 341 passed / 32 skipped), `make bench`, `make test-docker`, `make up` (`scripts/time_up.sh`), `scripts/coverage_gate.py` and `scripts/verify_clean.sh` all exist and run. `make docs` regenerates the Terraform module READMEs (`scripts/gen_docs.py`).
 - **Observability:** `make observability` builds the images and starts the stack with Jaeger (8392), Prometheus (8390) and Grafana (8391, anonymous viewer) and trace export on. API metrics are at `/metrics/` (summed over the `CC_API_WORKERS` processes), the worker's at `:8311/metrics`.
 - **Guard hook:** `.claude/hooks/pre_tool_guard.py` blocks Bash text containing the AWS CLI's name followed by a space, the Twilio API host, or the forbidden Terraform commands; edit such files with the Edit tool.
