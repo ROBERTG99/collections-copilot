@@ -153,6 +153,8 @@ async def test_inbound_stop_is_handled_by_rule(
             if m.direction == "inbound"
         ]
     assert [(m.classification, m.status) for m in inbound] == [("stop", "handled")]
+    # The console labels the opt-out as made by the rule, not "source not recorded" (T-49 demo).
+    assert inbound[0].extracted == {"promise": None, "source": "rule"}
 
 
 async def test_inbound_reply_is_queued_once_stored(

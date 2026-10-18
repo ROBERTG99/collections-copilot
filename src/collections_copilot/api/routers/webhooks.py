@@ -227,7 +227,11 @@ async def _stop_everywhere(
             status="received",
         )
         await repos.messages.set(
-            owner, message.id, classification="stop", classification_confidence=1.0
+            owner,
+            message.id,
+            classification="stop",
+            classification_confidence=1.0,
+            extracted={"promise": None, "source": "rule"},
         )
         await repos.messages.mark_handled(owner, message.id)
 
