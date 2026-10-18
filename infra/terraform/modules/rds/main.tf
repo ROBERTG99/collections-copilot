@@ -106,6 +106,7 @@ resource "aws_db_instance" "this" {
   backup_retention_period               = var.backup_retention_days
   copy_tags_to_snapshot                 = true
   deletion_protection                   = true
+  delete_automated_backups              = false # keep the point-in-time window if the instance goes
   skip_final_snapshot                   = false
   final_snapshot_identifier             = "${var.name}-final"
   auto_minor_version_upgrade            = true

@@ -21,6 +21,7 @@ from collections_copilot.observability import tracing
 E_IDEMPOTENCY_CONFLICT = -32040
 E_APPROVAL_INVALID = -32045
 E_UPSTREAM_UNAVAILABLE = -32046
+E_IDEMPOTENCY_IN_PROGRESS = -32047  # the first call with this key has not finished yet
 LedgerStatus = Literal[
     "recorded",
     "approval_required",
@@ -123,7 +124,7 @@ class McpLedgerTools:
                 return LedgerResult(
                     "approval_invalid", detail=str(data.get("reason") or mcp_error.message)
                 )
-            if mcp_error.code == E_UPSTREAM_UNAVAILABLE:
+            if mcp_error.code in (E_UPSTREAM_UNAVAILABLE, E_IDEMPOTENCY_IN_PROGRESS):
                 return LedgerResult("unavailable", detail=mcp_error.message)
             return LedgerResult("error", detail=f"{mcp_error.code}: {mcp_error.message}")
         data = result.structured_content if isinstance(result.structured_content, dict) else {}

@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import re
+import unicodedata
 from datetime import date
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 from functools import cache
 from typing import Literal
 from zoneinfo import available_timezones
@@ -31,6 +32,9 @@ CSV_COLUMNS = [
     "dispute_reason",
     "note",
 ]
+
+
+AMOUNT = re.compile(r"\d{1,11}(\.\d{1,2})?")  # major units, at most 99,999,999,999.99
 
 
 class AgingRow(BaseModel):
@@ -61,6 +65,15 @@ class AgingRow(BaseModel):
             raise ValueError("phone_e164 must be in the synthetic ranges +1555… or +34555…")
         return v
 
+    @field_validator("name")
+    @classmethod
+    def _name(cls, v: str) -> str:
+        """It reaches prompts and SMS: no markup, braces, backslashes or control and format
+        characters (T-51 security audit M1)."""
+        if any(ch in "<>{}\\" or unicodedata.category(ch)[0] == "C" for ch in v):
+            raise ValueError("name may not contain <, >, {, }, backslashes or control characters")
+        return v
+
     @field_validator("timezone")
     @classmethod
     def _tz(cls, v: str) -> str:
@@ -71,14 +84,12 @@ class AgingRow(BaseModel):
     @field_validator("amount")
     @classmethod
     def _amount(cls, v: str) -> str:
-        try:
-            d = Decimal(v)
-        except InvalidOperation as exc:
-            raise ValueError("amount must be a decimal number") from exc
-        if not d.is_finite() or d <= 0:
+        # Plain notation only, checked before Decimal parses it: an exponent such as 1e999990
+        # costs seconds of CPU and overflows the bigint column (T-51 security audit M3).
+        if not AMOUNT.fullmatch(v):
+            raise ValueError("amount must be a plain decimal up to 99999999999.99, e.g. 1200.50")
+        if Decimal(v) <= 0:
             raise ValueError("amount must be greater than 0")
-        if d.as_tuple().exponent < -2:  # type: ignore[operator]
-            raise ValueError("amount has more than 2 decimals")
         return v
 
     @property

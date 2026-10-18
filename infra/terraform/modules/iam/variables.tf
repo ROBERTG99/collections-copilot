@@ -1,8 +1,3 @@
-variable "project" {
-  description = "Project name used in role names."
-  type        = string
-}
-
 variable "environment" {
   description = "Environment name."
   type        = string

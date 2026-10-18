@@ -219,6 +219,14 @@ run "twilio_from_number_is_e164" {
   expect_failures = [var.twilio_from_number]
 }
 
+run "twilio_from_number_is_not_the_local_default" {
+  command = plan
+  variables {
+    twilio_from_number = "+15550001000"
+  }
+  expect_failures = [var.twilio_from_number]
+}
+
 run "gateway_image_needs_a_tag_or_digest" {
   command = plan
   variables {

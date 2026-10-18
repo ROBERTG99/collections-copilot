@@ -81,8 +81,9 @@ class Settings(BaseSettings):
     supervisor_email: str = "supervisors@collections.example"
 
     # policy (§3.1 FR-6)
-    auto_approve_max_usd: float = 500.0
-    auto_approve_min_confidence: float = 0.9
+    # The spec's ceiling: an environment may tighten it, never loosen it, and never to NaN.
+    auto_approve_max_usd: float = Field(500.0, gt=0, le=500, allow_inf_nan=False)
+    auto_approve_min_confidence: float = Field(0.9, ge=0.9, le=1, allow_inf_nan=False)
     worker_concurrency: int = 8
     rate_limit_per_min: int = 120
     upload_max_bytes: int = 10 * 1024 * 1024

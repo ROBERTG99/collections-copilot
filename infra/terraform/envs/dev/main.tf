@@ -195,7 +195,6 @@ module "ecr" {
 
 module "iam" {
   source              = "../../modules/iam"
-  project             = var.project
   environment         = var.environment
   services            = local.services
   service_secret_arns = { for k, v in local.service_config : k => values(v.secrets) }

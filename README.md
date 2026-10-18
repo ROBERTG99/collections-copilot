@@ -134,9 +134,9 @@ Source: PROGRESS.md (tasks T-44 and T-48, M7 review row).
 
 ### Infrastructure and security checks
 
-Source: PROGRESS.md (M7 review row, 2026-10-18).
+Source: PROGRESS.md (M7 review row and the T-51 row, 2026-10-18).
 
-- `make tf-check` (fmt, validate, `terraform test` with a mock provider, tflint, checkov), fully offline: 25 Terraform tests passed; checkov 341 passed and 32 skipped, each skip with an inline reason. The Terraform has never been applied to an account.
+- `make tf-check` (fmt, validate, `terraform test` with a mock provider, tflint, checkov), fully offline: 28 Terraform tests passed; checkov 341 passed and 32 skipped, each skip with an inline reason. The Terraform has never been applied to an account.
 - `make security` (gitleaks, bandit, pip-audit, pnpm audit, trivy, hadolint, checkov, tflint, actionlint, licences): every check passed after three dummy test values flagged by gitleaks were added to `.gitleaksignore`. Accepted findings are listed in [docs/security.md](docs/security.md).
 
 ## Make targets
@@ -219,7 +219,7 @@ Architecture decision records live in [docs/adr/](docs/adr/), each naming the re
 
 ## Status and limitations
 
-The build has completed milestones M0 to M7 and the M8 tasks (demo and documents, T-49 and T-50); the M8 review, the M9 reviews and the final verification are pending. `make verify` is red on the replies gate described above. Open items, including the evalgate and mcp-gateway releases this repository currently replaces with contract fallbacks in `third_party/`, are listed under "Needs the maintainer" in [PROGRESS.md](PROGRESS.md). Everything else that is missing or compromised is in [docs/KNOWN_LIMITATIONS.md](docs/KNOWN_LIMITATIONS.md).
+The build has completed milestones M0 to M8 and the M9 reviews (T-51); the final verification (T-52) is recorded in [docs/verification.md](docs/verification.md). `make verify` is red on the replies gate described above. Open items, including the evalgate and mcp-gateway releases this repository currently replaces with contract fallbacks in `third_party/`, are listed under "Needs the maintainer" in [PROGRESS.md](PROGRESS.md). Everything else that is missing or compromised is in [docs/KNOWN_LIMITATIONS.md](docs/KNOWN_LIMITATIONS.md).
 
 ## Licence
 

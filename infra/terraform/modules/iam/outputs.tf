@@ -25,3 +25,8 @@ output "managed_policy_arns" {
   description = "AWS-managed policies attached (documented exceptions)."
   value       = distinct([for a in aws_iam_role_policy_attachment.execution_managed : a.policy_arn])
 }
+
+output "role_name_prefixes" {
+  description = "Name prefixes of every execution and task role (IAM allows 38 characters)."
+  value       = concat([for r in aws_iam_role.execution : r.name_prefix], [for r in aws_iam_role.task : r.name_prefix])
+}

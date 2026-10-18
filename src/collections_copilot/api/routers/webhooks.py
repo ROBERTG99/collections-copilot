@@ -74,6 +74,11 @@ def _signed(request: Request, params: list[tuple[str, str]]) -> bool:
 async def audit_bad_signature(request: Request, tenant: uuid.UUID | None, source: str) -> None:
     """Audit a rejected webhook at most once per tenant, source and minute (an attacker must not
     be able to flood the hash-chained log), with no attacker-supplied values."""
+    if tenant is not None:
+        async with request.app.state.sessionmaker() as s:
+            # An unsigned event can name any tenant: audit only one that exists (T-51 audit L2).
+            if await Repos(s).tenants.get(tenant) is None:
+                tenant = None
     if tenant is None:
         log.warning("webhook with a bad signature", extra={"source": source})
         return
@@ -183,7 +188,7 @@ async def twilio_inbound(request: Request) -> Response:
         await app.state.queues.send(
             app.state.settings.sqs_replies_queue, reply.model_dump(mode="json", by_alias=True)
         )
-    except QueueUnavailableError as exc:  # Twilio retries the webhook; the row is deduplicated
+    except QueueUnavailableError as exc:  # the stale-reply sweep re-enqueues the stored row
         raise ProblemError(503, "reply queue unavailable", code="queue_unavailable") from exc
     return Response(status_code=204)
 
@@ -260,7 +265,8 @@ mcpgw_router = APIRouter(prefix="/api/v1/webhooks/mcpgw", tags=["webhooks"])
 
 
 class GatewayApproval(BaseModel):
-    approval_id: str = Field(min_length=1, max_length=64)
+    # Used in gateway admin URLs, so a plain identifier only (T-51 security audit L3).
+    approval_id: str = Field(pattern=r"^[A-Za-z0-9_-]{1,64}$")
     tenant: str
     tool: str
     args_redacted: dict[str, Any] = Field(default_factory=dict)

@@ -243,3 +243,14 @@ run "github_plan_role_is_main_only" {
     error_message = "ReadOnlyAccess must come with an explicit deny of data reads (logs, database logs, users, messages, images)."
   }
 }
+
+run "role_name_prefixes_fit_every_environment" {
+  command = plan
+  variables {
+    environment = "staging"
+  }
+  assert {
+    condition     = alltrue([for p in module.iam.role_name_prefixes : length(p) <= 38])
+    error_message = "An IAM role name_prefix is longer than 38 characters."
+  }
+}

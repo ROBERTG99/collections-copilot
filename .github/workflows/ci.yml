@@ -19,6 +19,29 @@ env:
   TERRAFORM_VERSION: "1.16.6"
 
 jobs:
+  security:
+    # The scanners that need no images or cloud tooling; `make security` runs the full set.
+    name: secrets and dependency audit
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0 # gitleaks scans the whole history
+      - uses: ./.github/actions/setup
+      - name: gitleaks (whole history)
+        run: |
+          go install github.com/zricethezav/gitleaks/v8@v8.30.1
+          "$(go env GOPATH)/bin/gitleaks" git . --redact --no-banner --exit-code 1
+      - name: pip-audit (locked runtime dependencies)
+        run: |
+          uv export --frozen --no-hashes --no-emit-workspace --no-dev --format requirements-txt > "$RUNNER_TEMP/req.txt"
+          uvx --from pip-audit==2.9.0 pip-audit -r "$RUNNER_TEMP/req.txt" --no-deps --disable-pip --progress-spinner off
+      - name: pnpm audit
+        working-directory: web
+        run: pnpm audit --audit-level high
+
   lint:
     name: lint and types
     runs-on: ubuntu-24.04

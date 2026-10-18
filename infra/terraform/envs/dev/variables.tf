@@ -128,8 +128,8 @@ variable "twilio_from_number" {
   description = "The Twilio sending number in E.164 (CC_TWILIO_FROM); the API refuses the local default in production."
   type        = string
   validation {
-    condition     = can(regex("^\\+[1-9][0-9]{7,14}$", var.twilio_from_number))
-    error_message = "twilio_from_number must be an E.164 number such as +15550001234."
+    condition     = can(regex("^\\+[1-9][0-9]{7,14}$", var.twilio_from_number)) && var.twilio_from_number != "+15550001000"
+    error_message = "twilio_from_number must be an E.164 number such as +15550001234, not the local default +15550001000."
   }
 }
 

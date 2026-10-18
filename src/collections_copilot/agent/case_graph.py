@@ -188,8 +188,12 @@ def build_case_graph(services: Services, checkpointer: BaseCheckpointSaver[Any] 
             state["tenant_id"], state["case_id"], "status", {"status": status}
         )
 
-    def auto_decision(state: CaseState, f: CaseFacts, postcheck_ok: bool) -> tuple[bool, str, Any]:
-        """The auto-approval policy on fresh facts (never on the checkpoint)."""
+    def auto_decision(
+        state: CaseState, f: CaseFacts, postcheck_ok: bool, draft_author: str
+    ) -> tuple[bool, str, Any]:
+        """The auto-approval policy on fresh facts (never on the checkpoint). Only a model
+        decision with a model draft qualifies: a rule or template fallback in either step
+        always goes to a human (NFR-11)."""
         effective = auto_policy.effective(
             f.auto_policy, settings.auto_approve_max_usd, settings.auto_approve_min_confidence
         )
@@ -205,7 +209,9 @@ def build_case_graph(services: Services, checkpointer: BaseCheckpointSaver[Any] 
             requires_edit=bool(state.get("requires_edit")),
             invoice_currencies=[i.currency for i in open_inv],
         )
-        if ok and state["nba"].get("source") != "llm":
+        if ok and (
+            state["nba"].get("source") != "llm" or state.get("fallback") or draft_author != "ai"
+        ):
             ok, reason = False, "rules or template fallback always needs a human"
         return ok, reason, effective
 
@@ -410,8 +416,13 @@ def build_case_graph(services: Services, checkpointer: BaseCheckpointSaver[Any] 
         d = state["draft"]
         post = state["postcheck"]
         fresh = await store.send_snapshot(dict(state), int(d["version"]), now_of(state))
-        ok, reason, effective = auto_decision(state, fresh.facts, bool(post.get("ok")))
-        if ok and not fresh.case_closed and not fresh.draft_cancelled:
+        ok, reason, effective = auto_decision(
+            state, fresh.facts, bool(post.get("ok")), str(d["author"])
+        )
+        # Only a still-pending, undecided draft may be auto-approved: on a resume after a human
+        # decision (an edit is a new version) the human's record stands (T-51 review M1).
+        undecided = fresh.approval is None and (fresh.draft or {}).get("status") == "pending"
+        if ok and undecided and not fresh.case_closed:
             send_at = datetime.fromisoformat(post["send_at"])
             await store.record_auto_approval(state, int(d["version"]), effective.as_dict(), send_at)
             await services.events.publish(
@@ -547,7 +558,7 @@ def build_case_graph(services: Services, checkpointer: BaseCheckpointSaver[Any] 
                 "closed_reason": "compliance_blocked",
             }
         if approval["decision"] == "auto_approve":
-            still_ok, why, _ = auto_decision(state, f, result.ok)
+            still_ok, why, _ = auto_decision(state, f, result.ok, str(snap.draft["author"]))
             if not still_ok:  # policy tightened or the balance grew since the auto-approval
                 await store.audit(
                     state, "approval.auto_revoked", "case", state["case_id"], {"reason": why}

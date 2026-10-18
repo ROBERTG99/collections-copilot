@@ -4,6 +4,8 @@ The promises row (unique idempotency_key) is created before the ledger call, so 
 reply reuses it, and the gateway replays the stored ledger result for the same key: one ledger
 row. `approval_required` holds the promise for a supervisor; the retry sends the same key plus
 `_meta.approval_id`. `-32040 idempotency_conflict` marks the promise failed with no retry.
+A transient failure (gateway down, `-32047` still in progress) leaves the promise pending and
+raises `LedgerUnavailableError`, so SQS redelivers the task and the same key is tried again.
 """
 
 from __future__ import annotations
@@ -21,6 +23,12 @@ from collections_copilot.db.repositories import Repos
 from collections_copilot.integrations.mcp.ledger import LedgerResult, LedgerTools
 
 FINAL = {"recorded", "failed", "rejected", "kept", "broken"}
+
+
+class LedgerUnavailableError(RuntimeError):
+    """The write-back may not have happened yet; retry with the same key (T-51 review M2)."""
+
+
 OPEN = ("pending", "approval_required")
 
 
@@ -58,6 +66,8 @@ async def _apply(
         assert promise is not None
         if promise.status not in OPEN:
             return f"promise_{promise.status}"
+        if result.status == "unavailable":  # the promise stays open; the redelivery retries
+            raise LedgerUnavailableError(result.detail or "ledger unavailable")
         if result.status == "approval_required" and promise.status == "approval_required":
             return "promise_held"
         if result.status == "recorded":

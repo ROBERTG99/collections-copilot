@@ -33,7 +33,6 @@ No modules.
 | <a name="input_data_key_arn"></a> [data\_key\_arn](#input\_data\_key\_arn) | Data KMS key (secrets, queues, uploads). | `string` | n/a | yes |
 | <a name="input_dlq_arns"></a> [dlq\_arns](#input\_dlq\_arns) | Dead-letter queue ARNs by source queue. | `map(string)` | n/a | yes |
 | <a name="input_environment"></a> [environment](#input\_environment) | Environment name. | `string` | n/a | yes |
-| <a name="input_project"></a> [project](#input\_project) | Project name used in role names. | `string` | n/a | yes |
 | <a name="input_queue_arns"></a> [queue\_arns](#input\_queue\_arns) | Work queue ARNs by name. | `map(string)` | n/a | yes |
 | <a name="input_service_secret_arns"></a> [service\_secret\_arns](#input\_service\_secret\_arns) | Secrets each service's execution role may read (its task definition's secrets). | `map(list(string))` | n/a | yes |
 | <a name="input_services"></a> [services](#input\_services) | Services that get a task role (api, worker, web, ledger-mcp, mcp-gateway). | `list(string)` | n/a | yes |
@@ -47,5 +46,6 @@ No modules.
 | <a name="output_execution_role_arns"></a> [execution\_role\_arns](#output\_execution\_role\_arns) | ECS task execution role per service. |
 | <a name="output_managed_policy_arns"></a> [managed\_policy\_arns](#output\_managed\_policy\_arns) | AWS-managed policies attached (documented exceptions). |
 | <a name="output_policy_documents"></a> [policy\_documents](#output\_policy\_documents) | Every inline identity policy created here, by name (for the IAM tests). |
+| <a name="output_role_name_prefixes"></a> [role\_name\_prefixes](#output\_role\_name\_prefixes) | Name prefixes of every execution and task role (IAM allows 38 characters). |
 | <a name="output_task_role_arns"></a> [task\_role\_arns](#output\_task\_role\_arns) | Task role ARN per service. |
 | <a name="output_trust_policy"></a> [trust\_policy](#output\_trust\_policy) | Trust policy shared by the execution and task roles. |

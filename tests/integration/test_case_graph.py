@@ -203,3 +203,52 @@ async def test_runner_is_idempotent_under_redelivery(sessionmaker, database_url,
         assert await runner.handle(resume) == "resumed"
         assert await runner.handle(resume) == "kind_mismatch"  # now paused at await_reply
     assert len(sms.sent) == 1
+
+
+async def test_redelivered_resume_finishes_a_run_that_crashed_mid_send(
+    sessionmaker, database_url, tenant
+) -> None:  # type: ignore[no-untyped-def]
+    """T-51 review B1: a crash inside send_sms after the resume left the checkpoint at send_sms
+    with no interrupt; the redelivered resume was acknowledged as `not_paused` and the case
+    stayed open for ever. It must finish the run instead."""
+    from collections_copilot.integrations.queue.messages import TaskMessage
+    from collections_copilot.worker.runner import CaseRunner
+
+    class CrashOnce(InMemorySmsSender):
+        crashed = False
+
+        async def send(self, to_e164: str, body: str, *, idempotency_key: str) -> Any:
+            if not self.crashed:
+                self.crashed = True
+                raise RuntimeError("worker killed after the claim")
+            return await super().send(to_e164, body, idempotency_key=idempotency_key)
+
+    account = await make_account(sessionmaker, tenant, notes=[PLAN_NOTE])
+    case_id = await new_case(sessionmaker, tenant, account)
+    sms = CrashOnce()
+    async with case_graph(
+        make_services(sessionmaker, database_url, FakeLLM(), sms), database_url
+    ) as graph:
+        runner = CaseRunner(graph)
+        await runner.handle(
+            TaskMessage(tenant_id=str(tenant), kind="process_case", case_id=case_id)
+        )
+        await approve_latest(sessionmaker, tenant, case_id)
+        resume = TaskMessage(
+            tenant_id=str(tenant),
+            kind="resume_case",
+            case_id=case_id,
+            resume={"kind": "approval", "decision": "approve", "actor": "ana"},
+        )
+        with pytest.raises(RuntimeError):
+            await runner.handle(resume)
+        assert await runner.handle(resume) == "recovered"  # the same SQS message, redelivered
+        snapshot = await graph.aget_state(config(case_id))
+    # The claimed message was in flight when the worker died: it is never sent twice blindly,
+    # it is marked failed and a retry is scheduled, and the run does not stay at send_sms.
+    assert snapshot.next != ("send_sms",)
+    assert snapshot.values["send"] == {"status": "failed", "reason": "unknown_after_restart"}
+    assert sms.sent == []
+    async with sessionmaker() as s:
+        retry = await Repos(s).follow_ups.pending_for_case(tenant, uuid.UUID(case_id), "send_retry")
+    assert retry is not None

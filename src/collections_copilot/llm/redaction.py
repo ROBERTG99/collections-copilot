@@ -9,6 +9,7 @@ spans become stable placeholders; `restore` puts the account name back into mode
 
 from __future__ import annotations
 
+import json
 import re
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass, field
@@ -91,6 +92,11 @@ def _engine() -> AnalyzerEngine:
                     # Spanish local format without +34: "555 12 34 56", "555 123 456"
                     Pattern("es_local_3222", r"(?<![\w.,])\d{3} \d{2} \d{2} \d{2}(?![\w.,])", 0.6),
                     Pattern("es_local_333", r"(?<![\w.,])\d{3} \d{3} \d{3}(?![\w.,])", 0.5),
+                    # Unseparated or partly separated national forms (T-51 security audit M2):
+                    # "5550001234", "15550001234", "(555)000-1234", "555-0001234", "555123456".
+                    Pattern("digits", r"(?<![\w.,/-])\+?\d{9,15}(?![\w.,/-])", 0.5),
+                    Pattern("nanp_paren", r"\(\d{3}\)\s?\d{3}[\s.-]?\d{4}(?!\w)", 0.6),
+                    Pattern("split_3_7", r"(?<![\w.,/-])\d{3}[\s.-]\d{7}(?![\w.,/-])", 0.5),
                 ],
             )
         )
@@ -127,7 +133,21 @@ class AccountPII:
         terms += [("PERSON", c) for c in self.contacts if c]
         if self.phone_e164:
             terms.append(("PHONE_NUMBER", self.phone_e164))
-        return terms
+            digits = self.phone_e164.lstrip("+")
+            terms.append(("PHONE_NUMBER", digits))
+            for code in ("1", "34"):  # the national number, as debtors and notes write it
+                if digits.startswith(code) and len(digits) - len(code) >= 9:
+                    terms.append(("PHONE_NUMBER", digits[len(code) :]))
+        # The prompt is redacted after rendering, which escapes the values: match each term the
+        # way the JSON context and the note fence write it too (T-51 security audit M1).
+        return [(e, form) for e, term in terms for form in dict.fromkeys(_escaped_forms(term))]
+
+
+def _escaped_forms(term: str) -> list[str]:
+    as_json = json.dumps(term, ensure_ascii=False)[1:-1]
+    as_json = as_json.replace("&", "\\u0026").replace("<", "\\u003c").replace(">", "\\u003e")
+    as_html = term.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    return [term, as_json, as_html]
 
 
 @dataclass

@@ -6,8 +6,10 @@ a supervisor's tenant setting can only tighten them (lower max, higher min, or d
 
 from __future__ import annotations
 
+import math
 from collections.abc import Iterable
 from dataclasses import dataclass
+from decimal import Decimal
 from typing import Any
 
 from collections_copilot.scoring.priority import SCORING_USD_RATES
@@ -31,21 +33,27 @@ def effective(
     setting: dict[str, Any] | None, env_max_usd: float, env_min_confidence: float
 ) -> EffectivePolicy:
     s = {k: v for k, v in (setting or {}).items() if v is not None}
+    max_usd = min(env_max_usd, _number(s.get("max_usd"), env_max_usd))
+    min_confidence = max(env_min_confidence, _number(s.get("min_confidence"), env_min_confidence))
+    # min(nan, x) is nan and every comparison with nan is False, so a non-finite ceiling would
+    # wave everything through: fail closed instead (T-51 compliance review).
+    finite = all(
+        math.isfinite(v) for v in (env_max_usd, env_min_confidence, max_usd, min_confidence)
+    )
     return EffectivePolicy(
-        enabled=s.get("enabled", True) is not False,
-        max_usd=min(env_max_usd, _number(s.get("max_usd"), env_max_usd)),
-        min_confidence=max(
-            env_min_confidence, _number(s.get("min_confidence"), env_min_confidence)
-        ),
+        enabled=s.get("enabled", True) is not False and finite,
+        max_usd=max_usd,
+        min_confidence=min_confidence,
     )
 
 
 def _number(value: Any, default: float) -> float:
     """A malformed tenant value falls back to the environment ceiling (never loosens it)."""
     try:
-        return float(value) if value is not None else default
+        number = float(value) if value is not None else default
     except (TypeError, ValueError):
         return default
+    return number if math.isfinite(number) else default
 
 
 def is_tightening(new: dict[str, Any], env_max_usd: float, env_min_confidence: float) -> bool:
@@ -82,9 +90,11 @@ def qualifies(
         return False, f"currency {currency} not convertible"
     if any(c != currency for c in invoice_currencies):
         return False, "invoices in more than one currency"
-    usd = open_balance_cents / 100 * SCORING_USD_RATES[currency]
-    if usd > policy.max_usd:
-        return False, f"amount USD {usd:.2f} above {policy.max_usd:.2f}"
+    # Exact cents (money is never compared as floats): the rate and the ceiling go through str.
+    usd_cents = Decimal(open_balance_cents) * Decimal(str(SCORING_USD_RATES[currency]))
+    max_cents = Decimal(str(policy.max_usd)) * 100
+    if usd_cents > max_cents:
+        return False, f"amount USD {usd_cents / 100:.2f} above {policy.max_usd:.2f}"
     if confidence < policy.min_confidence:
         return False, f"confidence {confidence:.2f} below {policy.min_confidence:.2f}"
     return True, "matches auto-approval policy"

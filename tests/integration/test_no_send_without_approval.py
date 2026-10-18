@@ -77,9 +77,11 @@ def test_only_two_code_paths_call_the_sms_provider() -> None:
     assert sms_send_sites() == ALLOWED_SENDERS
 
 
-def nba(action: str, confidence: float) -> type[FakeLLM]:
+def nba(action: str, confidence: float, *, draft_fails: bool = False) -> type[FakeLLM]:
     class Fixed(FakeLLM):
         async def complete(self, request: ProviderRequest) -> ProviderResponse:
+            if draft_fails and request.route == "draft_message":
+                return ProviderResponse("", "refusal", "fake")  # the template draft is used
             if request.route == "next_best_action":
                 body = (
                     f'{{"action": "{action}", "rationale": "Synthetic.", '
@@ -140,8 +142,9 @@ async def test_resume_without_record_sends_nothing(sessionmaker, database_url, t
         (nba("remind", 0.89)(), 30_000),  # under the confidence floor
         (nba("remind", 0.99)(), 50_001),  # above USD 500
         (FakeLLM(mode=FakeMode(outage=True)), 30_000),  # rules fallback is never auto-approved
+        (nba("remind", 0.99, draft_fails=True)(), 30_000),  # a model NBA with a template draft
     ],
-    ids=["payment_plan_0.99", "confidence_0.89", "usd_500.01", "fallback"],
+    ids=["payment_plan_0.99", "confidence_0.89", "usd_500.01", "fallback", "template_draft"],
 )
 async def test_auto_approval_negatives_wait_for_a_human(
     sessionmaker, database_url, tenant, llm: FakeLLM, amount_cents: int

@@ -192,3 +192,48 @@ class CountingLedger:
 
     async def get_balance(self, tenant: str, account_ref: str) -> dict[str, Any]:
         return await self.inner.get_balance(tenant, account_ref)
+
+
+class UnavailableOnce:
+    """The gateway is briefly down: the first call fails before reaching the ledger."""
+
+    def __init__(self, inner: McpLedgerTools) -> None:
+        self.inner = inner
+        self.calls = 0
+
+    async def record_promise_to_pay(
+        self, tenant: str, args: dict[str, Any], **kw: Any
+    ) -> LedgerResult:
+        self.calls += 1
+        if self.calls == 1:
+            return LedgerResult("unavailable", detail="ConnectError")
+        return await self.inner.record_promise_to_pay(tenant, args, **kw)
+
+    async def get_balance(self, tenant: str, account_ref: str) -> dict[str, Any]:
+        return await self.inner.get_balance(tenant, account_ref)
+
+
+async def test_a_transient_ledger_failure_is_retried_by_redelivery(
+    sessionmaker, database_url, migrated_database, tenant, stack
+) -> None:  # type: ignore[no-untyped-def]
+    """T-51 review M2: `unavailable` left the promise `failed` for good. It stays pending and
+    the reply is redelivered, so the same key is written once when the gateway is back."""
+    from collections_copilot.agent.nodes.record_promise import LedgerUnavailableError
+
+    account, _ = await seeded_account(sessionmaker, stack, tenant, 120_000)
+    tools = McpLedgerTools(stack.gateway_url, DevIssuerTokenProvider(stack.issuer_url))
+    graph = build_reply_graph(
+        services_with(sessionmaker, database_url, UnavailableOnce(tools)), sessionmaker
+    )
+    reply = await inbound(sessionmaker, tenant, account, "I can pay 1,200 on Friday")
+    payload = {"reply": reply.model_dump(mode="json", by_alias=True)}
+    key = promise_key(str(tenant), reply.provider_sid)
+    with pytest.raises(LedgerUnavailableError):
+        await graph.ainvoke(payload)
+    async with sessionmaker() as s:
+        held = await Repos(s).promises.by_key(tenant, key)
+    assert held is not None
+    assert held.status == "pending"
+    result = await graph.ainvoke(payload)  # SQS redelivery
+    assert result["outcome"] == "promise_recorded"
+    assert ledger_rows(migrated_database, tenant) == [(key, 120_000)]

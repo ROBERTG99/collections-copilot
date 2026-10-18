@@ -129,3 +129,19 @@ def test_prod_refuses_local_service_urls() -> None:
     ):
         with pytest.raises(ValueError, match=f"CC_{name.upper()}"):
             Settings(**{**PROD_OK, name: local})
+
+
+def test_auto_approval_ceiling_is_bounded_and_finite() -> None:
+    """T-51 compliance review: NaN or a looser environment ceiling would fail open."""
+    import pytest
+
+    for field, value in (
+        ("auto_approve_max_usd", float("nan")),
+        ("auto_approve_max_usd", 500.01),
+        ("auto_approve_max_usd", 0),
+        ("auto_approve_min_confidence", float("nan")),
+        ("auto_approve_min_confidence", 0.89),
+        ("auto_approve_min_confidence", 1.01),
+    ):
+        with pytest.raises(ValueError, match=field):
+            Settings(**{field: value})

@@ -8,7 +8,6 @@ data "aws_region" "current" {}
 locals {
   account = data.aws_caller_identity.current.account_id
   region  = data.aws_region.current.region
-  name    = "${var.project}-${var.environment}"
 
   ecs_trust = jsonencode({
     Version = "2012-10-17"
@@ -157,7 +156,7 @@ resource "aws_iam_role_policy" "execution" {
 
 resource "aws_iam_role" "task" {
   for_each           = local.roles
-  name_prefix        = "${local.name}-${each.key}-"
+  name_prefix        = "cc-${var.environment}-${each.key}-task-" # 38 characters at most
   assume_role_policy = local.ecs_trust
 }
 

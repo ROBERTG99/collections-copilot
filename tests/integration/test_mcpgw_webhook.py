@@ -159,3 +159,21 @@ async def test_supervisor_approval_enqueues_retry(
         f"/api/v1/promises/{promise_id}:reject", json={"reason": "late"}, headers=auth("supervisor")
     )
     assert rejected.status_code == 409  # already recorded
+
+
+async def test_forged_event_naming_an_unknown_tenant_is_403(
+    client: httpx.AsyncClient, api_app, tenant, wired
+) -> None:  # type: ignore[no-untyped-def]
+    """T-51 security audit L2: the audit row for an unknown tenant broke its foreign key (500)."""
+    event = approval_event(str(uuid.uuid4()), uuid.uuid4())
+    forged = await client.post(WEBHOOK, **signed(api_app, event, secret="not-the-secret"))
+    assert forged.status_code == 403
+
+
+async def test_approval_ids_are_plain_identifiers(
+    client: httpx.AsyncClient, api_app, tenant, wired
+) -> None:  # type: ignore[no-untyped-def]
+    """T-51 security audit L3: the id is put into gateway admin URLs."""
+    event = approval_event("../admin/other", tenant)
+    resp = await client.post(WEBHOOK, **signed(api_app, event))
+    assert resp.status_code == 422

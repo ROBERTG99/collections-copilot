@@ -93,3 +93,36 @@ def test_contact_flag_blocks_precheck() -> None:
     result = engine.precheck(ctx)
     assert not result.ok
     assert [v.code for v in result.violations if v.blocking] == ["contact_flagged"]
+
+
+@pytest.mark.parametrize(
+    ("setting", "env_max", "env_min", "balance_cents", "confidence"),
+    [
+        (None, float("nan"), ENV_MIN, 10_000_000, 0.95),  # only the amount ceiling is broken
+        (None, ENV_MAX, float("nan"), 30_000, 0.01),  # only the confidence floor is broken
+        ({"max_usd": "nan"}, float("nan"), ENV_MIN, 10_000_000, 0.95),
+        ({"max_usd": float("inf")}, float("inf"), ENV_MIN, 10_000_000, 0.95),
+        ({"min_confidence": "-inf"}, ENV_MAX, float("-inf"), 30_000, 0.01),
+    ],
+)
+def test_non_finite_values_fail_closed(
+    setting: dict[str, Any] | None,
+    env_max: float,
+    env_min: float,
+    balance_cents: int,
+    confidence: float,
+) -> None:
+    """T-51 compliance review: min(nan, x) is nan, which every comparison then waves through."""
+    eff = policy.effective(setting, env_max, env_min)
+    ok, _ = check(policy=eff, open_balance_cents=balance_cents, confidence=confidence)
+    assert not ok
+    assert not eff.enabled
+
+
+def test_the_ceiling_is_compared_in_exact_cents() -> None:
+    """T-51 review m1: EUR 1.75 at 1.08 is exactly USD 1.89; in floats 1.75 * 1.08 is
+    1.8900000000000001, which is "above" a 1.89 ceiling. Money is compared as Decimal cents."""
+    tight = policy.EffectivePolicy(enabled=True, max_usd=1.89, min_confidence=0.9)
+    eur = {"currency": "EUR", "invoice_currencies": ["EUR"]}
+    assert check(policy=tight, open_balance_cents=175, **eur)[0]
+    assert not check(policy=tight, open_balance_cents=176, **eur)[0]

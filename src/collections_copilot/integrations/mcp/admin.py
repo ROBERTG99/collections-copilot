@@ -6,6 +6,7 @@ note and in our own audit log.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from typing import Any, Literal, Protocol
 
@@ -57,10 +58,21 @@ class HttpGatewayAdmin:
     async def decide(
         self, tenant: str, approval_id: str, decision: Decision, note: str
     ) -> dict[str, Any]:
+        _check_id(approval_id)
         body = {"note": note} if decision == "approve" else {"reason": note}
         return await self._request(
             tenant, "POST", f"/admin/approvals/{approval_id}:{decision}", json=body
         )
 
     async def get(self, tenant: str, approval_id: str) -> dict[str, Any]:
+        _check_id(approval_id)
         return await self._request(tenant, "GET", f"/admin/approvals/{approval_id}")
+
+
+APPROVAL_ID = re.compile(r"[A-Za-z0-9_-]{1,64}")
+
+
+def _check_id(approval_id: str) -> None:
+    """Approval ids go into admin URL paths: plain identifiers only (T-51 security audit L3)."""
+    if not APPROVAL_ID.fullmatch(approval_id):
+        raise ValueError("approval_id must be 1-64 letters, digits, '-' or '_'")
