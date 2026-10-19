@@ -138,3 +138,15 @@ def test_a_gated_metric_missing_from_the_candidate_fails() -> None:
     report = report.model_copy(update={"metrics": metrics})
     check = engine.gate(report, base)
     assert ("stop_recall", "error") in [(f.metric, f.reason) for f in check.failures]
+
+
+def test_a_drop_below_one_point_is_tolerated() -> None:
+    many = GOOD * 5  # 200 rows
+    base = _replies(many)
+    # One dispute read as other in 200 rows: macro-F1 and correctness each drop about 0.5 pp.
+    worse = list(many)
+    worse[2] = ("dispute", "other")
+    report = _replies(worse)
+    drop = base.metrics["reply_macro_f1"].value - report.metrics["reply_macro_f1"].value
+    assert 0 < drop * 100 < engine.MAX_REGRESSION_PP
+    assert engine.gate(report, base).passed

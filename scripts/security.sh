@@ -70,6 +70,14 @@ pip_audit() {
     && uvx --from "$PIP_AUDIT" pip-audit -r "$TMP/req.txt" --no-deps --disable-pip --progress-spinner off
 }
 check pip-audit pip_audit
+# The dev group runs in CI and on developer machines (evalgate brings duckdb, numpy, jinja2...).
+# evalgate itself is a git requirement pip-audit cannot look up; its own code is the maintainer's.
+pip_audit_dev() {
+  uv export --frozen --no-hashes --no-emit-workspace --only-group dev --no-emit-package evalgate \
+    --format requirements-txt >"$TMP/req-dev.txt" \
+    && uvx --from "$PIP_AUDIT" pip-audit -r "$TMP/req-dev.txt" --no-deps --disable-pip --progress-spinner off
+}
+check pip-audit-dev pip_audit_dev
 
 check pnpm-audit bash -c 'cd web && pnpm audit --audit-level high'
 

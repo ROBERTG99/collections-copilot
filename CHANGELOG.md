@@ -96,6 +96,8 @@ All notable changes to this project are documented in this file. The format is b
 
 ### Fixed
 
+- Image builds work with Compose v5 (build network `CC_BUILD_NETWORK`, default bridge), `scripts/security.sh` runs on bash 3.2, the replies e2e test no longer races the list render, and `make e2e` lifts the per-user API rate limit for the run (2026-10-19).
+- The eval gate checks macro-F1 as a point value and fails a run that drops a gated baseline metric (2026-10-19).
 - M0 review findings in the gateway, evalgate, queue parsing and hooks.
 - M1 review findings in compliance, ingest and the ledger, including numeric invoice numbers that masked amounts.
 - M2 review findings: stale facts at send time, idempotent replies, STOP confirmations, write-backs and case runs, provider error mapping, Spanish local number redaction, STOP phrasing, the contact cap and approvals.
@@ -111,5 +113,6 @@ All notable changes to this project are documented in this file. The format is b
 
 ### Security
 
+- pip-audit also covers the locked dev dependency group (2026-10-19).
 - T-51 security audit findings: account names are redacted in every escaped form and normalised at ingest, phone numbers are redacted in national and grouped forms, ingest amounts are bounded plain decimals, gateway approval ids are validated, the auto-approval ceiling is bounded and fails closed, and release images build without the shared cache.
 - M6 review and security audit findings: exception messages kept off exported spans, Unicode look-alike links and invisible characters blocked, signed and replay-checked gateway webhooks, idempotency failing closed, synthetic numbers enforced outside production, and log redaction of tokens and phone numbers.

@@ -38,6 +38,10 @@ jobs:
         run: |
           uv export --frozen --no-hashes --no-emit-workspace --no-dev --format requirements-txt > "$RUNNER_TEMP/req.txt"
           uvx --from pip-audit==2.9.0 pip-audit -r "$RUNNER_TEMP/req.txt" --no-deps --disable-pip --progress-spinner off
+      - name: pip-audit (locked dev dependencies)
+        run: |
+          uv export --frozen --no-hashes --no-emit-workspace --only-group dev --no-emit-package evalgate --format requirements-txt > "$RUNNER_TEMP/req-dev.txt"
+          uvx --from pip-audit==2.9.0 pip-audit -r "$RUNNER_TEMP/req-dev.txt" --no-deps --disable-pip --progress-spinner off
       - name: pnpm audit
         working-directory: web
         run: pnpm audit --audit-level high

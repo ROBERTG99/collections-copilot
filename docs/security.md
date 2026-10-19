@@ -97,6 +97,7 @@ The latest result is recorded in `PROGRESS.md` and, at the end of the build, in 
 | bandit B108 (temp path) in `apps/debtor-sim` and `src/collections_copilot/api/serve.py` | The demo simulator's liveness file for its healthcheck (demo only), and the API's Prometheus multiprocess directory in the container's writable `/tmp` (emptied at start-up). | — |
 | gitleaks `generic-api-key` in `docs/adr/0001-bedrock-primary-vs-anthropic-api.md:8` (`.gitleaksignore`) | A model ID after the words "Claude API," matches the generic pattern; it is not a credential. | — |
 | hadolint DL3008 (unpinned `apt-get install git`) in the builder stage of `docker/python.Dockerfile` (inline ignore) | The builder needs git to fetch the pinned evalgate tag (locked to a commit in `uv.lock`); git never reaches the runtime images, and a pinned Debian revision breaks the build when the archive replaces it with a security update. | When evalgate is consumed as a wheel. |
+| security-auditor (2026-10-19, low): eval suites name `plugins:` modules that evalgate imports | The same trust level as the suites' existing `target: python:` entry; the suite files are committed and reviewed. | Restrict plugins to `collections_copilot.evals.*` if suites ever come from outside the repository. |
 
 Fixed while adding the scans: `smol-toml` and `katex` advisories (pnpm overrides), and four high CVEs in the copies of urllib3, msgpack and setuptools vendored inside the base image's pip (removed from the runtime images).
 

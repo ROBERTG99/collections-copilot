@@ -11,9 +11,12 @@ COMPOSE="${COMPOSE:-docker compose}"
 PNPM="${PNPM:-pnpm}"
 
 restore() {
+  local status=$?
   if ! $COMPOSE up -d --wait api >/dev/null 2>&1; then
-    echo "WARNING: could not restore the API's default rate limit; run: $COMPOSE up -d --wait api" >&2
+    echo "ERROR: could not restore the API's default rate limit; run: $COMPOSE up -d --wait api" >&2
+    exit 1  # the stack must not stay up with the lifted limit unnoticed
   fi
+  exit "$status"
 }
 trap restore EXIT
 CC_RATE_LIMIT_PER_MINUTE="${E2E_RATE_LIMIT_PER_MINUTE:-100000}" $COMPOSE up -d --wait api

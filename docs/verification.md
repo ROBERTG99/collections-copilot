@@ -2,13 +2,79 @@
 
 The §19 procedure of `docs/specs/000-build-spec.md`, run on a fresh clone with no `.env` file and no provider keys. Results are copied from the commands' own output.
 
-## Status
+## Status (2026-10-19)
+
+Run on 2026-10-19 on a macOS 27.0.1 host (10 CPUs; Docker Desktop 29.8.2 with 10 CPUs and 8 GB; Python 3.12.13 in `.venv`, Node 22.16.0), after switching to the published evalgate v0.1.0. Fresh clone of `a16aef7` in `~/dev/verify-collections-copilot` with no `.env` file, no provider keys and `CC_LLM_PROVIDER=fake`. Every figure is copied from the commands' own output.
+
+**Result: not every gate is green.** The same two items as on 2026-10-18 stay open, both in `docs/KNOWN_LIMITATIONS.md`: the replies macro-F1 gate (needs the maintainer; identical value with evalgate v0.1.0) and NFR-1's account-route budget on this host.
+
+### Step 1: `make verify-clean` at `a16aef7`
+
+`scripts/verify_clean.sh` cloned the committed tree and ran `make bootstrap` and `make verify` (5 min 56 s until it stopped):
+
+| Step | Result |
+|---|---|
+| `make bootstrap` | passed |
+| `make lint` | passed: ruff "All checks passed!", import-linter "Contracts: 2 kept, 0 broken", eslint, prettier "All matched files use Prettier code style!", markdownlint "0 issues", `terraform fmt` |
+| `make typecheck` | passed: mypy "Success: no issues found in 124 source files", tsc |
+| `make test` | passed: 722 Python tests; coverage gate scoring 100.00 %, compliance 99.33 %, agent 92.85 %, llm 95.48 %, api 85.65 %, overall 86.87 %; Vitest "Test Files 20 passed (20), Tests 161 passed (161)" |
+| `make security` | "make security: PASS" (gitleaks, bandit, pip-audit, pnpm audit, trivy fs and all 8 images, hadolint, checkov, tflint, actionlint, licences) |
+| `make tf-check` | "Success! 28 passed, 0 failed."; checkov "Passed checks: 341, Failed checks: 0, Skipped checks: 32" |
+| `make eval` | **failed**: "nba: PASS (120 test cases)", "replies: FAIL (80 test cases) FAIL reply_macro_f1: threshold value=0.8916666667 threshold=0.9", "compliance: PASS (30 test cases)" |
+
+### Step 2: the stack in the same clone (compose project `cc-verify`)
+
+| Step | Result | Duration |
+|---|---|---|
+| `docker compose build` | passed | 30 s |
+| `docker compose up -d --wait` | passed, every service healthy | 32 s |
+| `make seed` | passed: acme-distribution 400 accounts, tenant-b-supplies 40 accounts | 8 s |
+| `make demo` | passed: "demo: every §3.4 journey completed and checked" | 20 s |
+| `make e2e` | passed (exit 0; 35 tests, as in the dev-checkout run "35 passed (2.3m)") | 140 s |
+| `make test-docker` | passed: 722 tests in the tools image, then the 4 `-m docker` stack tests | 141 s |
+| `docker compose down -v` | passed | 19 s |
+
+On the dev checkout, before the clone: `make up` "every service healthy in 66s (budget 300s)" (NFR-6), and `make bench` at `a16aef7`:
+
+| Requirement | Result | Budget |
+|---|---|---|
+| NFR-1 queue p95 (k6, 20 VUs, 60 s) | 218.43 ms, passed | < 300 ms |
+| NFR-1 account p95 | **254.16 ms, failed** | < 200 ms |
+| NFR-1 throughput and errors | 245 req/s, 0 of 14,811 requests failed | |
+| NFR-2 case graph p95 (81 of 100 cases paused for approval) | 127 ms, passed | < 300 ms |
+| NFR-4 batch of 400 | 29.8 s, passed | < 180 s |
+
+CI on pull request ROBERTG99/collections-copilot#9: every check passes except `evals`, which fails on the same `reply_macro_f1` value (0.8916666667).
+
+### Reviews (§19 step 3)
+
+- `reviewer` over this branch's changes (the history before it had its final "ship" at `1d77cee`): "fix first" with three majors (macro-F1 had lost its point-value regression check, a gated metric dropped from a suite passed, and the docs overstated the gate), fixed in `6ad0b6b`; re-review verdict **"ship"**.
+- `security-auditor` over the same changes: nothing at medium or above; three lows, two fixed (the dev dependency group is now audited; a failed restore in `scripts/e2e.sh` fails the run), one recorded in `docs/security.md`.
+
+### Live evals (§19 step 4)
+
+No provider key is set: live evals were not run, and `evals/REPORT.md` says so.
+
+### Authorship (§19 step 5)
+
+```text
+$ git log --format='%an <%ae> | %cn <%ce>' | sort -u
+ROBERTG99 <54124633+ROBERTG99@users.noreply.github.com> | GitHub <noreply@github.com>
+ROBERTG99 <54124633+ROBERTG99@users.noreply.github.com> | ROBERTG99 <54124633+ROBERTG99@users.noreply.github.com>
+ROBERTG99 <robertino.gattas@gmail.com> | ROBERTG99 <robertino.gattas@gmail.com>
+$ git log --format=%B | grep -E 'Co-Authored-By|Claude-Session|Generated with Claude Code'
+(no output, exit 1)
+```
+
+Every author is the maintainer. `GitHub <noreply@github.com>` is the committer of the merge of pull request #1; the commits of 2026-10-19 use the local checkout's own identity (the maintainer's e-mail address) and the earlier ones the noreply address.
+
+## Earlier verification (2026-10-18)
 
 Run on 2026-10-18 on a Claude Code on the web container (Linux 6.18, 4 CPUs, Docker 29.8.2, Python 3.13.16, Node 22.22.0), in fresh clones with no `.env` file, no provider keys and `CC_LLM_PROVIDER=fake`. Every line below is copied from the commands' own output (logs `/tmp/verify-cc.log`, `/tmp/verify-cc.<step>.log` and `/tmp/verify-cc2.<step>.log` on that container).
 
 **Result: not every gate is green.** Two items stay open, both recorded in `docs/KNOWN_LIMITATIONS.md`: the replies macro-F1 gate (needs the maintainer) and the NFR-1 account-route budget on this host at verification time.
 
-### Pass 1: `make verify-clean` at `6531af0`
+### Pass 1 (2026-10-18): `make verify-clean` at `6531af0`
 
 `scripts/verify_clean.sh` cloned the committed tree to `/tmp/verify-cc` and ran `make bootstrap` and `make verify` (7 min 51 s until it stopped):
 
