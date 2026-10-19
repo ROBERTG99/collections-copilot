@@ -275,9 +275,9 @@ def render(
         f"- Gated split: `{GATED_SPLIT}`. Gate: each suite's thresholds and budget, no errored "
         f"case, and no regression above {MAX_REGRESSION_PP:g} percentage point against "
         f"`{BASELINE}` (paired bootstrap, 95% CI). Scoped metrics (recalls, citations) count "
-        "only the rows they apply to; macro-F1 is computed over the split and its regression is "
-        "tested on the per-case label correctness; counters show the share of cases with at "
-        "least one event (the raw totals are under each suite).",
+        "only the rows they apply to; macro-F1 is computed over the split, and its regression is "
+        "checked as a point value and on the per-case label correctness; counters show the share "
+        "of cases with at least one event (the raw totals are under each suite).",
         "- Datasets: `evals/datasets/*.v1.jsonl`, labels by construction (seed 4242); the dev "
         "split is the only one used for tuning.",
         *_provenance(baseline),

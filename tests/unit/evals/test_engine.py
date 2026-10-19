@@ -94,3 +94,47 @@ def test_an_errored_case_fails_the_gate() -> None:
     check = engine.gate(report, None)
     assert not check.passed
     assert [(f.metric, f.reason) for f in check.failures] == [("cases", "error")]
+
+
+def _replies(pairs: list[tuple[str, str]]) -> Any:
+    suite = _suite(
+        [
+            {
+                "name": "reply_macro_f1",
+                "kind": "custom",
+                "params": {"corpus": "macro_f1"},
+                "threshold": 0.0,
+            },
+            {"name": "stop_recall", "kind": "custom", "threshold": 0.0},
+        ]
+    )
+    results: list[engine.Scored] = [
+        (_case(i, {"label": gold}), TargetResult(output={"label": pred}), None)
+        for i, (gold, pred) in enumerate(pairs)
+    ]
+    return engine.score(suite, results, mode="offline")
+
+
+GOOD = [("stop", "stop"), ("paid", "paid"), ("dispute", "dispute"), ("other", "other")] * 10
+
+
+def test_a_small_drop_is_tolerated_and_a_point_macro_f1_regression_fails() -> None:
+    base = _replies(GOOD)
+    assert engine.gate(_replies(GOOD), base).passed
+    # One dispute read as other out of 40 rows: correctness drops 2.5 pp, but the paired CI
+    # still includes 0, and macro-F1 drops about 2.6 pp: the point check catches it.
+    worse = list(GOOD)
+    worse[2] = ("dispute", "other")
+    check = engine.gate(_replies(worse), base)
+    assert ("reply_macro_f1", "regression") in [(f.metric, f.reason) for f in check.failures]
+    comparison = next(c for c in check.comparisons if c.metric == "reply_macro_f1")
+    assert comparison.baseline == pytest.approx(base.metrics["reply_macro_f1"].value)
+
+
+def test_a_gated_metric_missing_from_the_candidate_fails() -> None:
+    base = _replies(GOOD)
+    report = _replies(GOOD)
+    metrics = {k: v for k, v in report.metrics.items() if k != "stop_recall"}
+    report = report.model_copy(update={"metrics": metrics})
+    check = engine.gate(report, base)
+    assert ("stop_recall", "error") in [(f.metric, f.reason) for f in check.failures]

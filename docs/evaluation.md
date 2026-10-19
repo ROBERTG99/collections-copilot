@@ -42,8 +42,8 @@ uv run python scripts/eval_report.py --update-baseline   # only after reviewing 
 `make eval` runs each suite on the test split and on the dev split, writes `evals/reports/<suite>.json` and `<suite>.dev.json` (ignored by git), and gates each test report with evalgate v0.1.0's `check` (through `collections_copilot.evals.engine.gate`):
 
 - every gated metric meets its threshold, and the suite budget (p95) holds;
-- no case errored, and every gated metric had at least one row it applies to;
-- no gated metric is more than 1 percentage point worse than `evals/reports/baseline.json`, using a paired bootstrap over the same cases (95% CI, seed 1337).
+- no case errored, every gated metric had at least one row it applies to, and no gated metric of the baseline is missing;
+- no gated metric is more than 1 percentage point worse than `evals/reports/baseline.json`, using a paired bootstrap over the same cases (95% CI, seed 1337). `reply_macro_f1` has no per-case value, so it is checked twice: as a point value (any drop above 1 pp fails) and through the paired bootstrap of its per-case label correctness. Scoped metrics pair every case, with the rows they skip at the neutral 1.0, so their 1 pp limit applies to the share of all cases: for `authorized_writeback_recall` (9 of 80 test rows) it is about 8.9 pp of the recall itself. Their thresholds (1.0, or 0.95 over 9 rows) fail on a single miss anyway.
 
 evalgate scores each case in [0, 1] and averages over the split. `collections_copilot.evals.engine` adds three things on top: scoped metrics (STOP recall, write-back recall, sends when allowed, citations, promise extraction) are averaged over the rows they apply to only; `reply_macro_f1` is computed over the whole split, and its regression check pairs the per-case label correctness; counters (violations, write-backs, leaks) score a case 1 when it has at least one event, so their value is the share of such cases and their raw totals are printed under each suite. `uv run evalgate run` on a suite works, but reports evalgate's plain means without these three steps, so use the engine command above.
 

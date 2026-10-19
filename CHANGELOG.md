@@ -88,7 +88,7 @@ All notable changes to this project are documented in this file. The format is b
 
 ### Changed
 
-- evalgate is the published `v0.1.0` (git tag, dev dependency) instead of the `third_party/evalgate` fallback; `collections_copilot.evals.engine` adds the scoped and corpus metrics it lacks, and the eval baseline was regenerated in its report shape with unchanged values (2026-10-19).
+- evalgate is the published `v0.1.0` (git tag, dev dependency) instead of the `third_party/evalgate` fallback; `collections_copilot.evals.engine` adds the scoped and corpus metrics it lacks, and the eval baseline was regenerated in its report shape; every gated value is unchanged, and counters now report the share of cases with an event (`resumes_exhausted` 0.3 instead of 9; the raw totals are in `extensions.counts`) (2026-10-19).
 - Compliance rules for amounts and links fail closed, and text rules read NFKC-normalised text (M1 and M6 reviews).
 - Every SMS send re-reads the case, the draft, its approval record and the debtor's facts from the database (M2 review).
 - The API container runs several uvicorn processes, and the account detail returns the newest 20 cases (M7, performance budgets).

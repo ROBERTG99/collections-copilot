@@ -108,7 +108,15 @@ def finalize(suite: Suite, outcomes: list[CaseOutcome], report: Report) -> Repor
             ci_low=None if low is None else round(low, 10),
             ci_high=None if high is None else round(high, 10),
         )
-    extensions = {**(report.extensions or {}), "applicable": applicable, "counts": counts}
+    corpus_metrics = {
+        m.name: str(m.params["corpus"]) for m in suite.metrics if "corpus" in m.params
+    }
+    extensions = {
+        **(report.extensions or {}),
+        "applicable": applicable,
+        "counts": counts,
+        "corpus": corpus_metrics,
+    }
     return report.model_copy(
         update={
             "metrics": metrics,
@@ -206,7 +214,9 @@ def digest(report: Report) -> str:
 
 def gate(report: Report, baseline: Report | None, suite: Suite | None = None) -> CheckResult:
     """evalgate's gate, plus: every errored case fails the run (not only an error rate > 50%),
-    and so does a gated metric with no applicable row.
+    and so does a gated metric with no applicable row or a gated baseline metric the candidate
+    lacks. A corpus metric (macro-F1) is also compared as a point value: its comparison row
+    shows the suite values, and a drop above the limit fails as a regression.
 
     With `suite`, the suite's budget is the one applied (the live gate passes a suite without
     the offline latency budget).
@@ -226,18 +236,58 @@ def gate(report: Report, baseline: Report | None, suite: Suite | None = None) ->
         resamples=RESAMPLES,
     )
     failures = list(result.failures)
+    comparisons = list(result.comparisons)
     ext = report.extensions or {}
     gates = ext.get("gates") or {}
     applicable = ext.get("applicable") or {}
+    if baseline is not None:
+        base_gates = (baseline.extensions or {}).get("gates") or {}
+        for name in baseline.metrics:
+            if base_gates.get(name, True) and name not in report.metrics:
+                failures.append(CheckFailure(metric=name, reason="error", value=None))
+        for name in ext.get("corpus") or {}:
+            if name not in report.metrics or name not in baseline.metrics:
+                continue
+            summary, before = report.metrics[name], baseline.metrics[name]
+            delta = (summary.value - before.value) * 100
+            worse = -delta if summary.direction == "higher" else delta
+            for i, comp in enumerate(comparisons):
+                if comp.metric == name:
+                    comparisons[i] = comp.model_copy(
+                        update={
+                            "baseline": before.value,
+                            "candidate": summary.value,
+                            "delta_pp": delta,
+                            "ci_low_pp": delta,
+                            "ci_high_pp": delta,
+                        }
+                    )
+            already = any(f.metric == name and f.reason == "regression" for f in failures)
+            if gates.get(name, True) and worse > MAX_REGRESSION_PP and not already:
+                failures.append(
+                    CheckFailure(
+                        metric=name,
+                        reason="regression",
+                        value=summary.value,
+                        threshold=before.value,
+                        delta_pp=delta,
+                        ci_low_pp=delta,
+                        ci_high_pp=delta,
+                    )
+                )
     for name in report.metrics:  # a gated metric with no applicable row has no evidence
         if gates.get(name, True) and applicable.get(name, 1) == 0:
             failures.append(CheckFailure(metric=name, reason="error", value=0.0))
     errored = sum(1 for c in report.cases if c.error)
     if errored:
         failures.append(CheckFailure(metric="cases", reason="error", value=errored))
-    if len(failures) != len(result.failures):
-        result = result.model_copy(update={"passed": False, "failures": failures})
-    return result
+    return result.model_copy(
+        update={
+            "passed": result.passed and len(failures) == len(result.failures),
+            "failures": failures,
+            "comparisons": comparisons,
+        }
+    )
 
 
 def main(argv: list[str] | None = None) -> int:
