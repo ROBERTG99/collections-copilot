@@ -96,6 +96,7 @@ The latest result is recorded in `PROGRESS.md` and, at the end of the build, in 
 | bandit B104 (bind to all interfaces) in the worker health server, `src/collections_copilot/api/serve.py`, ledger-mcp and mcpgw-lite | Container ports; compose publishes them on 127.0.0.1 only, and in AWS they sit in private subnets. | — |
 | bandit B108 (temp path) in `apps/debtor-sim` and `src/collections_copilot/api/serve.py` | The demo simulator's liveness file for its healthcheck (demo only), and the API's Prometheus multiprocess directory in the container's writable `/tmp` (emptied at start-up). | — |
 | gitleaks `generic-api-key` in `docs/adr/0001-bedrock-primary-vs-anthropic-api.md:8` (`.gitleaksignore`) | A model ID after the words "Claude API," matches the generic pattern; it is not a credential. | — |
+| hadolint DL3008 (unpinned `apt-get install git`) in the builder stage of `docker/python.Dockerfile` (inline ignore) | The builder needs git to fetch the pinned evalgate tag (locked to a commit in `uv.lock`); git never reaches the runtime images, and a pinned Debian revision breaks the build when the archive replaces it with a security update. | When evalgate is consumed as a wheel. |
 
 Fixed while adding the scans: `smol-toml` and `katex` advisories (pnpm overrides), and four high CVEs in the copies of urllib3, msgpack and setuptools vendored inside the base image's pip (removed from the runtime images).
 

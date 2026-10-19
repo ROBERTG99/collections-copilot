@@ -7,7 +7,10 @@ FROM ${PYTHON_IMAGE} AS builder
 ARG HTTPS_PROXY
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy UV_PYTHON_DOWNLOADS=never \
     PIP_DISABLE_PIP_VERSION_CHECK=1
-# git fetches the pinned evalgate tag (a dev dependency: only the test stages install it).
+# git fetches the pinned evalgate tag (a dev dependency: only the test stages install it). It
+# is builder-only, never in the runtime image; a pinned Debian revision would break the build
+# whenever the archive replaces it with a security update.
+# hadolint ignore=DL3008
 RUN apt-get update && apt-get install -y --no-install-recommends git \
  && rm -rf /var/lib/apt/lists/* \
  && pip install --no-cache-dir uv==0.11.32
