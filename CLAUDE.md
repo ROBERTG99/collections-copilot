@@ -8,7 +8,7 @@ B2B collections agent: a deterministic priority queue, LLM-assisted next-best-ac
 src/collections_copilot/  api/ agent/ compliance/ scoring/ llm/ integrations/{sms,storage,queue,mcp,email}/
                           db/ ingest/ observability/ evals/ worker/ cli.py config.py
 apps/                     dev-oidc/ ledger-mcp/ debtor-sim/        (uv workspace members)
-third_party/              evalgate/ mcp-gateway/                    (contract fallbacks)
+third_party/              mcp-gateway/                              (contract fallback)
 web/                      Next.js console + BFF
 prompts/                  versioned prompts, policies/tone.md, templates/
 data/generator/           synthetic data and eval datasets (gen.v1, seed 4242)

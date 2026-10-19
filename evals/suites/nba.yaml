@@ -3,10 +3,9 @@ name: nba
 description: Next best action on 300 synthetic accounts (labels by construction; tune on dev only).
 dataset: evals/datasets/nba.v1.jsonl
 target:
-  langgraph: collections_copilot.agent.case_graph:eval_graph
-prompts: [next_best_action, draft_message, prioritize_rationale]
+  python: collections_copilot.evals.targets:nba_case
 concurrency: 1
-timeout_s: 30
+plugins: [collections_copilot.evals.metrics]
 metrics:
   - name: nba_accuracy
     kind: exact
@@ -17,6 +16,7 @@ metrics:
     params:
       actual: output.nba
       schema:
+        type: object
         required: [action, rationale, confidence, cited_note_ids]
         properties:
           action: {enum: [remind, payment_plan, escalate, pause, no_action]}

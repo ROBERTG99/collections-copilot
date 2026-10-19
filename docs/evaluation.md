@@ -35,15 +35,17 @@ The spies are the point of the compliance and replies suites: `SpyProvider` reco
 
 ```bash
 make eval                                   # offline, FakeLLM; gates the test split, reports dev for information
-uv run evalgate run evals/suites/replies.yaml --split dev --out .evalgate/replies-dev.json   # dev split only, for tuning
+uv run python -m collections_copilot.evals.engine --suite replies --split dev   # dev split only, for tuning
 uv run python scripts/eval_report.py --update-baseline   # only after reviewing why the numbers moved
 ```
 
-`make eval` runs each suite on the test split and on the dev split, writes `evals/reports/<suite>.json` and `<suite>.dev.json` (ignored by git), and gates each test report with `evalgate.gate.check`:
+`make eval` runs each suite on the test split and on the dev split, writes `evals/reports/<suite>.json` and `<suite>.dev.json` (ignored by git), and gates each test report with evalgate v0.1.0's `check` (through `collections_copilot.evals.engine.gate`):
 
 - every gated metric meets its threshold, and the suite budget (p95) holds;
-- no case errored;
+- no case errored, and every gated metric had at least one row it applies to;
 - no gated metric is more than 1 percentage point worse than `evals/reports/baseline.json`, using a paired bootstrap over the same cases (95% CI, seed 1337).
+
+evalgate scores each case in [0, 1] and averages over the split. `collections_copilot.evals.engine` adds three things on top: scoped metrics (STOP recall, write-back recall, sends when allowed, citations, promise extraction) are averaged over the rows they apply to only; `reply_macro_f1` is computed over the whole split, and its regression check pairs the per-case label correctness; counters (violations, write-backs, leaks) score a case 1 when it has at least one event, so their value is the share of such cases and their raw totals are printed under each suite. `uv run evalgate run` on a suite works, but reports evalgate's plain means without these three steps, so use the engine command above.
 
 It exits 1 on any failure. The baseline is written by the first run with no errored case, or by `--update-baseline`; it is committed, so a change to it shows up in review. Reports record the models (`fake` offline: an offline run never claims a real model), the SHA-256 of every prompt the suite uses, the split, the provider and the mode.
 
@@ -60,18 +62,14 @@ Live numbers come only from `make eval-live` (real models, within `LIVE_EVAL_BUD
 ## Changing prompts, rules or the fake
 
 1. Change the prompt (`prompts/<name>.v<N+1>.md`), rule or fake.
-2. Run the dev split only and look at its failures: `uv run evalgate run evals/suites/replies.yaml --split dev --out .evalgate/replies-dev.json`. (`scripts/eval_report.py` always runs the test split and rewrites `evals/REPORT.md`, so it is not a tuning command.)
+2. Run the dev split only and look at its failures: `uv run python -m collections_copilot.evals.engine --suite replies --split dev`. (`scripts/eval_report.py` always runs the test split and rewrites `evals/REPORT.md`, so it is not a tuning command.)
 3. When dev is right, run `make eval` once. If the test split fails, do not read the failing test rows to fix them: that turns the test split into a second dev split. Record the gap in `docs/KNOWN_LIMITATIONS.md` instead and find more signal on dev or in a new dataset version.
 
 ## Judge calibration
 
 `tone_calibration.v1` (40 dev, 40 test drafts, half good and half built to break one rule) measures the tone judge (`prompts/judge_tone.v1.md`) against labels by construction:
 
-```bash
-uv run evalgate calibrate --rubric evals/rubrics/tone.yaml \
-  --labels evals/datasets/tone_calibration.v1.jsonl \
-  --judge collections_copilot.evals.judge:judge_tone --split test
-```
+`make eval` runs it on the test split (`collections_copilot.evals.judge.calibrate_tone`); agreement and Cohen's kappa use evalgate's `cohen_kappa`. evalgate's own `calibrate` command is not used: the frozen dataset predates its `label_row.v1` contract (its `input` is an object and pointwise rows have no `reference`), and committed eval datasets are not edited.
 
 The rubric's gate (agreement ≥ 0.8, kappa ≥ 0.6) applies to the live judge only. Offline the judge is FakeLLM's keyword stub, which recognises explicit threats but not shaming, false urgency or misleading terms; `make eval` reports its agreement for information.
 

@@ -35,7 +35,6 @@ dependencies = [
   "python-multipart>=0.0.32",
   "tzdata>=2026.5",
   "holidays>=0.106",
-  "evalgate",
 ]
 
 [project.scripts]
@@ -52,7 +51,7 @@ packages = ["src/collections_copilot", "data"]
 members = ["apps/*", "third_party/*"]
 
 [tool.uv.sources]
-evalgate = { workspace = true }
+evalgate = { git = "https://github.com/ROBERTG99/evalgate", tag = "v0.1.0" }
 dev-oidc = { workspace = true }
 ledger-mcp = { workspace = true }
 debtor-sim = { workspace = true }
@@ -60,6 +59,7 @@ mcp-gateway-lite = { workspace = true }
 
 [dependency-groups]
 dev = [
+  "evalgate==0.1.0",
   "dev-oidc",
   "ledger-mcp",
   "debtor-sim",

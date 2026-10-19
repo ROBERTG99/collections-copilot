@@ -2,7 +2,6 @@
 
 ## Needs the maintainer
 
-- evalgate `v0.1.0` tag does not exist (`git ls-remote --tags https://github.com/ROBERTG99/evalgate refs/tags/v0.1.0` printed nothing on 2026-10-16); the contract subset lives in `third_party/evalgate/`. Publish the tag and switch the dependency (see docs/DECISIONS.md).
 - mcp-gateway `v0.1.0` tag and `ghcr.io/robertg99/mcp-gateway:v0.1.0` image do not exist (`docker pull` → `denied`); the contract subset lives in `third_party/mcp-gateway/` with a YAML policy. Publish the image and switch compose (see docs/DECISIONS.md).
 - Maintainer review of 40 NBA cases and 20 drafts from the eval datasets (§11).
 - mcp-gateway's approval webhook must sign `{timestamp}.{body}` with an `X-MCPGW-Timestamp` header, as the fallback in `third_party/mcp-gateway` now does (docs/DECISIONS.md).

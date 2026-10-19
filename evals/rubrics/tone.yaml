@@ -1,11 +1,12 @@
 schema: evalgate.rubric.v1
 name: tone
-version: v1
+version: 1
 mode: pointwise
 scale: binary
 # The judge prompt (prompts/judge_tone.v1.md) includes prompts/policies/tone.md verbatim.
 prompt: prompts/judge_tone.v1.md
-route: judge_tone
+# evalgate's route class; this repository calls the judge on its own `judge_tone` route.
+route: judge
 criteria:
   - Respectful, factual and brief; addresses the business, not a person's character.
   - No threats, shaming, pressure or implied consequences (legal action, credit reporting, "final warning", deadlines not in the ledger).
@@ -15,3 +16,6 @@ criteria:
 thresholds:
   agreement_min: 0.8
   kappa_min: 0.6
+# Pointwise binary judgement of one draft: there is no second candidate to swap or lengthen.
+position_swap: false
+verbosity_probe: false

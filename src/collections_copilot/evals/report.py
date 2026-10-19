@@ -1,8 +1,9 @@
 """`make eval`: run every suite, gate it and generate `evals/REPORT.md` (BUILD.md §11).
 
-The test split is gated (thresholds, the suite budget, errored cases and a regression of more
-than 1 percentage point against `evals/reports/baseline.json`); the dev split, the only one used
-for tuning, is reported for information. Every number carries its mode: offline numbers come
+The test split is gated by evalgate v0.1.0 (thresholds, the suite budget, run health and a
+regression of more than 1 percentage point against `evals/reports/baseline.json`) plus "no
+errored case" (`collections_copilot.evals.engine.gate`); the dev split, the only one used for
+tuning, is reported for information. Every number carries its mode: offline numbers come
 from the deterministic code plus FakeLLM, live numbers only from `make eval-live`.
 """
 
@@ -10,7 +11,6 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import hashlib
 import json
 import os
 import subprocess
@@ -20,28 +20,31 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 
-from evalgate.calibrate import CalibrationResult
-from evalgate.gate import check
-from evalgate.loader import load_suite
-from evalgate.models import CheckResult, Report, Suite
-from evalgate.report import render_markdown
-from evalgate.runner import run_suite
+from evalgate.contracts import CheckResult, Report, Suite
+from evalgate.report.markdown import MARKER, render_markdown
 
 from collections_copilot.agent.prompts import load_prompt, prompt_names
 from collections_copilot.config import Settings, get_settings
-from collections_copilot.evals import metrics as _metrics  # noqa: F401 - registers the metrics
+from collections_copilot.evals import engine
+from collections_copilot.evals.judge import CalibrationResult
 from collections_copilot.llm.providers import wrapping_providers
 from collections_copilot.llm.providers.base import Provider, ProviderRequest, ProviderResponse
 
 SUITES = ("nba", "replies", "compliance")
 GATED_SPLIT = "test"
-MAX_REGRESSION_PP = 1.0
+MAX_REGRESSION_PP = engine.MAX_REGRESSION_PP
 SUITES_DIR = Path("evals/suites")
 REPORTS_DIR = Path("evals/reports")
 BASELINE = REPORTS_DIR / "baseline.json"
 REPORT_MD = Path("evals/REPORT.md")
 BASELINE_SCHEMA = "collections-copilot.eval-baselines.v1"
 MANIFEST = Path("evals/datasets/MANIFEST.json")
+# The prompts behind each suite's numbers (their hashes go into the report).
+SUITE_PROMPTS = {
+    "nba": ["next_best_action", "draft_message", "prioritize_rationale"],
+    "replies": ["classify_reply"],
+    "compliance": ["next_best_action", "draft_message", "prioritize_rationale"],
+}
 
 
 @dataclass
@@ -72,8 +75,11 @@ class _Counting:
 def label_models(report: Report, counter: ReplayCounter) -> None:
     """Offline numbers name every model behind them: `fake`, plus any replayed cassette's."""
     report.models = sorted({"fake", *counter.replayed})
-    report.extensions["model_calls"] = counter.calls
-    report.extensions["replayed_calls"] = sum(counter.replayed.values())
+    report.extensions = {
+        **(report.extensions or {}),
+        "model_calls": counter.calls,
+        "replayed_calls": sum(counter.replayed.values()),
+    }
 
 
 def git_sha() -> str | None:
@@ -102,6 +108,7 @@ class SuiteRun:
     report: Report
     check: CheckResult
     dev: Report | None = None
+    baseline: Report | None = None
 
 
 def models_for(settings: Settings) -> list[str]:
@@ -142,29 +149,22 @@ def _save(path: Path, report: Report) -> None:
     path.write_text(report.model_dump_json(by_alias=True, indent=1))
 
 
-def _sha(report: Report) -> str:
-    return hashlib.sha256(report.model_dump_json(by_alias=True).encode()).hexdigest()
-
-
 def gate(report: Report, baseline: Report | None, suite: Suite | None) -> CheckResult:
-    return check(
-        report,
-        _sha(report),
-        baseline,
-        _sha(baseline) if baseline else None,
-        MAX_REGRESSION_PP,
-        suite,
-    )
+    return engine.gate(report, baseline, suite)
 
 
 async def run_one(name: str, split: str, mode: str, settings: Settings) -> Report:
-    suite = load_suite(SUITES_DIR / f"{name}.yaml")
     counter = ReplayCounter()
     with wrapping_providers(counter.wrap):
-        report = await run_suite(suite, split=split, mode=mode)
+        _, report = await engine.run(SUITES_DIR / f"{name}.yaml", split)
+    report.mode = "live" if mode == "live" else "offline"
     report.git_sha = git_sha()
-    report.prompt_hashes = prompt_hashes(suite.prompts)
-    report.extensions = {"split": split, "provider": settings.llm_provider}
+    report.prompt_hashes = prompt_hashes(SUITE_PROMPTS[name])
+    report.extensions = {
+        **(report.extensions or {}),
+        "split": split,
+        "provider": settings.llm_provider,
+    }
     if settings.llm_provider == "fake":
         label_models(report, counter)
     else:
@@ -173,8 +173,12 @@ async def run_one(name: str, split: str, mode: str, settings: Settings) -> Repor
 
 
 def _demote(markdown: str) -> list[str]:
-    """Nest evalgate's headings one level under this report's own."""
-    return [f"#{line}" if line.startswith("#") else line for line in markdown.splitlines()]
+    """Nest evalgate's headings one level under this report's own (and drop its PR marker)."""
+    return [
+        f"#{line}" if line.startswith("#") else line
+        for line in markdown.splitlines()
+        if line != MARKER
+    ]
 
 
 def _dev_rows(runs: list[SuiteRun]) -> list[str]:
@@ -186,8 +190,9 @@ def _dev_rows(runs: list[SuiteRun]) -> list[str]:
         if run.dev is None:
             continue
         for metric, mr in run.dev.metrics.items():
+            threshold = "" if mr.threshold is None else f"{mr.threshold:g}"
             rows.append(
-                f"| `{run.name}` | `{metric}` | {mr.value:.4f} | {mr.threshold:g} | "
+                f"| `{run.name}` | `{metric}` | {mr.value:.4f} | {threshold} | "
                 f"{'yes' if mr.passed else 'NO'} |"
             )
         rows.append(
@@ -221,7 +226,7 @@ def _provenance(baseline: Report | None) -> list[str]:
     if baseline is not None:
         lines.append(
             f"- Baseline: `{BASELINE}` (run `{baseline.run_id}`, commit "
-            f"`{_short(baseline.git_sha)}`, {baseline.created_at.strftime('%Y-%m-%d %H:%M UTC')})."
+            f"`{_short(baseline.git_sha)}`, {baseline.created_at})."
         )
     if MANIFEST.exists():
         datasets = json.loads(MANIFEST.read_text()).get("datasets", {})
@@ -235,8 +240,8 @@ def _provenance(baseline: Report | None) -> list[str]:
 
 
 def _mode_line(runs: list[SuiteRun]) -> str:
-    calls = sum(int(r.report.extensions.get("model_calls", 0)) for r in runs)
-    replayed = sum(int(r.report.extensions.get("replayed_calls", 0)) for r in runs)
+    calls = sum(int((r.report.extensions or {}).get("model_calls", 0)) for r in runs)
+    replayed = sum(int((r.report.extensions or {}).get("replayed_calls", 0)) for r in runs)
     models = sorted({m for r in runs for m in r.report.models}) or ["none"]
     mode = runs[0].report.mode if runs else "offline"
     line = f"- Every number below is mode **{mode}** (models: {', '.join(models)})"
@@ -265,10 +270,14 @@ def render(
         f"- Generated {datetime.now(UTC).strftime('%Y-%m-%d %H:%M UTC')} at commit "
         f"`{_short(first.git_sha if first else None)}`.",
         _mode_line(runs),
+        "- Engine: evalgate v0.1.0 (`collections_copilot.evals.engine` adds the scoped and "
+        "corpus metrics and the counters).",
         f"- Gated split: `{GATED_SPLIT}`. Gate: each suite's thresholds and budget, no errored "
         f"case, and no regression above {MAX_REGRESSION_PP:g} percentage point against "
-        f"`{BASELINE}` (paired bootstrap, 95% CI; corpus metrics such as macro-F1 have no "
-        "per-case pairs and are compared as point values).",
+        f"`{BASELINE}` (paired bootstrap, 95% CI). Scoped metrics (recalls, citations) count "
+        "only the rows they apply to; macro-F1 is computed over the split and its regression is "
+        "tested on the per-case label correctness; counters show the share of cases with at "
+        "least one event (the raw totals are under each suite).",
         "- Datasets: `evals/datasets/*.v1.jsonl`, labels by construction (seed 4242); the dev "
         "split is the only one used for tuning.",
         *_provenance(baseline),
@@ -282,8 +291,16 @@ def render(
         for r in runs
     ]
     lines += ["", f"## Gated results ({GATED_SPLIT} split, mode {mode})", ""]
-    body = render_markdown([(r.report, r.check) for r in runs], title="Gated results")
-    lines += _demote(body)[2:]
+    for r in runs:
+        lines += _demote(render_markdown(r.report, r.check, r.baseline))
+        lines.append("")
+        if r.report.prompt_hashes:
+            hashes = ", ".join(f"`{k}` {v[:12]}" for k, v in sorted(r.report.prompt_hashes.items()))
+            lines += [f"Prompt hashes: {hashes}.", ""]
+        counts = (r.report.extensions or {}).get("counts") or {}
+        if counts:
+            totals = ", ".join(f"`{k}` {v}" for k, v in sorted(counts.items()))
+            lines += [f"Raw totals ({GATED_SPLIT} split, mode {mode}): {totals}.", ""]
     if lines[-1] != "":
         lines.append("")
     if any(r.dev for r in runs):
@@ -323,13 +340,14 @@ async def run_all(
     baselines = load_baselines(BASELINE)
     runs: list[SuiteRun] = []
     for name in names:
-        suite = load_suite(SUITES_DIR / f"{name}.yaml")
+        suite = engine.load_suite(SUITES_DIR / f"{name}.yaml").suite
         report = await run_one(name, GATED_SPLIT, mode, settings)
         _save(REPORTS_DIR / f"{name}.json", report)
         dev = await run_one(name, "dev", mode, settings) if with_dev else None
         if dev is not None:
             _save(REPORTS_DIR / f"{name}.dev.json", dev)
-        runs.append(SuiteRun(name, report, gate(report, baselines.get(name), suite), dev))
+        base = baselines.get(name)
+        runs.append(SuiteRun(name, report, gate(report, base, suite), dev, base))
     created = False
     # A run with errored cases never becomes the baseline. One that misses a threshold may: the
     # regression gate then still stops it getting worse while the gap is open.
