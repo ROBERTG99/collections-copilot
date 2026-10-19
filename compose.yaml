@@ -4,7 +4,7 @@ name: collections-copilot
 x-python-build: &python-build
   context: .
   dockerfile: docker/python.Dockerfile
-  network: host
+  network: "${CC_BUILD_NETWORK:-default}"
   args:
     HTTPS_PROXY: "${HTTPS_PROXY:-}"
 
@@ -204,7 +204,7 @@ services:
       context: .
       dockerfile: web/Dockerfile
       target: web
-      network: host
+      network: "${CC_BUILD_NETWORK:-default}"
       args:
         HTTPS_PROXY: "${HTTPS_PROXY:-}"
     image: collections-copilot/web:dev

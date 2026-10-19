@@ -9,7 +9,7 @@ ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy UV_PYTHON_DOWNLOADS=never \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 # git fetches the pinned evalgate tag (a dev dependency: only the test stages install it).
 RUN apt-get update && apt-get install -y --no-install-recommends git \
- && trash /var/lib/apt/lists/* \
+ && rm -rf /var/lib/apt/lists/* \
  && pip install --no-cache-dir uv==0.11.32
 WORKDIR /app
 COPY pyproject.toml uv.lock README.md ./

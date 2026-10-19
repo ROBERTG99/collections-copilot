@@ -13,7 +13,11 @@ TRIVY_DB=(--db-repository mirror.gcr.io/aquasec/trivy-db
   --java-db-repository mirror.gcr.io/aquasec/trivy-java-db
   --checks-bundle-repository mirror.gcr.io/aquasec/trivy-checks)
 # Every image compose builds (api, worker, web, ledger-mcp, dev-oidc, mcp-gateway, debtor-sim, ...).
-mapfile -t IMAGES < <(docker compose --profile jobs config --images 2>/dev/null | grep '^collections-copilot/' | sort -u)
+# A read loop rather than mapfile: macOS ships bash 3.2.
+IMAGES=()
+while IFS= read -r image; do IMAGES+=("$image"); done < <(
+  docker compose --profile jobs config --images 2>/dev/null | grep '^collections-copilot/' | sort -u
+)
 # Under CI (or SECURITY_STRICT=1) a scanner that is not installed fails the run.
 STRICT="${SECURITY_STRICT:-${CI:-}}"
 TMP="$(mktemp -d)"
@@ -73,7 +77,7 @@ if need trivy; then
   check trivy-fs trivy fs "${TRIVY_DB[@]}" --quiet --scanners vuln,secret,misconfig \
     --severity HIGH,CRITICAL --exit-code 1 --skip-dirs node_modules --skip-dirs .venv \
     --skip-dirs web/node_modules --skip-dirs web/.next --skip-dirs infra/terraform/envs/dev/.terraform .
-  for image in "${IMAGES[@]}"; do
+  for image in ${IMAGES[@]+"${IMAGES[@]}"}; do
     if docker image inspect "$image" >/dev/null 2>&1; then
       check "trivy-image ${image}" trivy image "${TRIVY_DB[@]}" --quiet --scanners vuln \
         --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 "$image"
