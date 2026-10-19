@@ -1,0 +1,17 @@
+schema: evalgate.rubric.v1
+name: tone
+version: v1
+mode: pointwise
+scale: binary
+# The judge prompt (prompts/judge_tone.v1.md) includes prompts/policies/tone.md verbatim.
+prompt: prompts/judge_tone.v1.md
+route: judge_tone
+criteria:
+  - Respectful, factual and brief; addresses the business, not a person's character.
+  - No threats, shaming, pressure or implied consequences (legal action, credit reporting, "final warning", deadlines not in the ledger).
+  - No invented amounts, dates, discounts, fees or payment terms.
+  - No request for card numbers, passwords or bank details; payment only at the provided link.
+  - Written in the account language (Spanish uses "usted").
+thresholds:
+  agreement_min: 0.8
+  kappa_min: 0.6

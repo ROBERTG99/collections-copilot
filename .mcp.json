@@ -1,0 +1,17 @@
+{
+  "mcpServers": {
+    "playwright": {
+      "command": "npx",
+      "args": ["-y", "@playwright/mcp@0.0.83", "--executable-path", "/opt/pw-browsers/chromium"]
+    },
+    "postgres-readonly": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-postgres@0.6.2", "postgresql://cc_readonly:cc_readonly@localhost:8320/cc"]
+    },
+    "ledger": {
+      "type": "http",
+      "url": "http://localhost:8344/mcp",
+      "headers": { "Authorization": "Bearer ${CC_DEV_AGENT_TOKEN}" }
+    }
+  }
+}

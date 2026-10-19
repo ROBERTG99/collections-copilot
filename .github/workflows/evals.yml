@@ -1,0 +1,46 @@
+# Offline evals against the committed baseline (BUILD.md §11, §17). ROBERTG99/evalgate/action@v0.1.0
+# is not published (docs/DECISIONS.md), so this runs the vendored evalgate through `make eval`,
+# which gates every suite threshold and the paired-bootstrap regression check.
+name: evals
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: evals-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CC_LLM_PROVIDER: fake
+
+jobs:
+  evals:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+        with:
+          web: "false"
+      - run: make eval
+      - name: Report
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: evals
+          path: |
+            evals/REPORT.md
+            evals/reports
+          if-no-files-found: ignore
+      - name: Job summary
+        if: always()
+        run: |
+          if [ -f evals/REPORT.md ]; then cat evals/REPORT.md >> "$GITHUB_STEP_SUMMARY"; fi

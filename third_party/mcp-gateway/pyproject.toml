@@ -1,0 +1,17 @@
+[project]
+name = "mcp-gateway-lite"
+version = "0.1.0"
+description = "Contract subset of mcp-gateway v0.1.0 (fallback; YAML policy instead of OPA)."
+license = "MIT"
+requires-python = ">=3.12"
+dependencies = ["fastapi>=0.143", "uvicorn>=0.54", "httpx>=0.28", "pyjwt[crypto]>=2.15", "pyyaml>=6.0", "psycopg[binary,pool]>=3.3", "mcp>=2.3"]
+
+[project.scripts]
+mcp-gateway-lite = "mcpgw_lite.server:main"
+
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/mcpgw_lite"]

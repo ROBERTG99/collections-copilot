@@ -1,0 +1,80 @@
+# Uploads bucket (CSV imports): versioned, SSE-KMS, public access blocked, TLS only.
+
+resource "aws_s3_bucket" "this" {
+  #checkov:skip=CKV_AWS_18:no access-log bucket in dev (cost); every applied import is audited (ingest.completed or ingest.rejected)
+  #checkov:skip=CKV_AWS_144:uploads are transient CSV imports; cross-region replication adds cost without a recovery need
+  #checkov:skip=CKV2_AWS_62:the API reads uploads on request; no event-driven consumer exists
+  bucket        = var.bucket_name
+  force_destroy = false
+}
+
+resource "aws_s3_bucket_ownership_controls" "this" {
+  bucket = aws_s3_bucket.this.id
+  rule {
+    object_ownership = "BucketOwnerEnforced"
+  }
+}
+
+resource "aws_s3_bucket_public_access_block" "this" {
+  bucket                  = aws_s3_bucket.this.id
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+resource "aws_s3_bucket_versioning" "this" {
+  bucket = aws_s3_bucket.this.id
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "this" {
+  bucket = aws_s3_bucket.this.id
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm     = "aws:kms"
+      kms_master_key_id = var.kms_key_arn
+    }
+    bucket_key_enabled = true
+  }
+}
+
+resource "aws_s3_bucket_lifecycle_configuration" "this" {
+  bucket = aws_s3_bucket.this.id
+  rule {
+    id     = "expire-old-uploads"
+    status = "Enabled"
+    filter {}
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 1
+    }
+    expiration {
+      days = var.expire_days # imports are applied at upload time; the file is not kept
+    }
+    noncurrent_version_expiration {
+      noncurrent_days = var.noncurrent_days
+    }
+  }
+}
+
+locals {
+  bucket_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Sid       = "DenyInsecureTransport"
+      Effect    = "Deny"
+      Principal = "*"
+      Action    = "s3:*"
+      Resource  = [aws_s3_bucket.this.arn, "${aws_s3_bucket.this.arn}/*"]
+      Condition = { Bool = { "aws:SecureTransport" = "false" } }
+    }]
+  })
+}
+
+resource "aws_s3_bucket_policy" "this" {
+  bucket     = aws_s3_bucket.this.id
+  policy     = local.bucket_policy
+  depends_on = [aws_s3_bucket_public_access_block.this]
+}

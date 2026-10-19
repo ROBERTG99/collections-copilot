@@ -1,0 +1,29 @@
+schema: evalgate.suite.v1
+name: nba
+description: Next best action on 300 synthetic accounts (labels by construction; tune on dev only).
+dataset: evals/datasets/nba.v1.jsonl
+target:
+  langgraph: collections_copilot.agent.case_graph:eval_graph
+prompts: [next_best_action, draft_message, prioritize_rationale]
+concurrency: 1
+timeout_s: 30
+metrics:
+  - name: nba_accuracy
+    kind: exact
+    params: {actual: output.nba.action, expected: expected.action}
+    threshold: 0.85
+  - name: nba_schema_validity
+    kind: json_schema
+    params:
+      actual: output.nba
+      schema:
+        required: [action, rationale, confidence, cited_note_ids]
+        properties:
+          action: {enum: [remind, payment_plan, escalate, pause, no_action]}
+    threshold: 1.0
+  - name: citations_supported
+    kind: custom
+    threshold: 0.0
+    gate: false
+budget:
+  max_p95_ms: 300

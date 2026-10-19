@@ -1,0 +1,14 @@
+# Test-only dummy session secret (docs/security.md, "Accepted findings").
+23ec742fcac38cb2bbf1e14b5ebe8f9c4ad7568b:web/tests/unit/session.test.ts:generic-api-key:5
+web/tests/unit/session.test.ts:generic-api-key:5
+# Test-only dummy session secrets in the web unit tests (same value as session.test.ts).
+60c6e1a727fb2804da3b6d791d269ca632387abf:web/tests/unit/session-helpers.test.ts:generic-api-key:13
+web/tests/unit/session-helpers.test.ts:generic-api-key:13
+60c6e1a727fb2804da3b6d791d269ca632387abf:web/tests/unit/server-session.test.ts:generic-api-key:30
+web/tests/unit/server-session.test.ts:generic-api-key:30
+# Fake token strings the log-redaction test proves are masked.
+c8a6549e1a3c726cd9c6de97088e833813dfb3ac:tests/unit/test_log_redaction.py:generic-api-key:108
+tests/unit/test_log_redaction.py:generic-api-key:108
+# A model ID after "Claude API," in ADR 0001 matches the generic-api-key pattern; it is not a key.
+b7aa516471dffe02789789176442c7a6c9e7bce7:docs/adr/0001-bedrock-primary-vs-anthropic-api.md:generic-api-key:8
+docs/adr/0001-bedrock-primary-vs-anthropic-api.md:generic-api-key:8

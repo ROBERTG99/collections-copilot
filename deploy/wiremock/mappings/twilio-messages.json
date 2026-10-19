@@ -1,0 +1,60 @@
+{
+  "mappings": [
+    {
+      "name": "twilio-create-message-5xx-probe",
+      "priority": 1,
+      "request": {
+        "method": "POST",
+        "urlPathPattern": "/2010-04-01/Accounts/[A-Za-z0-9]+/Messages.json",
+        "bodyPatterns": [{ "contains": "To=%2B15559990500" }]
+      },
+      "response": {
+        "status": 503,
+        "headers": { "Content-Type": "application/json" },
+        "jsonBody": { "code": 20503, "message": "Service unavailable (synthetic probe number)", "status": 503 }
+      }
+    },
+    {
+      "name": "twilio-create-message",
+      "priority": 5,
+      "request": {
+        "method": "POST",
+        "urlPathPattern": "/2010-04-01/Accounts/([A-Za-z0-9]+)/Messages.json",
+        "basicAuthCredentials": { "username": "AC00000000000000000000000000000000", "password": "dev-twilio-auth-token" },
+        "headers": { "Content-Type": { "contains": "application/x-www-form-urlencoded" } },
+        "bodyPatterns": [{ "matches": ".*To=.*" }, { "matches": ".*Body=.*" }]
+      },
+      "response": {
+        "status": 201,
+        "headers": { "Content-Type": "application/json" },
+        "transformers": ["response-template"],
+        "jsonBody": {
+          "sid": "SM{{randomValue length=32 type='HEXADECIMAL' lowercase=true}}",
+          "account_sid": "{{request.pathSegments.[2]}}",
+          "to": "{{formData request.body 'form' urlDecode=true}}{{form.To}}",
+          "from": "{{form.From}}",
+          "body": "{{form.Body}}",
+          "status": "queued",
+          "num_segments": "1",
+          "direction": "outbound-api",
+          "api_version": "2010-04-01",
+          "date_created": "{{now format='EEE, dd MMM yyyy HH:mm:ss Z'}}",
+          "price": null,
+          "error_code": null,
+          "error_message": null,
+          "uri": "/2010-04-01/Accounts/{{request.pathSegments.[2]}}/Messages.json"
+        }
+      }
+    },
+    {
+      "name": "twilio-unauthorized",
+      "priority": 9,
+      "request": { "method": "POST", "urlPathPattern": "/2010-04-01/Accounts/.*/Messages.json" },
+      "response": {
+        "status": 401,
+        "headers": { "Content-Type": "application/json" },
+        "jsonBody": { "code": 20003, "message": "Authenticate", "status": 401 }
+      }
+    }
+  ]
+}

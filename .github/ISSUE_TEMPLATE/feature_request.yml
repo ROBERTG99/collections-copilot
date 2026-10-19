@@ -1,0 +1,16 @@
+name: Feature request
+description: A change to behaviour, the console or the evals.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: Who needs this and why.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: Include how it would be tested and which compliance rules it touches.

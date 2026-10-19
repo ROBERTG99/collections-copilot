@@ -1,0 +1,24 @@
+{
+  // Python 3.13, Node 22 with pnpm, Docker for the compose stack; tools via make bootstrap.
+  "name": "collections-copilot",
+  "image": "mcr.microsoft.com/devcontainers/python:1-3.13-bookworm",
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": { "version": "22" },
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
+    "ghcr.io/devcontainers/features/go:1": { "version": "1.24" }
+  },
+  "forwardPorts": [8300, 8310, 8345, 8351],
+  "containerEnv": { "CC_LLM_PROVIDER": "fake" },
+  "postCreateCommand": "pip install --user uv==0.11.32 && corepack enable && make bootstrap",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "charliermarsh.ruff",
+        "ms-python.python",
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "hashicorp.terraform"
+      ]
+    }
+  }
+}

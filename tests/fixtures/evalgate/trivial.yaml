@@ -1,0 +1,7 @@
+schema: evalgate.suite.v1
+name: trivial
+dataset: tests/fixtures/evalgate/trivial.v1.jsonl
+target:
+  python: tests.fixtures.evalgate.trivial_target:echo
+metrics:
+  - {name: label_accuracy, kind: exact, params: {actual: output.label, expected: expected.label}, threshold: 0.9}

@@ -1,0 +1,165 @@
+"""OIDC bearer authentication and RBAC (FR-13).
+
+Roles come from `cognito:groups`, the tenant from `custom:tenant_id`. Tokens are verified against
+the issuer's JWKS (Cognito in AWS, dev-oidc locally): RS256 only, issuer and audience/client_id checked.
+"""
+
+from __future__ import annotations
+
+import time
+import uuid
+from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
+from typing import Any, Literal, Protocol
+
+import httpx
+import jwt
+from fastapi import Depends, Request
+
+from collections_copilot.api.errors import ProblemError
+
+Role = Literal["analyst", "supervisor", "admin"]
+ROLES: tuple[Role, ...] = ("analyst", "supervisor", "admin")
+
+
+@dataclass(frozen=True)
+class Principal:
+    sub: str
+    username: str
+    tenant_id: uuid.UUID
+    roles: frozenset[str]
+    expires_at: int | None = None  # access-token expiry (epoch s): long streams end here
+
+    def has(self, *roles: str) -> bool:
+        return bool(self.roles & set(roles))
+
+
+class TokenVerifier(Protocol):
+    async def verify(self, token: str) -> dict[str, Any]: ...
+
+
+JWKS_MAX_AGE_S = 3600
+
+
+class JwksTokenVerifier:
+    """Verifies RS256 JWTs against a JWKS URL with a small key cache."""
+
+    def __init__(self, issuer: str, audience: str, jwks_url: str | None = None) -> None:
+        self.issuer = issuer.rstrip("/")
+        self.audience = audience
+        self.jwks_url = jwks_url or f"{self.issuer}/.well-known/jwks.json"
+        self._keys: dict[str, Any] = {}
+        self._fetched = 0.0
+
+    async def _refresh(self) -> None:
+        if time.monotonic() - self._fetched < 5:
+            return
+        async with httpx.AsyncClient(timeout=5) as client:
+            resp = await client.get(self.jwks_url)
+            resp.raise_for_status()
+        keys: dict[str, Any] = {}  # replace, never merge: a rotated-out key stops verifying
+        for jwk in resp.json().get("keys", []):
+            if jwk.get("kty") == "RSA" and jwk.get("kid"):
+                keys[jwk["kid"]] = jwt.PyJWK(jwk).key
+        self._keys = keys
+        self._fetched = time.monotonic()
+
+    async def verify(self, token: str) -> dict[str, Any]:
+        header = jwt.get_unverified_header(token)
+        if header.get("alg") != "RS256" or not header.get("kid"):
+            raise jwt.InvalidTokenError("RS256 with kid required")
+        if header["kid"] not in self._keys or time.monotonic() - self._fetched > JWKS_MAX_AGE_S:
+            await self._refresh()
+        key = self._keys.get(header["kid"])
+        if key is None:
+            raise jwt.InvalidTokenError("unknown kid")
+        claims: dict[str, Any] = jwt.decode(
+            token,
+            key,
+            algorithms=["RS256"],
+            issuer=self.issuer,
+            options={"verify_aud": False, "require": ["exp", "iat", "iss", "sub"]},
+            leeway=30,
+        )
+        # Cognito access tokens carry client_id instead of aud; ID tokens carry aud.
+        aud = claims.get("aud") or claims.get("client_id")
+        auds = aud if isinstance(aud, list) else [aud]
+        if self.audience not in auds:
+            raise jwt.InvalidAudienceError("audience mismatch")
+        # Cognito ID tokens (token_use=id) live in the browser; only access tokens reach the API.
+        if claims.get("token_use") != "access":  # required: a missing claim is not trusted
+            raise jwt.InvalidTokenError("access token required")
+        return claims
+
+
+class StaticKeyVerifier(JwksTokenVerifier):
+    """Test helper: trusts one in-memory public key (no network)."""
+
+    def __init__(self, issuer: str, audience: str, kid: str, public_key: Any) -> None:
+        super().__init__(issuer, audience, "http://unused.invalid/jwks")
+        self._keys = {kid: public_key}
+        self._fetched = time.monotonic() + 10**9
+
+
+def principal_from_claims(claims: dict[str, Any]) -> Principal:
+    groups = claims.get("cognito:groups") or []
+    roles = frozenset(g for g in groups if g in ROLES)
+    tenant = claims.get("custom:tenant_id")
+    try:
+        tenant_id = uuid.UUID(str(tenant))
+    except (TypeError, ValueError) as exc:
+        raise ProblemError(
+            401, "token has no valid custom:tenant_id", code="invalid_token"
+        ) from exc
+    username = str(claims.get("cognito:username") or claims.get("username") or claims["sub"])
+    exp = claims.get("exp")
+    return Principal(
+        sub=str(claims["sub"]),
+        username=username,
+        tenant_id=tenant_id,
+        roles=roles,
+        expires_at=int(exp) if isinstance(exp, int | float) else None,
+    )
+
+
+async def current_principal(request: Request) -> Principal:
+    auth = request.headers.get("authorization", "")
+    if not auth.lower().startswith("bearer "):
+        raise ProblemError(
+            401,
+            "bearer token required",
+            code="invalid_token",
+            headers={"WWW-Authenticate": 'Bearer error="invalid_token"'},
+        )
+    verifier: TokenVerifier = request.app.state.token_verifier
+    token = auth[7:].strip()
+    cached = request.scope.get("cc.claims")  # verified once by the limits middleware
+    try:
+        claims = cached[1] if cached and cached[0] == token else await verifier.verify(token)
+    except (jwt.PyJWTError, httpx.HTTPError, ValueError) as exc:
+        raise ProblemError(
+            401,
+            "invalid token",
+            code="invalid_token",
+            headers={"WWW-Authenticate": 'Bearer error="invalid_token"'},
+        ) from exc
+    principal = principal_from_claims(claims)
+    if not principal.roles:
+        raise ProblemError(403, "no collections role", code="forbidden")
+    return principal
+
+
+def require_roles(*roles: Role) -> Callable[..., Awaitable[Principal]]:
+    async def dep(principal: Principal = Depends(current_principal)) -> Principal:
+        if not principal.has(*roles):
+            raise ProblemError(403, f"requires one of: {', '.join(roles)}", code="forbidden")
+        return principal
+
+    dep.__name__ = f"require_{'_'.join(roles)}"
+    return dep
+
+
+ANY_ROLE = require_roles("analyst", "supervisor", "admin")
+ANALYST_OR_SUPERVISOR = require_roles("analyst", "supervisor")
+SUPERVISOR = require_roles("supervisor", "admin")
+ADMIN = require_roles("admin")

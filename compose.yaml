@@ -1,0 +1,289 @@
+# collections-copilot local stack. Host ports 8300–8399. Every service has a healthcheck.
+name: collections-copilot
+
+x-python-build: &python-build
+  context: .
+  dockerfile: docker/python.Dockerfile
+  network: host
+  args:
+    HTTPS_PROXY: "${HTTPS_PROXY:-}"
+
+x-app-env: &app-env
+  CC_ENV: dev
+  CC_LOG_LEVEL: INFO
+  CC_DATABASE_URL: postgresql+psycopg://cc:cc@postgres:5432/cc
+  CC_REDIS_URL: redis://redis:6379/0
+  CC_SQS_ENDPOINT_URL: http://elasticmq:9324
+  CC_S3_ENDPOINT_URL: http://minio:9000
+  CC_S3_PUBLIC_ENDPOINT_URL: http://localhost:8341
+  CC_S3_BUCKET: cc-uploads
+  CC_OIDC_ISSUER: http://localhost:8345
+  CC_OIDC_JWKS_URL: http://dev-oidc:8345/.well-known/jwks.json
+  CC_LLM_PROVIDER: "${CC_LLM_PROVIDER:-fake}"
+  CC_RATE_LIMIT_PER_MINUTE: "${CC_RATE_LIMIT_PER_MINUTE:-120}"  # scripts/bench.sh raises it
+  CC_TWILIO_BASE_URL: http://wiremock-twilio:8080
+  CC_PUBLIC_BASE_URL: http://api:8310
+  CC_MCPGW_URL: http://mcp-gateway:8344/mcp
+  CC_MCPGW_ADMIN_URL: http://mcp-gateway:8348
+  CC_MCPGW_ISSUER_URL: http://mcp-gateway:8349
+  CC_SMTP_HOST: mailpit
+  CC_SMTP_PORT: "1025"
+  CC_OTEL_EXPORTER_OTLP_ENDPOINT: "${CC_OTEL_EXPORTER_OTLP_ENDPOINT:-}"
+  AWS_ACCESS_KEY_ID: cclocal
+  AWS_SECRET_ACCESS_KEY: cclocalsecret
+  AWS_DEFAULT_REGION: us-east-1
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: cc
+      POSTGRES_PASSWORD: cc
+      POSTGRES_DB: cc
+    ports: ["127.0.0.1:8320:5432"]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./deploy/postgres/init.sql:/docker-entrypoint-initdb.d/10-init.sql:ro
+    command: ["postgres", "-c", "max_connections=300", "-c", "shared_buffers=256MB"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cc -d cc"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  redis:
+    image: redis:7-alpine
+    ports: ["127.0.0.1:8330:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  elasticmq:
+    image: softwaremill/elasticmq-native:1.6.14
+    ports: ["127.0.0.1:8340:9324"]
+    volumes:
+      - ./deploy/elasticmq.conf:/opt/elasticmq.conf:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - 'http://127.0.0.1:9324/?Action=ListQueues' | grep -q cc-tasks"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  minio:
+    # chainguard/minio: minio/minio cannot be pulled through the container mirror (docs/DECISIONS.md).
+    image: chainguard/minio@sha256:2136d593beacf4461187035eca949fe49abd589d5079735025c711ca58fee0c8
+    entrypoint: ["/usr/bin/minio"]
+    command: ["server", "/data", "--address", ":9000", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: cclocal
+      MINIO_ROOT_PASSWORD: cclocalsecret
+    ports: ["127.0.0.1:8341:9000", "127.0.0.1:8347:9001"]
+    volumes:
+      - miniodata:/data
+    healthcheck:
+      test:
+        - CMD
+        - bash
+        - -c
+        - "exec 3<>/dev/tcp/127.0.0.1/9000 && printf 'GET /minio/health/live HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && read -r status <&3 && [[ $$status == *' 200 '* ]]"
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  wiremock-twilio:
+    image: wiremock/wiremock:3.13.2
+    command: ["--port", "8080", "--global-response-templating", "--disable-banner", "--max-request-journal-entries", "20000"]
+    ports: ["127.0.0.1:8342:8080"]
+    volumes:
+      - ./deploy/wiremock/mappings:/home/wiremock/mappings:ro
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/__admin/health"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  mailpit:
+    image: axllent/mailpit:v1.27
+    ports: ["127.0.0.1:8346:1025", "127.0.0.1:8351:8025"]
+    healthcheck:
+      test: ["CMD", "/mailpit", "readyz"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  dev-oidc:
+    # Cognito double for local dev (synthetic personas only); disabled in AWS.
+    build: { <<: *python-build, target: dev-oidc }
+    image: collections-copilot/dev-oidc:dev
+    environment:
+      DEV_OIDC_ISSUER: http://localhost:8345
+      DEV_OIDC_CLIENT_IDS: cc-web
+      DEV_OIDC_ALLOW_DIRECT_TOKENS: "true"
+      DEV_OIDC_REDIRECT_URIS: http://localhost:8300/auth/callback
+      DEV_OIDC_HOST: 0.0.0.0
+    ports: ["127.0.0.1:8345:8345"]
+
+  migrate:
+    build: { <<: *python-build, target: tools }
+    image: collections-copilot/tools:dev
+    environment: *app-env
+    command: ["alembic", "upgrade", "head"]
+    depends_on:
+      postgres: { condition: service_healthy }
+    restart: "no"
+
+  seed:
+    image: collections-copilot/tools:dev
+    profiles: ["jobs"]
+    environment: *app-env
+    command: ["cc", "seed"]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    restart: "no"
+
+  ledger-mcp:
+    build: { <<: *python-build, target: ledger-mcp }
+    image: collections-copilot/ledger-mcp:dev
+    environment:
+      LEDGER_DATABASE_URL: postgresql://cc:cc@postgres:5432/cc
+    # No host port: the ledger trusts _meta.mcpgw.tenant, so only mcp-gateway may reach it.
+    expose: ["8343"]
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  mcp-gateway:
+    # Fallback for ghcr.io/robertg99/mcp-gateway:v0.1.0 (see docs/DECISIONS.md).
+    build: { <<: *python-build, target: mcp-gateway }
+    image: collections-copilot/mcp-gateway:dev
+    environment:
+      MCPGW_DATABASE_URL: postgresql://cc:cc@postgres:5432/cc
+      MCPGW_UPSTREAMS: ledger=http://ledger-mcp:8343/mcp
+      MCPGW_POLICY_FILE: /app/deploy/mcpgw/policy/collections.yaml
+      MCPGW_APPROVAL_WEBHOOK_URL: http://api:8310/api/v1/webhooks/mcpgw/approvals
+      MCPGW_APPROVAL_WEBHOOK_SECRET: dev-mcpgw-webhook-secret
+      MCPGW_DEV_ISSUER: "true"
+      MCPGW_JWKS_URL: http://api:8310/.well-known/agent-jwks.json
+    ports: ["127.0.0.1:8344:8344", "127.0.0.1:8348:8348", "127.0.0.1:8349:8349"]
+    depends_on:
+      postgres: { condition: service_healthy }
+      ledger-mcp: { condition: service_healthy }
+
+  api:
+    build: { <<: *python-build, target: api }
+    image: collections-copilot/api:dev
+    environment:
+      <<: *app-env
+      CC_API_WORKERS: "${CC_API_WORKERS:-4}"  # one process is CPU-bound below NFR-1 (DECISIONS)
+    ports: ["127.0.0.1:8310:8310"]
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      elasticmq: { condition: service_healthy }
+      minio: { condition: service_healthy }
+      dev-oidc: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
+
+  worker:
+    build: { <<: *python-build, target: worker }
+    image: collections-copilot/worker:dev
+    environment: *app-env
+    stop_grace_period: 30s
+    ports: ["127.0.0.1:8311:8311"]
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      elasticmq: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
+
+  web:
+    # Console and BFF (production build). The browser reaches dev-oidc on localhost:8345; the BFF
+    # exchanges codes and fetches keys over the compose network.
+    build:
+      context: .
+      dockerfile: web/Dockerfile
+      target: web
+      network: host
+      args:
+        HTTPS_PROXY: "${HTTPS_PROXY:-}"
+    image: collections-copilot/web:dev
+    environment:
+      WEB_SESSION_SECRET: "${WEB_SESSION_SECRET:-dev-only-session-secret-change-me-32bytes!!}"
+      WEB_ALLOW_DEV_SECRET: "true"
+      WEB_API_BASE_URL: http://api:8310
+      WEB_OIDC_ISSUER: http://dev-oidc:8345
+      WEB_OIDC_PUBLIC_ISSUER: http://localhost:8345
+      WEB_OIDC_CLIENT_ID: cc-web
+      WEB_PUBLIC_URL: http://localhost:8300
+    ports: ["127.0.0.1:8300:8300"]
+    depends_on:
+      api: { condition: service_healthy }
+      dev-oidc: { condition: service_healthy }
+
+  debtor-sim:
+    # Demo only: reads the WireMock journal and posts signed Twilio callbacks and replies.
+    build: { <<: *python-build, target: debtor-sim }
+    image: collections-copilot/debtor-sim:dev
+    environment:
+      DEBTOR_SIM_WIREMOCK_URL: http://wiremock-twilio:8080
+      DEBTOR_SIM_API_URL: http://api:8310
+      CC_PUBLIC_BASE_URL: http://api:8310
+      CC_TWILIO_AUTH_TOKEN: dev-twilio-auth-token
+      DEBTOR_SIM_PERSONA: "${DEBTOR_SIM_PERSONA:-auto}"
+    depends_on:
+      api: { condition: service_healthy }
+      wiremock-twilio: { condition: service_healthy }
+
+  # Profile `observability` (§14): `make observability` starts it with trace export switched on.
+  jaeger:
+    image: jaegertracing/jaeger:2.9.0
+    profiles: ["observability"]
+    command: ["--config", "/etc/jaeger/config.yaml"]
+    volumes: ["./deploy/jaeger/config.yaml:/etc/jaeger/config.yaml:ro"]
+    ports: ["127.0.0.1:8380:4317", "127.0.0.1:8381:4318", "127.0.0.1:8392:16686"]
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:13133/status"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    profiles: ["observability"]
+    volumes:
+      - ./deploy/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./deploy/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+    ports: ["127.0.0.1:8390:9090"]
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:9090/-/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  grafana:
+    image: grafana/grafana:12.1.1
+    profiles: ["observability"]
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"  # local only, bound to 127.0.0.1
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_SECURITY_ADMIN_PASSWORD: "${GF_SECURITY_ADMIN_PASSWORD:-cc-local-admin}"
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/collections.json
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+    volumes:
+      - ./deploy/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./deploy/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports: ["127.0.0.1:8391:3000"]
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    depends_on:
+      prometheus: { condition: service_healthy }
+      jaeger: { condition: service_healthy }
+
+volumes:
+  pgdata:
+  miniodata:
