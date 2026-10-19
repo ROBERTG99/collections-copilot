@@ -61,7 +61,7 @@ services:
       retries: 30
 
   elasticmq:
-    image: softwaremill/elasticmq-native:1.6.14
+    image: softwaremill/elasticmq-native:1.7.1
     ports: ["127.0.0.1:8340:9324"]
     volumes:
       - ./deploy/elasticmq.conf:/opt/elasticmq.conf:ro
