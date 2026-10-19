@@ -29,6 +29,8 @@ test.describe("replies", () => {
       .poll(
         async () => {
           await page.reload();
+          // Count only once the reloaded list has rendered this case's row again.
+          await expect(mine).toBeVisible();
           return mine.getByRole("button", { name: "Reclassify" }).count();
         },
         { timeout: 30_000, intervals: [1000, 2000] },

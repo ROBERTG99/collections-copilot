@@ -76,7 +76,7 @@ test-docker: ## The suites inside the tools image, then the stack tests (`-m doc
 	$(RUN) pytest tests/integration -m docker -q
 
 e2e: ## Playwright end-to-end tests (+ axe) against the running stack
-	cd web && $(PNPM) exec playwright test
+	PNPM="$(PNPM)" ./scripts/e2e.sh
 
 eval: ## Offline evals with thresholds; writes evals/REPORT.md
 	$(RUN) python scripts/eval_report.py --mode offline
