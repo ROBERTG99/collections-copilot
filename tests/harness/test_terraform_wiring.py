@@ -1,4 +1,4 @@
-"""M7 Terraform review: the task definitions in envs/dev must name settings the services read and
+"""The task definitions in envs/dev must name settings the services read and
 paths the API serves. Two of these were wrong and every Terraform test still passed."""
 
 from __future__ import annotations

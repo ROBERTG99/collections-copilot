@@ -1,10 +1,10 @@
-"""T-03: every make target documented in the spec, README and CLAUDE.md exists in the Makefile."""
+"""Every make target documented in the README, CLAUDE.md, AGENTS.md and CONTRIBUTING.md exists in the Makefile."""
 
 import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-DOCS = ["docs/specs/000-build-spec.md", "README.md", "CLAUDE.md", "AGENTS.md", "CONTRIBUTING.md"]
+DOCS = ["README.md", "CLAUDE.md", "AGENTS.md", "CONTRIBUTING.md"]
 
 
 def _makefile_targets() -> set[str]:

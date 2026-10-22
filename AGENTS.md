@@ -1,6 +1,6 @@
 # AGENTS.md — collections-copilot
 
-Instructions for any coding agent working in this repository. `CLAUDE.md` holds the same essentials with more detail; the specification is `docs/specs/000-build-spec.md`.
+Instructions for AI coding assistants working in this repository. `CLAUDE.md` holds the same essentials with more detail; the architecture is in `docs/architecture.md`.
 
 ## What this is
 
@@ -22,4 +22,4 @@ A B2B collections assistant. Deterministic code computes the priority score, enf
 4. Synthetic data only (`+1555…` / `+34555…` numbers).
 5. No attribution trailers in commits or PRs; never change git identity.
 6. Never run `terraform apply`/`destroy` or deploy anywhere.
-7. Record ambiguous decisions in `docs/DECISIONS.md` and progress in `PROGRESS.md`.
+7. Record design decisions in `docs/DECISIONS.md` and known gaps in `docs/KNOWN_LIMITATIONS.md`.

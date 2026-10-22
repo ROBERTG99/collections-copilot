@@ -1,8 +1,8 @@
 # CLAUDE.md — collections-copilot
 
-B2B collections agent: a deterministic priority queue, LLM-assisted next-best-action and SMS drafts with human approval, Twilio SMS, reply classification and promise-to-pay write-back to a ledger through mcp-gateway. Synthetic data only. The full specification is `docs/specs/000-build-spec.md` (`BUILD.md` until the build finishes).
+B2B collections agent: a deterministic priority queue, LLM-assisted next-best-action and SMS drafts with human approval, Twilio SMS, reply classification and promise-to-pay write-back to a ledger through mcp-gateway. Synthetic data only. Architecture: `docs/architecture.md`; decisions: `docs/DECISIONS.md` and `docs/adr/`.
 
-## Map (§4.8)
+## Map
 
 ```text
 src/collections_copilot/  api/ agent/ compliance/ scoring/ llm/ integrations/{sms,storage,queue,mcp,email}/
@@ -37,9 +37,9 @@ tests/                    unit/ integration/ contract/ e2e/ perf/ harness/ fixtu
 
 Failing test first. No sleeps (poll with timeout), clocks frozen with `time-machine`, fixed seeds, one tenant per integration test. Never skip, xfail or weaken a test or threshold; record gaps in `docs/KNOWN_LIMITATIONS.md`. Everything runs offline with `CC_LLM_PROVIDER=fake`.
 
-## Commit attribution (§1.1)
+## Commit attribution
 
-Commits and pull requests go out under the maintainer's name only. Do not add Co-Authored-By, Claude-Session or "Generated with Claude Code" trailers. Do not modify `git config user.*` or `GIT_AUTHOR_*` / `GIT_COMMITTER_*`.
+Commits and pull requests go out under the repository owner's name only. Do not add Co-Authored-By, Claude-Session or "Generated with Claude Code" trailers. Do not modify `git config user.*` or `GIT_AUTHOR_*` / `GIT_COMMITTER_*`.
 
 ## Never
 
@@ -47,8 +47,8 @@ Commits and pull requests go out under the maintainer's name only. Do not add Co
 - Create, publish or change visibility of a GitHub repository; push tags; force-push.
 - Send messages to real recipients; use non-synthetic phone numbers (only `+1555…`, `+34555…`).
 - Commit secrets or real personal data; edit committed `evals/datasets/*test*` files; lower an eval threshold.
-- Send an SMS without an approval record or a matching auto-approval policy.
+- Send an SMS without an approval record or a matching auto-approval policy (the single STOP confirmation is the one rule-based exception).
 
 ## Where things live
 
-Spec `docs/specs/000-build-spec.md` · progress `PROGRESS.md` · decisions `docs/DECISIONS.md` · ADRs `docs/adr/` · known gaps `docs/KNOWN_LIMITATIONS.md` · runbook `docs/runbook.md` · security `docs/security.md` · rules `.claude/rules/` · subagents `.claude/agents/` · skills `.claude/skills/`.
+Architecture `docs/architecture.md` · decisions `docs/DECISIONS.md` · ADRs `docs/adr/` · known gaps `docs/KNOWN_LIMITATIONS.md` · runbook `docs/runbook.md` · security `docs/security.md` · rules `.claude/rules/` · agents `.claude/agents/` · skills `.claude/skills/`.

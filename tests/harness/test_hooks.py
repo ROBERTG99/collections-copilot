@@ -1,4 +1,4 @@
-"""T-05: Claude Code hooks block forbidden actions, format edits and never loop on Stop."""
+"""Claude Code hooks block forbidden actions, format edits and never loop on Stop."""
 
 from __future__ import annotations
 

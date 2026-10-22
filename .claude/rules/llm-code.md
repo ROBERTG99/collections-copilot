@@ -4,7 +4,7 @@ paths:
   - "src/collections_copilot/agent/**"
   - "prompts/**"
 ---
-# LLM code rules (BUILD.md Appendix B)
+# LLM code rules
 
 - Load the `claude-api` skill before writing code that calls Claude.
 - Only `collections_copilot.llm` imports provider SDKs (`anthropic`, `langchain_aws`); import-linter enforces it.

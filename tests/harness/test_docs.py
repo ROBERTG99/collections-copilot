@@ -1,4 +1,4 @@
-"""T-50 (§18, rule 6): the documents exist, every reported number cites what produced it, the
+"""The documents exist, every reported number cites what produced it, the
 design FAQ points at real code, ADRs name the rejected alternative, and relative links resolve."""
 
 from __future__ import annotations
@@ -8,10 +8,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 
-SECTION_18 = [
+DOCUMENTS = [
     "README.md",
     "docs/architecture.md",
-    "docs/ai-development.md",
     "docs/evaluation.md",
     "evals/REPORT.md",
     "docs/security.md",
@@ -19,7 +18,6 @@ SECTION_18 = [
     "docs/DEVELOPMENT.md",
     "docs/design-faq.md",
     "docs/KNOWN_LIMITATIONS.md",
-    "docs/verification.md",
     "CONTRIBUTING.md",
     "SECURITY.md",
     "CHANGELOG.md",
@@ -36,16 +34,14 @@ ADRS = {
     "0008": "terraform",
     "0009": "elasticmq",
 }
-# Documents that report results. DECISIONS, KNOWN_LIMITATIONS and PROGRESS are logs that carry
+# Documents that report results. DECISIONS and KNOWN_LIMITATIONS are logs that carry
 # their own evidence; REPORT.md is generated.
 REPORTING = [
     "README.md",
     "docs/architecture.md",
-    "docs/ai-development.md",
     "docs/evaluation.md",
     "docs/design-faq.md",
     "docs/runbook.md",
-    "docs/verification.md",
     "docs/security.md",
     "docs/DEVELOPMENT.md",
 ]
@@ -56,7 +52,7 @@ METRIC = re.compile(
 )
 CITATION = re.compile(
     r"`(?:make|uv run|pnpm|terraform|docker|k6|cd web|\./scripts/)[^`]*`"
-    r"|evals/REPORT\.md|evals/reports/|docs/verification\.md|PROGRESS\.md|Source:"
+    r"|evals/REPORT\.md|evals/reports/|docs/DECISIONS\.md|Source:"
 )
 FILE_LINE = re.compile(r"`([\w./\[\]()-]+\.(?:py|ts|tsx|tf|hcl|yaml|yml|md|sh)):(\d+)(?:-(\d+))?`")
 LINK = re.compile(r"\]\(([^)#\s]+)(?:#[^)]*)?\)")
@@ -68,8 +64,8 @@ def sections(text: str) -> list[str]:
     return re.split(r"(?m)^#{1,6} ", text)
 
 
-def test_every_section_18_document_exists() -> None:
-    assert [f for f in SECTION_18 if not (ROOT / f).is_file()] == []
+def test_every_document_exists() -> None:
+    assert [f for f in DOCUMENTS if not (ROOT / f).is_file()] == []
 
 
 def test_adrs_name_the_rejected_alternative() -> None:
@@ -108,7 +104,7 @@ def test_design_faq_answers_point_at_code() -> None:
 
 
 def test_relative_links_resolve() -> None:
-    docs = [ROOT / n for n in SECTION_18 if n.endswith(".md")]
+    docs = [ROOT / n for n in DOCUMENTS if n.endswith(".md")]
     docs += sorted((ROOT / "docs/adr").glob("*.md"))
     broken = []
     for doc in docs:
@@ -120,7 +116,7 @@ def test_relative_links_resolve() -> None:
     assert broken == []
 
 
-def test_readme_shows_the_reviewer_path() -> None:
+def test_readme_shows_the_quickstart() -> None:
     text = (ROOT / "README.md").read_text()
     for needed in (
         "make up",
