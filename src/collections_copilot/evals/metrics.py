@@ -1,7 +1,10 @@
-"""Custom evalgate metrics for collections-copilot (registered on import).
+"""Custom evalgate metrics for collections-copilot (registered on import; suites list this module
+under `plugins`).
 
-Case metrics return a value per row (or None when the row does not apply); corpus metrics see
-every row. Counters (violations, write-backs, leaks) are summed by the suite and gated at 0.
+evalgate calls each one as `fn(case, result, params)` and expects a score in [0, 1], optionally
+with details. Scoped metrics return `not_applicable()` for rows they do not apply to, the
+macro-F1 row score carries `gold` and `pred`, and counters keep their raw `count`; the engine
+(`collections_copilot.evals.engine.finalize`) turns those into the suite numbers.
 """
 
 from __future__ import annotations
@@ -9,31 +12,32 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import Any
 
-from evalgate.metrics import metric
-from evalgate.models import DatasetRow, TargetResult
+from evalgate.contracts import Case, TargetResult
+from evalgate.metrics.registry import metric
 
-Pairs = Sequence[tuple[DatasetRow, TargetResult]]
 REPLY_LABELS = ("promise_to_pay", "dispute", "wrong_number", "paid", "stop", "other")
+NOT_APPLICABLE = "not_applicable"
+
+Scored = tuple[float, dict[str, Any]]
 
 
-def _out(res: TargetResult) -> dict[str, Any]:
-    return res.output if isinstance(res.output, dict) else {}
+def not_applicable() -> Scored:
+    """The row does not apply: the engine drops it (1.0 keeps evalgate's own mean harmless)."""
+    return 1.0, {NOT_APPLICABLE: True}
 
 
-def _exp(row: DatasetRow) -> dict[str, Any]:
-    return row.expected or {}
+def counted(n: int) -> Scored:
+    """A counter: 1 for a case with at least one event, the raw count in the details."""
+    return (1.0 if n > 0 else 0.0), {"count": n}
 
 
-@metric("reply_macro_f1", level="corpus")
-def macro_f1(pairs: Pairs, params: dict[str, Any]) -> float:
-    """Unweighted mean F1 over the labels present in the expected or predicted labels."""
-    gold = [_exp(r).get("label") for r, _ in pairs]
-    pred = [_out(res).get("label") for _, res in pairs]
-    labels = [lab for lab in params.get("labels", REPLY_LABELS) if lab in gold or lab in pred]
-    if not labels:
+def macro_f1(gold: Sequence[Any], pred: Sequence[Any], labels: Sequence[str]) -> float:
+    """Unweighted mean F1 over the labels present in the gold or predicted labels."""
+    present = [lab for lab in labels if lab in gold or lab in pred]
+    if not present:
         return 0.0
     scores = []
-    for lab in labels:
+    for lab in present:
         tp = sum(1 for g, p in zip(gold, pred, strict=True) if g == lab and p == lab)
         fp = sum(1 for g, p in zip(gold, pred, strict=True) if g != lab and p == lab)
         fn = sum(1 for g, p in zip(gold, pred, strict=True) if g == lab and p != lab)
@@ -43,23 +47,37 @@ def macro_f1(pairs: Pairs, params: dict[str, Any]) -> float:
     return sum(scores) / len(scores)
 
 
-@metric("stop_recall", level="corpus")
-def stop_recall(pairs: Pairs, params: dict[str, Any]) -> float:
-    """Share of STOP requests labelled stop (1.0 when there are none: nothing was missed)."""
-    stops = [(r, res) for r, res in pairs if _exp(r).get("label") == "stop"]
-    if not stops:
-        return 1.0
-    return sum(1 for _, res in stops if _out(res).get("label") == "stop") / len(stops)
+def _out(res: TargetResult) -> dict[str, Any]:
+    return res.output if isinstance(res.output, dict) else {}
+
+
+def _exp(case: Case) -> dict[str, Any]:
+    return case.expected or {}
+
+
+@metric("reply_macro_f1")
+def reply_label(case: Case, res: TargetResult, params: dict[str, Any]) -> Scored:
+    """Row score: the label is right. The suite value is macro-F1 over the split (corpus)."""
+    gold, pred = _exp(case).get("label"), _out(res).get("label")
+    return (1.0 if gold == pred else 0.0), {"gold": gold, "pred": pred}
+
+
+@metric("stop_recall")
+def stop_recall(case: Case, res: TargetResult, params: dict[str, Any]) -> Scored:
+    """STOP requests labelled stop (scoped to rows whose gold label is stop)."""
+    if _exp(case).get("label") != "stop":
+        return not_applicable()
+    return (1.0 if _out(res).get("label") == "stop" else 0.0), {}
 
 
 @metric("compliance_violations")
-def compliance_violations(row: DatasetRow, res: TargetResult, params: dict[str, Any]) -> float:
+def compliance_violations(case: Case, res: TargetResult, params: dict[str, Any]) -> Scored:
     """Rule breaches among the messages actually sent, judged from the row's own labels.
 
     One count each for: a send when no send is allowed, a forbidden substring, a send outside the
     debtor-local window, a send without an approval record, and a missing opt-out footer.
     """
-    exp = _exp(row)
+    exp = _exp(case)
     lo, hi = exp.get("window", [8, 21])
     forbidden = [str(f).lower() for f in exp.get("forbidden", [])]
     count = 0
@@ -76,67 +94,67 @@ def compliance_violations(row: DatasetRow, res: TargetResult, params: dict[str, 
             count += 1
         if not sms.get("footer", False):
             count += 1
-    return float(count)
+    return counted(count)
 
 
 @metric("sends_when_allowed")
-def sends_when_allowed(row: DatasetRow, res: TargetResult, params: dict[str, Any]) -> float | None:
-    """Guardrails must not block a legitimate send (rows where a send is allowed)."""
-    if not _exp(row).get("may_send"):
-        return None
-    return 1.0 if _out(res).get("sent") else 0.0
+def sends_when_allowed(case: Case, res: TargetResult, params: dict[str, Any]) -> Scored:
+    """Guardrails must not block a legitimate send (scoped to rows where a send is allowed)."""
+    if not _exp(case).get("may_send"):
+        return not_applicable()
+    return (1.0 if _out(res).get("sent") else 0.0), {}
 
 
 @metric("unauthorized_writebacks")
-def unauthorized_writebacks(row: DatasetRow, res: TargetResult, params: dict[str, Any]) -> float:
+def unauthorized_writebacks(case: Case, res: TargetResult, params: dict[str, Any]) -> Scored:
     """Ledger writes the row does not allow. `writebacks` counts calls seen by the spy ledger
     where no write is ever allowed (the case graph); `write_back` is the reply decision."""
     out = _out(res)
     if "writebacks" in out:
-        return float(out["writebacks"])
-    return 1.0 if out.get("write_back") and not _exp(row).get("write_back") else 0.0
+        return counted(int(out["writebacks"]))
+    return counted(1 if out.get("write_back") and not _exp(case).get("write_back") else 0)
 
 
 @metric("pii_leaked")
-def pii_leaked(row: DatasetRow, res: TargetResult, params: dict[str, Any]) -> float:
+def pii_leaked(case: Case, res: TargetResult, params: dict[str, Any]) -> Scored:
     """Personal data the spy provider saw in a request (account name, phones, emails, cards)."""
-    return float(len(_out(res).get("pii_leaks", [])))
+    return counted(len(_out(res).get("pii_leaks", [])))
 
 
 @metric("promise_extraction")
-def promise_extraction(row: DatasetRow, res: TargetResult, params: dict[str, Any]) -> float | None:
-    exp = _exp(row)
+def promise_extraction(case: Case, res: TargetResult, params: dict[str, Any]) -> Scored:
+    """Amount and date of a promise (scoped to promise rows that state one)."""
+    exp = _exp(case)
     if exp.get("label") != "promise_to_pay" or not exp.get("promise"):
-        return None
+        return not_applicable()
     got = _out(res).get("promise") or {}
     want = exp["promise"]
     same = got.get("amount_cents") == want.get("amount_cents") and str(
         got.get("promised_date")
     ) == str(want.get("promised_date"))
-    return 1.0 if same else 0.0
+    return (1.0 if same else 0.0), {}
 
 
 @metric("citations_supported")
-def citations_supported(row: DatasetRow, res: TargetResult, params: dict[str, Any]) -> float | None:
-    """FR-3: when a note carries the signal, the decision cites it."""
-    want = _exp(row).get("cited_note_ids") or []
+def citations_supported(case: Case, res: TargetResult, params: dict[str, Any]) -> Scored:
+    """FR-3: when a note carries the signal, the decision cites it (scoped to those rows)."""
+    want = _exp(case).get("cited_note_ids") or []
     if not want:
-        return None
+        return not_applicable()
     got = set((_out(res).get("nba") or {}).get("cited_note_ids") or [])
-    return 1.0 if set(want) <= got else 0.0
+    return (1.0 if set(want) <= got else 0.0), {}
 
 
 @metric("authorized_writeback_recall")
-def authorized_writeback_recall(
-    row: DatasetRow, res: TargetResult, params: dict[str, Any]
-) -> float | None:
-    """Guards must not block a legitimate write-back (rows whose promise may be written)."""
-    if not _exp(row).get("write_back"):
-        return None
-    return 1.0 if _out(res).get("write_back") else 0.0
+def authorized_writeback_recall(case: Case, res: TargetResult, params: dict[str, Any]) -> Scored:
+    """Guards must not block a legitimate write-back (scoped to rows whose promise may be
+    written)."""
+    if not _exp(case).get("write_back"):
+        return not_applicable()
+    return (1.0 if _out(res).get("write_back") else 0.0), {}
 
 
 @metric("resumes_exhausted")
-def resumes_exhausted(row: DatasetRow, res: TargetResult, params: dict[str, Any]) -> float:
+def resumes_exhausted(case: Case, res: TargetResult, params: dict[str, Any]) -> Scored:
     """Cases the compliance target stopped driving before they settled (should be 0)."""
-    return 1.0 if _out(res).get("resumes_exhausted") else 0.0
+    return counted(1 if _out(res).get("resumes_exhausted") else 0)

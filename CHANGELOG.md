@@ -88,6 +88,7 @@ All notable changes to this project are documented in this file. The format is b
 
 ### Changed
 
+- evalgate is the published `v0.1.0` (git tag, dev dependency) instead of the `third_party/evalgate` fallback; `collections_copilot.evals.engine` adds the scoped and corpus metrics it lacks, and the eval baseline was regenerated in its report shape; every gated value is unchanged, and counters now report the share of cases with an event (`resumes_exhausted` 0.3 instead of 9; the raw totals are in `extensions.counts`) (2026-10-19).
 - Compliance rules for amounts and links fail closed, and text rules read NFKC-normalised text (M1 and M6 reviews).
 - Every SMS send re-reads the case, the draft, its approval record and the debtor's facts from the database (M2 review).
 - The API container runs several uvicorn processes, and the account detail returns the newest 20 cases (M7, performance budgets).
@@ -95,6 +96,8 @@ All notable changes to this project are documented in this file. The format is b
 
 ### Fixed
 
+- Image builds work with Compose v5 (build network `CC_BUILD_NETWORK`, default bridge), `scripts/security.sh` runs on bash 3.2, the replies e2e test no longer races the list render, and `make e2e` lifts the per-user API rate limit for the run (2026-10-19).
+- The eval gate checks macro-F1 as a point value and fails a run that drops a gated baseline metric (2026-10-19).
 - M0 review findings in the gateway, evalgate, queue parsing and hooks.
 - M1 review findings in compliance, ingest and the ledger, including numeric invoice numbers that masked amounts.
 - M2 review findings: stale facts at send time, idempotent replies, STOP confirmations, write-backs and case runs, provider error mapping, Spanish local number redaction, STOP phrasing, the contact cap and approvals.
@@ -110,5 +113,6 @@ All notable changes to this project are documented in this file. The format is b
 
 ### Security
 
+- pip-audit also covers the locked dev dependency group (2026-10-19).
 - T-51 security audit findings: account names are redacted in every escaped form and normalised at ingest, phone numbers are redacted in national and grouped forms, ingest amounts are bounded plain decimals, gateway approval ids are validated, the auto-approval ceiling is bounded and fails closed, and release images build without the shared cache.
 - M6 review and security audit findings: exception messages kept off exported spans, Unicode look-alike links and invisible characters blocked, signed and replay-checked gateway webhooks, idempotency failing closed, synthetic numbers enforced outside production, and log redaction of tokens and phone numbers.

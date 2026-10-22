@@ -2,31 +2,46 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
-from evalgate.models import CaseResult, MetricResult, Report
+from evalgate.contracts import CaseReport, MetricSummary, Report
 
 from collections_copilot.evals import report as er
 
 
 def _report(value: float, *, suite: str = "replies", n: int = 50) -> Report:
     hits = round(value * n)
-    return Report(
-        suite=suite,
-        run_id="r",
-        created_at=datetime(2026, 3, 10, tzinfo=UTC),
-        n_cases=n,
-        metrics={
-            "acc": MetricResult(value=value, threshold=0.8, direction="higher", passed=value >= 0.8)
-        },
-        cases=[
-            CaseResult(
-                id=f"c{i}", split="test", scores={"acc": 1.0 if i < hits else 0.0}, passed=True
-            )
-            for i in range(n)
-        ],
+    return Report.model_validate(
+        {
+            "schema": "evalgate.report.v1",
+            "suite": suite,
+            "run_id": "r",
+            "created_at": "2026-03-10T00:00:00Z",
+            "mode": "offline",
+            "n_cases": n,
+            "metrics": {
+                "acc": MetricSummary(
+                    value=value, threshold=0.8, direction="higher", passed=value >= 0.8
+                )
+            },
+            "cost_usd_total": 0.0,
+            "cost_usd_per_case": 0.0,
+            "latency_p50_ms": 1.0,
+            "latency_p95_ms": 2.0,
+            "cases": [
+                CaseReport(
+                    id=f"c{i}",
+                    split="test",
+                    scores={"acc": 1.0 if i < hits else 0.0},
+                    passed=True,
+                    cost_usd=0.0,
+                    latency_ms=1.0,
+                )
+                for i in range(n)
+            ],
+            "extensions": {"gates": {"acc": True}},
+        }
     )
 
 
@@ -93,7 +108,10 @@ async def test_errored_runs_never_become_the_baseline(
     assert not runs[0].check.passed
 
     errored.cases[0].error = None
-    errored.metrics["acc"].passed = False  # below threshold, but every case ran
+    # below threshold, but every case ran
+    errored.metrics["acc"] = errored.metrics["acc"].model_copy(
+        update={"value": 0.7, "passed": False}
+    )
     runs, created = await er.run_all(
         ["replies"], mode="offline", with_dev=False, update_baseline=False
     )
@@ -103,12 +121,11 @@ async def test_errored_runs_never_become_the_baseline(
 
 
 async def test_tone_rubric_loads_and_offline_calibration_is_reported() -> None:
-    from evalgate.loader import load_rubric
-
     from collections_copilot.evals import judge
 
-    rubric = load_rubric(judge.RUBRIC)
-    assert rubric.route == "judge_tone"
+    rubric = judge.load_rubric(judge.RUBRIC)
+    assert rubric.schema_ == "evalgate.rubric.v1"
+    assert rubric.version == 1
     assert rubric.thresholds.agreement_min == 0.8
     result = await judge.calibrate_tone("test")
     assert result.n == 40

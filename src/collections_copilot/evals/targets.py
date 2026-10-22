@@ -8,24 +8,27 @@
   checks on purpose, and a scheduler that resumes deferred sends at their send time. Every SMS
   the graph sends, every ledger call and every provider request is recorded.
 
-The NBA suite uses `collections_copilot.agent.case_graph:eval_graph` directly.
+- `nba_case`: `collections_copilot.agent.case_graph:eval_graph` on one account, streamed node by
+  node (one step record per node, as evalgate's `langgraph:` target does; that target streams a
+  compiled graph without a `thread_id`, which the graph's checkpointer needs).
 """
 
 from __future__ import annotations
 
 import re
 import time
+import uuid
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from evalgate.models import StepRecord as EvalStep
-from evalgate.models import TargetResult
+from evalgate.contracts import StepRecord as EvalStep
+from evalgate.contracts import TargetResult
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.types import Command
 
-from collections_copilot.agent.case_graph import build_case_graph
+from collections_copilot.agent.case_graph import build_case_graph, eval_graph
 from collections_copilot.agent.reply_graph import classify_text, may_write_back, promise_problems
 from collections_copilot.agent.services import Services
 from collections_copilot.agent.store import MemoryCaseStore
@@ -117,11 +120,37 @@ def _steps(sink: InMemoryStepSink) -> list[EvalStep]:
             output_tokens=r.output_tokens,
             cost_usd=r.cost_usd,
             latency_ms=r.latency_ms,
-            status=r.status if r.status in ("ok", "error", "fallback") else "fallback",
+            # evalgate's step statuses are ok, error, timeout and skipped: a model call that
+            # did not succeed is an error, with the gateway's own status kept.
+            status="ok" if r.status == "ok" else "error",
+            error=None if r.status == "ok" else r.status,
         )
         for r in sink.records
         if r.kind == "llm"
     ]
+
+
+async def nba_case(case_input: dict[str, Any]) -> TargetResult:
+    graph = eval_graph()
+    config: Any = {"configurable": {"thread_id": str(uuid.uuid4())}}
+    state: dict[str, Any] = dict(case_input)
+    steps: list[EvalStep] = []
+    previous = time.perf_counter()
+    async for update in graph.astream(case_input, config, stream_mode="updates"):
+        now = time.perf_counter()
+        for node, delta in update.items():
+            if node == "__interrupt__":
+                state["__interrupt__"] = True
+                continue
+            steps.append(
+                EvalStep(
+                    node=node, step=len(steps), kind="other", latency_ms=(now - previous) * 1000
+                )
+            )
+            if isinstance(delta, dict):
+                state.update(delta)
+        previous = now
+    return TargetResult(output=state, steps=steps)
 
 
 async def classify_reply(case_input: dict[str, Any]) -> TargetResult:

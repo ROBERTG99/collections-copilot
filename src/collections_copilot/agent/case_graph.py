@@ -795,7 +795,7 @@ def _is_uuid(value: str) -> bool:
 
 
 def eval_graph() -> Any:
-    """evalgate target (`langgraph: collections_copilot.agent.case_graph:eval_graph`): in-memory
+    """The NBA eval graph (`collections_copilot.evals.targets:nba_case` streams it): in-memory
     store, in-memory checkpointer and the configured provider (FakeLLM unless CC_LLM_PROVIDER is set)."""
     from langgraph.checkpoint.memory import InMemorySaver
 

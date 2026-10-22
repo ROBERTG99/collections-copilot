@@ -39,5 +39,8 @@ pnpm install --frozen-lockfile >&2
 [ -f .env ] || cp .env.example .env
 if [ -n "${CLAUDE_ENV_FILE:-}" ]; then
   echo "export PATH=\"$HOME/.local/bin:$HOME/go/bin:\$PATH\"" >> "$CLAUDE_ENV_FILE"
+  # Image builds need host networking to reach the egress proxy (Appendix A); elsewhere the
+  # compose default (the bridge) applies, since Compose v5 bake refuses host without a grant.
+  echo "export CC_BUILD_NETWORK=host" >> "$CLAUDE_ENV_FILE"
 fi
 log "ready"

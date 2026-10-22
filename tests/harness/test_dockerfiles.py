@@ -98,3 +98,14 @@ def test_test_compose_runs_the_suite_offline() -> None:
     assert env["CC_LLM_PROVIDER"] == "fake"
     assert "pytest" in " ".join(tests["command"])
     assert (ROOT / "scripts" / "time_up.sh").is_file()
+
+
+def test_image_builds_use_the_default_network_unless_told_otherwise() -> None:
+    """Compose v5 builds through bake, which refuses `network: host` without an entitlement
+    compose cannot pass; only the proxied cloud container sets CC_BUILD_NETWORK=host."""
+    raw = (ROOT / "compose.yaml").read_text() + (ROOT / "compose.test.yaml").read_text()
+    networks = re.findall(r"^\s+network:\s*(.+)$", raw, re.MULTILINE)
+    assert networks, "compose builds declare their network"
+    assert all(n.strip().strip("\"'") == "${CC_BUILD_NETWORK:-default}" for n in networks)
+    hook = (ROOT / ".claude" / "hooks" / "session_start.sh").read_text()
+    assert "export CC_BUILD_NETWORK=host" in hook

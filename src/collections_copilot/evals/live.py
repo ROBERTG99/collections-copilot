@@ -20,14 +20,12 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from evalgate.calibrate import calibrate
-from evalgate.loader import load_dataset, load_labels, load_rubric, load_suite
-from evalgate.models import DatasetRow, Report, Suite, TargetResult
-from evalgate.runner import build_report, langgraph_target, python_target
+from evalgate.contracts import Case, Report, Suite, TargetResult
+from evalgate.targets import build_target
 
 from collections_copilot.agent.prompts import prompt_names
 from collections_copilot.config import Settings, get_settings
-from collections_copilot.evals import judge
+from collections_copilot.evals import engine, judge
 from collections_copilot.evals import report as offline
 from collections_copilot.llm.gateway import routes
 from collections_copilot.llm.pricing import cost_usd, estimate_usd
@@ -41,7 +39,7 @@ LIVE_SUMMARY = offline.REPORTS_DIR / "live.json"
 SUMMARY_SCHEMA = "collections-copilot.live-evals.v1"
 DEFAULT_BUDGET_USD = 2.0
 COST_PER_ACCOUNT_MAX_USD = 0.02  # §11, live only: the NBA suite's cost per case
-LIVE_TIMEOUT_S = 120.0  # real models with adaptive thinking; the suites' 30 s is for offline
+LIVE_TIMEOUT_S = 120.0  # real models with adaptive thinking; the engine's 30 s is for offline
 # Cheapest first, so a small budget still measures something.
 ORDER = ("replies", "tone", "compliance", "nba")
 CALLS_PER_CASE = {
@@ -151,7 +149,7 @@ class LiveRun:
 
 async def run_budgeted(
     suite: Suite,
-    rows: list[DatasetRow],
+    rows: list[Case],
     target: Target,
     guard: BudgetGuard,
     per_case_estimate_usd: float,
@@ -165,7 +163,7 @@ async def run_budgeted(
     before it is sent, so the budget holds even when one case costs far more than expected; the
     case that hit the limit is dropped, not scored.
     """
-    results: list[tuple[DatasetRow, TargetResult, str | None]] = []
+    results: list[tuple[Case, TargetResult | None, str | None]] = []
     metered = meter is not None and meter.guard is guard
     spent = 0.0
     stopped = False
@@ -177,7 +175,7 @@ async def run_budgeted(
         before = meter.cost_usd if meter else 0.0
         started = time.perf_counter()
         try:
-            res = await asyncio.wait_for(target(row.input), timeout_s or suite.timeout_s)
+            res = await asyncio.wait_for(target(row.input), timeout_s or engine.CASE_TIMEOUT_S)
             err = None
         except Exception as exc:  # a failing case never aborts the run
             if _exhausted(exc):
@@ -191,8 +189,8 @@ async def run_budgeted(
             guard.charge(res.cost_usd)
         spent += res.cost_usd
         results.append((row, res, err))
-    report = build_report(suite, results, mode="live")
-    report.extensions["stopped_at_budget"] = stopped
+    report = engine.score(suite, results, mode="live")
+    report.extensions = {**(report.extensions or {}), "stopped_at_budget": stopped}
     return LiveRun(report, stopped)
 
 
@@ -218,19 +216,17 @@ def per_case_estimate(name: str, settings: Settings) -> float:
 
 def _rows(name: str, split: str) -> int:
     if name == "tone":
-        return len(load_labels(judge.LABELS, split))
-    return len(load_dataset(load_suite(offline.SUITES_DIR / f"{name}.yaml").dataset, split))
+        return len(judge.load_labels(judge.LABELS, split))
+    return len(engine.load_suite(offline.SUITES_DIR / f"{name}.yaml", split).cases)
 
 
 def _target(suite: Suite) -> Target:
-    if suite.target.python:
-        return python_target(suite.target.python)
-    return langgraph_target(suite.target.langgraph or "")
+    return build_target(suite.target)
 
 
 async def _tone(guard: BudgetGuard, meter: Meter, split: str, estimate: float) -> dict[str, Any]:
-    rubric = load_rubric(judge.RUBRIC)
-    labels = load_labels(judge.LABELS, split)
+    rubric = judge.load_rubric(judge.RUBRIC)
+    labels = judge.load_labels(judge.LABELS, split)
     gw = judge.gateway()
     predictions: dict[str, int] = {}
     stopped = False
@@ -248,7 +244,7 @@ async def _tone(guard: BudgetGuard, meter: Meter, split: str, estimate: float) -
             stopped = True
             break
     judged = [row for row in labels if row.id in predictions]
-    result = calibrate(rubric, judged, lambda row: predictions[row.id])
+    result = judge.calibrate(rubric, judged, lambda row: predictions[row.id])
     return {
         "n_cases": result.n,
         "agreement": result.agreement,
@@ -281,14 +277,14 @@ async def run_live(
             if name == "tone":
                 summary["suites"]["tone"] = await _tone(guard, meter, split, estimate)
                 continue
-            suite = load_suite(offline.SUITES_DIR / f"{name}.yaml")
-            rows = load_dataset(suite.dataset, split)
+            loaded = engine.load_suite(offline.SUITES_DIR / f"{name}.yaml", split)
+            suite, rows = loaded.suite, loaded.cases
             run = await run_budgeted(
                 suite, rows, _target(suite), guard, estimate, meter, timeout_s=LIVE_TIMEOUT_S
             )
             rep = run.report
             rep.models = offline.models_for(settings)
-            rep.prompt_hashes = offline.prompt_hashes(suite.prompts)
+            rep.prompt_hashes = offline.prompt_hashes(offline.SUITE_PROMPTS[name])
             reasons = live_failures(name, rep, suite, run.stopped_at_budget)
             summary["suites"][name] = {
                 "n_cases": rep.n_cases,

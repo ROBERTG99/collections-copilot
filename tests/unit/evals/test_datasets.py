@@ -8,8 +8,9 @@ from collections import Counter
 from pathlib import Path
 
 import pytest
-from evalgate.loader import load_dataset, load_labels
+from evalgate.suite.loader import load_dataset
 
+from collections_copilot.evals.judge import load_labels
 from data.generator import evals as gen
 
 ROOT = Path(__file__).resolve().parents[3]

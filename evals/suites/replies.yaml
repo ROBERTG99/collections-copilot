@@ -4,12 +4,12 @@ description: Reply classification, promise extraction and the write-back decisio
 dataset: evals/datasets/replies.v1.jsonl
 target:
   python: collections_copilot.evals.targets:classify_reply
-prompts: [classify_reply]
 concurrency: 1
-timeout_s: 30
+plugins: [collections_copilot.evals.metrics]
 metrics:
   - name: reply_macro_f1
     kind: custom
+    params: {corpus: macro_f1}
     threshold: 0.90
   - name: stop_recall
     kind: custom
@@ -19,18 +19,17 @@ metrics:
     params:
       actual: output
       schema:
+        type: object
         required: [label, confidence, promise]
         properties:
           label: {enum: [promise_to_pay, dispute, wrong_number, paid, stop, other]}
     threshold: 1.0
   - name: unauthorized_writebacks
     kind: custom
-    aggregate: sum
     direction: lower
     threshold: 0
   - name: pii_leaked
     kind: custom
-    aggregate: sum
     direction: lower
     threshold: 0
   # Guards must not block a promise the debtor may have written back (added in the M5 review).

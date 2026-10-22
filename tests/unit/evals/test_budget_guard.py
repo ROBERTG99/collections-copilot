@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
-from evalgate.models import DatasetRow, MetricSpec, Suite, TargetResult, TargetSpec
+from evalgate.contracts import Case, MetricSpec, Suite, TargetResult, TargetSpec
 
 from collections_copilot.evals import live
 from collections_copilot.llm.providers.base import ProviderRequest, ProviderResponse, Usage
@@ -31,7 +31,7 @@ def _suite() -> Suite:
 
 
 async def test_stops_at_budget() -> None:
-    rows = [DatasetRow(id=f"r{i}", split="test", input={}, expected={"v": 1}) for i in range(10)]
+    rows = [Case(id=f"r{i}", split="test", input={}, expected={"v": 1}) for i in range(10)]
     calls: list[int] = []
 
     async def target(case_input: dict[str, Any]) -> TargetResult:
@@ -50,7 +50,7 @@ async def test_stops_at_budget() -> None:
 
 
 async def test_observed_cost_overrides_a_low_estimate() -> None:
-    rows = [DatasetRow(id=f"r{i}", split="test", input={}, expected={"v": 1}) for i in range(10)]
+    rows = [Case(id=f"r{i}", split="test", input={}, expected={"v": 1}) for i in range(10)]
 
     async def target(case_input: dict[str, Any]) -> TargetResult:
         return TargetResult(output={"v": 1}, cost_usd=0.02)
@@ -113,7 +113,7 @@ async def test_meter_and_recorder_wrap_the_provider(tmp_path: Any) -> None:
 
 async def test_one_expensive_case_cannot_overshoot_the_budget() -> None:
     """M5 review: a single case may cost far more than its estimate (retries, long outputs)."""
-    rows = [DatasetRow(id=f"r{i}", split="test", input={}, expected={"v": 1}) for i in range(5)]
+    rows = [Case(id=f"r{i}", split="test", input={}, expected={"v": 1}) for i in range(5)]
     guard = live.BudgetGuard(limit_usd=0.05)
     meter = live.Meter(guard=guard)
 
@@ -167,19 +167,37 @@ async def test_a_cancelled_call_is_charged_at_its_worst_case() -> None:
 
 
 def test_live_gate_drops_the_offline_latency_budget() -> None:
-    from datetime import UTC, datetime
+    from evalgate.contracts import BudgetSpec, CaseReport, MetricSummary, Report
 
-    from evalgate.models import Budget, MetricResult, Report
-
-    suite = _suite().model_copy(update={"budget": Budget(max_p95_ms=300)})
-    report = Report(
-        suite="nba",
-        run_id="r",
-        created_at=datetime(2026, 3, 10, tzinfo=UTC),
-        n_cases=10,
-        metrics={"ok": MetricResult(value=1.0, threshold=0.5, direction="higher", passed=True)},
-        latency_p95_ms=8_000,  # a real model takes seconds
-        cost_usd_per_case=0.01,
+    suite = _suite().model_copy(update={"budget": BudgetSpec(max_p95_ms=300)})
+    report = Report.model_validate(
+        {
+            "schema": "evalgate.report.v1",
+            "suite": "nba",
+            "run_id": "r",
+            "created_at": "2026-03-10T00:00:00Z",
+            "mode": "live",
+            "n_cases": 10,
+            "metrics": {
+                "ok": MetricSummary(value=1.0, threshold=0.5, direction="higher", passed=True)
+            },
+            "cost_usd_total": 0.1,
+            "cost_usd_per_case": 0.01,
+            "latency_p50_ms": 4_000,
+            "latency_p95_ms": 8_000,  # a real model takes seconds
+            "cases": [
+                CaseReport(
+                    id=f"c{i}",
+                    split="test",
+                    scores={"ok": 1.0},
+                    passed=True,
+                    cost_usd=0.01,
+                    latency_ms=4_000,
+                )
+                for i in range(10)
+            ],
+            "extensions": {"gates": {"ok": True}},
+        }
     )
     assert live.live_failures("nba", report, suite, stopped=False) == []
     report.cost_usd_per_case = 0.03
