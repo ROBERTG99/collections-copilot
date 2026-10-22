@@ -262,7 +262,7 @@ services:
       retries: 20
 
   grafana:
-    image: grafana/grafana:12.1.1
+    image: grafana/grafana:13.2.4
     profiles: ["observability"]
     environment:
       GF_AUTH_ANONYMOUS_ENABLED: "true"  # local only, bound to 127.0.0.1
