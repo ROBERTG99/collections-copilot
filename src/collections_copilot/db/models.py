@@ -1,4 +1,4 @@
-"""SQLAlchemy 2 models (BUILD.md §4.3). Every table carries tenant_id; money is bigint cents."""
+"""SQLAlchemy 2 models. Every table carries tenant_id; money is bigint cents."""
 
 from __future__ import annotations
 

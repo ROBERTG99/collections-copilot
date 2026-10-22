@@ -1,5 +1,5 @@
 name: Bug report
-description: Something behaves differently from the specification or the docs.
+description: Something behaves differently from the documentation.
 labels: [bug]
 body:
   - type: markdown

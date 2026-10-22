@@ -1,5 +1,5 @@
 /**
- * Trace headers for BFF → API calls (§14). The BFF starts each trace with a W3C `traceparent`
+ * Trace headers for BFF → API calls. The BFF starts each trace with a W3C `traceparent`
  * (the API's server span continues it, so the whole request shares one trace id) and sends a
  * correlation id that problem details echo back.
  */

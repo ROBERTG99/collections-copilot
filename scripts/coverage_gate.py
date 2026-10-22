@@ -1,6 +1,6 @@
-"""make test: fail when line coverage is below BUILD.md §10 (coverage.xml from pytest-cov).
+"""make test: fail when line coverage is below the project thresholds (coverage.xml from pytest-cov).
 
-Core packages (scoring, compliance, agent, llm, api) need 85%, compliance 95% (T-14), and the
+Core packages (scoring, compliance, agent, llm, api) need 85%, compliance 95%, and the
 whole of src/collections_copilot 70%. Paths in coverage.xml are relative to that source root.
 """
 

@@ -1,7 +1,7 @@
 """Claude via the official `anthropic` SDK: the Claude API (`AsyncAnthropic`) or Amazon Bedrock
 through the Mantle client (`AsyncAnthropicBedrockMantle`, ADR 0002). Same Messages API shape.
 
-Request shape (Appendix B): stable system prompt marked for prompt caching, one user turn (no
+Request shape: stable system prompt marked for prompt caching, one user turn (no
 assistant prefill), adaptive thinking with an explicit per-route effort, structured output via
 `output_config.format` (no forced tool_choice). SDK retries are disabled; the gateway retries.
 """

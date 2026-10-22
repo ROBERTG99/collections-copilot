@@ -6,7 +6,7 @@ export type Source = "ai" | "model" | "fallback" | "analyst" | "rule" | "unknown
 
 /**
  * Who produced a value. Model output is always labelled "AI draft"; deterministic fallbacks say
- * "Template"; a person's edit or correction says so (BUILD.md §13 AI UX).
+ * "Template"; a person's edit or correction says so.
  */
 export function SourceChip({ source, fallback }: { source?: Source | null; fallback?: boolean }) {
   const kind: Source = source ?? (fallback ? "fallback" : "ai");

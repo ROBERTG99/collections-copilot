@@ -1,4 +1,4 @@
-"""The single LLM gateway (BUILD.md §4.6, Appendix B).
+"""The single LLM gateway.
 
 Provider selection, timeouts, retries (only 408/409/429/5xx/connection), a circuit breaker
 (5 consecutive failures → open 60 s), schema validation with one corrective retry, refusal and
@@ -66,7 +66,7 @@ class RouteSpec:
 
 
 def routes(settings: Settings) -> dict[str, RouteSpec]:
-    """§4.6 routing table. Model IDs come from configuration only."""
+    """Routing table. Model IDs come from configuration only."""
     bedrock = settings.llm_provider == "bedrock"
     fast = settings.bedrock_model_fast if bedrock else settings.model_fast
     reasoning = settings.bedrock_model_reasoning if bedrock else settings.model_reasoning

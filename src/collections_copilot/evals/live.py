@@ -1,4 +1,4 @@
-"""`make eval-live`: the suites with real models, within LIVE_EVAL_BUDGET_USD (BUILD.md §11).
+"""`make eval-live`: the suites with real models, within LIVE_EVAL_BUDGET_USD.
 
 Without `ANTHROPIC_API_KEY` nothing runs and the exit code is 0. With a key it prints the
 estimated cost of each suite, then runs the test splits one case at a time through the Claude
@@ -38,7 +38,7 @@ Target = Callable[[dict[str, Any]], Awaitable[TargetResult]]
 LIVE_SUMMARY = offline.REPORTS_DIR / "live.json"
 SUMMARY_SCHEMA = "collections-copilot.live-evals.v1"
 DEFAULT_BUDGET_USD = 2.0
-COST_PER_ACCOUNT_MAX_USD = 0.02  # §11, live only: the NBA suite's cost per case
+COST_PER_ACCOUNT_MAX_USD = 0.02  # live only: the NBA suite's cost per case
 LIVE_TIMEOUT_S = 120.0  # real models with adaptive thinking; the engine's 30 s is for offline
 # Cheapest first, so a small budget still measures something.
 ORDER = ("replies", "tone", "compliance", "nba")
@@ -195,8 +195,8 @@ async def run_budgeted(
 
 
 def live_failures(name: str, report: Report, suite: Suite, stopped: bool) -> list[str]:
-    """Live gate: the suite's thresholds without its offline latency budget (§11: "graph p95
-    offline ≤ 300 ms"), plus NBA cost per account ≤ USD 0.02. A stopped suite is not gated."""
+    """Live gate: the suite's thresholds without its offline latency budget (graph p95
+    offline ≤ 300 ms), plus NBA cost per account ≤ USD 0.02. A stopped suite is not gated."""
     if stopped:
         return []
     failures = offline.gate(report, None, suite.model_copy(update={"budget": None})).failures

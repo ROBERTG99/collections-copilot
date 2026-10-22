@@ -1,4 +1,4 @@
-# Lint, types, unit, integration, contract and harness tests with the coverage gates (BUILD.md §17).
+# Lint, types, unit, integration, contract and harness tests with the coverage gates.
 name: ci
 
 on:

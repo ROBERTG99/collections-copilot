@@ -23,7 +23,7 @@ output "alarm_names" {
 }
 
 output "alarm_thresholds" {
-  description = "Thresholds of the §16.3 alarms (for the tests)."
+  description = "Thresholds of the SLO alarms (for the tests)."
   value = {
     dlq            = [for a in aws_cloudwatch_metric_alarm.dlq_not_empty : a.threshold]
     oldest_message = [for a in aws_cloudwatch_metric_alarm.oldest_message : a.threshold]

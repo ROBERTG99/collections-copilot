@@ -16,7 +16,7 @@ The console is used by analysts, supervisors and admins to approve SMS that go t
 
 ## Alternatives considered
 
-- **A Vite SPA calling the API directly.** Rejected per §5 (stack table: "server-side session"). With a public PKCE client, the SPA would hold the access and refresh tokens in browser memory or storage, where any injected script can read them. The API would need CORS and a public route on the ALB, and the CSRF, body-size and webhook-path checks now in the BFF would move to the API or disappear. Static hosting would also need its own infrastructure (a bucket and a CDN) alongside the ECS services.
+- **A Vite SPA calling the API directly.** Rejected (the stack needs: server-side session). With a public PKCE client, the SPA would hold the access and refresh tokens in browser memory or storage, where any injected script can read them. The API would need CORS and a public route on the ALB, and the CSRF, body-size and webhook-path checks now in the BFF would move to the API or disappear. Static hosting would also need its own infrastructure (a bucket and a CDN) alongside the ECS services.
 - **A Vite SPA with a separate token-holding proxy.** Rejected. It is a BFF anyway, but split across two codebases and two deployables; Next.js gives the console and the BFF one build and one image, tested together by Vitest and Playwright.
 
 ## Consequences

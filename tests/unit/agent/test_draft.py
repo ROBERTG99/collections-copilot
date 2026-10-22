@@ -1,4 +1,4 @@
-"""T-21: drafts (FR-4) and the priority rationale (FR-2)."""
+"""Drafts (FR-4) and the priority rationale (FR-2)."""
 
 from __future__ import annotations
 

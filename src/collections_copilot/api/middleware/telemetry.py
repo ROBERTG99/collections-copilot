@@ -1,4 +1,4 @@
-"""Outermost middleware (§14): correlation id, server span and the request duration histogram.
+"""Outermost middleware: correlation id, server span and the request duration histogram.
 
 The correlation id comes from `X-Correlation-ID` (the BFF sends one) or is generated, and is
 echoed on every response; problem details read the same value. The span continues the caller's

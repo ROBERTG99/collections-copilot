@@ -1,4 +1,4 @@
-"""T-17 / ADR 0002: does langchain-aws ChatBedrockConverse meet Appendix B? (offline probe)
+"""ADR 0002: does langchain-aws ChatBedrockConverse meet the LLM rules in `.claude/rules/llm-code.md`? (offline probe)
 
 ChatBedrock may be used in nodes only if every check passes. Two checks fail on the installed
 version, so Bedrock traffic goes through the SDK's Mantle client. If langchain-aws changes this,
@@ -29,7 +29,7 @@ EXPECTED = {
     "json_schema_parses_valid_output": True,
     "function_calling_never_forces_tool_choice": True,
     # with_structured_output(method="function_calling") returns None when the model answers in
-    # text: a silent failure Appendix B forbids (outputs must be validated, never dropped).
+    # text: a silent failure the LLM rules forbid (outputs must be validated, never dropped).
     "function_calling_fails_loudly_without_tool_call": False,
     "structured_refusal_exposes_stop_reason": True,
     "plain_call_exposes_refusal_stop_reason": True,

@@ -1,4 +1,4 @@
-# collections-copilot — every target documented in BUILD.md §16.2 and README.md.
+# collections-copilot — every target documented in README.md.
 SHELL := /bin/bash
 .SHELLFLAGS := -eu -o pipefail -c
 .DEFAULT_GOAL := help

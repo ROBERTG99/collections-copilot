@@ -1,4 +1,4 @@
-# Least privilege (T-46).
+# Least privilege.
 #
 # Documented exceptions to "no wildcard actions or resources":
 #   1. KMS key policies grant "kms:*" on "*" (this key) to the account root: the standard key

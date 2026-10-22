@@ -1,4 +1,4 @@
-"""M2 review regressions: replies, STOP confirmations, promise write-backs and case runs are
+"""Regressions: replies, STOP confirmations, promise write-backs and case runs are
 idempotent under at-least-once delivery and concurrent workers."""
 
 from __future__ import annotations

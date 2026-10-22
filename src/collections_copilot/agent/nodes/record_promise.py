@@ -104,7 +104,7 @@ async def _apply(
             )
             outcome, action = "promise_held", "promise.approval_required"
         elif result.status == "unavailable" and retries < MAX_WRITE_BACK_ATTEMPTS:
-            # The write may not have happened yet: same key later, with back-off (T-51 reviews).
+            # The write may not have happened yet: same key later, with back-off.
             await repos.follow_ups.add(
                 tenant,
                 case_id=case_id,

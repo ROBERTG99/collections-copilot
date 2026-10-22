@@ -5,7 +5,7 @@
 
 ## Context
 
-Every model call goes through one gateway, `src/collections_copilot/llm/gateway.py` (Appendix B). `CC_LLM_PROVIDER` selects `fake` (the default, offline), `anthropic` (the Claude API) or `bedrock` (`src/collections_copilot/config.py:52`, `src/collections_copilot/llm/providers/__init__.py:39-48`). The same models exist on both hosts under different IDs: `claude-opus-5-5` and `claude-haiku-5-5` on the Claude API, `anthropic.claude-opus-5-5` and `anthropic.claude-haiku-5-5` on Bedrock (`src/collections_copilot/config.py:53-56`).
+Every model call goes through one gateway, `src/collections_copilot/llm/gateway.py`. `CC_LLM_PROVIDER` selects `fake` (the default, offline), `anthropic` (the Claude API) or `bedrock` (`src/collections_copilot/config.py:52`, `src/collections_copilot/llm/providers/__init__.py:39-48`). The same models exist on both hosts under different IDs: `claude-opus-5-5` and `claude-haiku-5-5` on the Claude API, `anthropic.claude-opus-5-5` and `anthropic.claude-haiku-5-5` on Bedrock (`src/collections_copilot/config.py:53-56`).
 
 The production target is AWS (`infra/terraform/envs/dev`). There, every other dependency is reached with IAM task roles, KMS keys and VPC endpoints, and the only secrets are the ones listed in `infra/terraform/envs/dev/main.tf:15-18`. The worker sends redacted notes and replies to the provider on every call (`src/collections_copilot/llm/redaction.py`; docs/security.md, residual risks). The Claude API authenticates with a long-lived `ANTHROPIC_API_KEY`.
 
@@ -14,7 +14,7 @@ The production target is AWS (`infra/terraform/envs/dev`). There, every other de
 - In AWS the worker uses Bedrock. The task environment sets `CC_LLM_PROVIDER = "bedrock"` and takes `CC_BEDROCK_MODEL_FAST` and `CC_BEDROCK_MODEL_REASONING` from `bedrock_model_ids` (`infra/terraform/envs/dev/main.tf:27-29`). That variable must be non-empty and every ID must start with `anthropic.` (`infra/terraform/envs/dev/variables.tf:88-94`).
 - Access is granted by IAM, not by a key. The worker task role may call `bedrock:InvokeModel` and `bedrock:InvokeModelWithResponseStream` only on the configured model IDs (`infra/terraform/modules/iam/main.tf:26-28`, `infra/terraform/modules/iam/main.tf:128`), which `infra/terraform/envs/dev/tests/iam.tftest.hcl` checks. The network module creates a `bedrock-runtime` interface endpoint (`infra/terraform/modules/network/main.tf:9`). No provider key is among the Secrets Manager entries.
 - The Claude API stays a supported provider behind the same adapter and request shape (`src/collections_copilot/llm/providers/anthropic_sdk.py:28`, `:94`, `:101`; ADR 0002). It is the host for `make eval-live` and `make record-fixtures` (`src/collections_copilot/evals/live.py:358`), because a developer machine can hold an API key without an AWS account.
-- The gateway picks the model IDs for the selected provider in one place (`src/collections_copilot/llm/gateway.py:68-72`). There is no failover between providers at runtime: when calls fail, the circuit breaker opens and callers use the deterministic fallbacks of §4.6.
+- The gateway picks the model IDs for the selected provider in one place (`src/collections_copilot/llm/gateway.py:68-72`). There is no failover between providers at runtime: when calls fail, the circuit breaker opens and callers use the deterministic fallbacks.
 
 ## Alternatives considered
 

@@ -1,4 +1,4 @@
-"""T-20: next-best-action node (FR-3): LLM only with notes, rules otherwise, validated output."""
+"""Next-best-action node (FR-3): LLM only with notes, rules otherwise, validated output."""
 
 from __future__ import annotations
 

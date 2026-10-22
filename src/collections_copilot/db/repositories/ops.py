@@ -360,7 +360,7 @@ class FollowUpsRepo(Repo):
 
     async def cancel_for_case(self, tenant_id: TenantId, case_id: uuid.UUID) -> None:
         """Closing a case cancels its pending work, except a promise write-back retry: the
-        promise was already made and must reach the ledger or fail visibly (T-51 round 3)."""
+        promise was already made and must reach the ledger or fail visibly."""
         await self.s.execute(
             update(FollowUp)
             .where(

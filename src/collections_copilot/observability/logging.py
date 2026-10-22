@@ -1,4 +1,4 @@
-"""JSON logs (§14, NFR-10): one object per line with correlation, tenant, case and trace ids.
+"""JSON logs (NFR-10): one object per line with correlation, tenant, case and trace ids.
 
 Phone numbers, e-mail addresses and tokens are masked wherever they appear (message, extra
 fields, exception text); fields that hold message bodies, recipients or credentials are dropped.

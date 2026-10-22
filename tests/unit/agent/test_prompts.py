@@ -1,4 +1,4 @@
-"""T-19: prompts are versioned files; untrusted text is fenced after the instructions."""
+"""Prompts are versioned files; untrusted text is fenced after the instructions."""
 
 from __future__ import annotations
 
@@ -101,7 +101,7 @@ def test_cli_prints_hashes() -> None:
 
 
 def test_context_and_notes_cannot_open_or_close_tags() -> None:
-    """M6 security audit M2: free text in the context (an invoice number) and an
+    """Free text in the context (an invoice number) and an
     already-escaped closing tag in a note stay data."""
     from collections_copilot.agent.prompts import UntrustedNote, render
 

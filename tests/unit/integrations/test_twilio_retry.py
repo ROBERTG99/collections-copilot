@@ -1,4 +1,4 @@
-"""M2 review: a send is retried only when Twilio certainly did not receive it (at-most-once)."""
+"""A send is retried only when Twilio certainly did not receive it (at-most-once)."""
 
 from __future__ import annotations
 
@@ -68,7 +68,7 @@ async def test_maybe_sent_counts_toward_the_cap(handler: object, maybe_sent: boo
 
 
 async def test_real_numbers_are_refused_before_any_request() -> None:
-    """M6 security audit M11: synthetic ranges only, checked at the last step before Twilio."""
+    """Synthetic ranges only, checked at the last step before Twilio."""
     calls: list[httpx.Request] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -88,7 +88,7 @@ async def test_real_numbers_are_refused_before_any_request() -> None:
 
 
 async def test_error_bodies_never_carry_the_recipient() -> None:
-    """M6 security audit L8: Twilio's 4xx body names the To number; it is masked before the
+    """Twilio's 4xx body names the To number; it is masked before the
     error text is stored on the message or a follow-up."""
 
     def handler(request: httpx.Request) -> httpx.Response:

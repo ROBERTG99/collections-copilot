@@ -1,4 +1,4 @@
-"""T-14 properties: the engine never allows a send outside the window, over the cap or after opt-out."""
+"""Properties: the engine never allows a send outside the window, over the cap or after opt-out."""
 
 from __future__ import annotations
 

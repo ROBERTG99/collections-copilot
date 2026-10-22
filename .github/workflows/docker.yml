@@ -1,4 +1,4 @@
-# The five shipped images build, pass hadolint, and have no fixable high or critical CVE (§12, §17).
+# The five shipped images build, pass hadolint, and have no fixable high or critical CVE.
 name: docker
 
 on:

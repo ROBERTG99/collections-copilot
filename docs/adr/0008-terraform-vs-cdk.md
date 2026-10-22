@@ -5,7 +5,7 @@
 
 ## Context
 
-FR-15 asks for complete AWS infrastructure that is never applied: no `terraform apply` or `destroy`, no deployment to a cloud account and no real credentials (spec §0, rule 8; `CLAUDE.md`, Never). The configuration must still be checked, so its tests have to run offline and without an AWS account (spec Appendix A). Reviewers need to read the security-relevant parts, IAM policies and encryption, directly in the source. In the build container registry.terraform.io is blocked and releases.hashicorp.com is reachable (spec Appendix A).
+FR-15 asks for complete AWS infrastructure that is never applied: no `terraform apply` or `destroy`, no deployment to a cloud account and no real credentials (`CLAUDE.md`, Never). The configuration must still be checked, so its tests have to run offline and without an AWS account. Reviewers need to read the security-relevant parts, IAM policies and encryption, directly in the source. In the development container registry.terraform.io is blocked and releases.hashicorp.com is reachable.
 
 ## Decision
 
@@ -17,11 +17,11 @@ FR-15 asks for complete AWS infrastructure that is never applied: no `terraform 
 
 ## Alternatives considered
 
-- **AWS CDK.** Rejected per §5 (stack table: "`mock_provider` tests"). CDK synthesises CloudFormation, and its assertions check the synthesised template, in which values AWS computes at deploy time are unresolved tokens. Deploying a CDK app normally also needs a bootstrap stack in the target account. The policies and conditions a reviewer must check would be built by program code in a general-purpose language, and the existing tflint, checkov and Dependabot (`.github/dependabot.yml`, ecosystem `terraform`) setup would have to be replaced.
+- **AWS CDK.** Rejected (the stack needs: `mock_provider` tests). CDK synthesises CloudFormation, and its assertions check the synthesised template, in which values AWS computes at deploy time are unresolved tokens. Deploying a CDK app normally also needs a bootstrap stack in the target account. The policies and conditions a reviewer must check would be built by program code in a general-purpose language, and the existing tflint, checkov and Dependabot (`.github/dependabot.yml`, ecosystem `terraform`) setup would have to be replaced.
 
 ## Consequences
 
 - The whole configuration is validated and tested without credentials, in CI and in the cloud container.
-- `mock_provider` returns made-up values, so tests prove the configuration's logic, not AWS behaviour. Two wiring mistakes passed every Terraform test until the harness test compared the configuration with the code (`tests/harness/test_terraform_wiring.py:1-2`; PROGRESS.md).
+- `mock_provider` returns made-up values, so tests prove the configuration's logic, not AWS behaviour. Two wiring mistakes passed every Terraform test until the harness test compared the configuration with the code (`tests/harness/test_terraform_wiring.py:1-2`).
 - The configuration has never been planned against an account (docs/KNOWN_LIMITATIONS.md, Terraform scope). The first plan with the GitHub plan role is the check that what passes offline is accepted by AWS.
 - Provider upgrades need the local mirror updated as well as the lock file, which holds hashes for linux and darwin on amd64 and arm64 (docs/DECISIONS.md, 2026-10-18).

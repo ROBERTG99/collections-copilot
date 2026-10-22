@@ -14,7 +14,7 @@ describe("format", () => {
   it("humanizes codes", () => {
     expect(humanize("payment_plan")).toBe("payment plan");
   });
-  it("shows date-only values as written, whatever the browser zone (M4 review)", () => {
+  it("shows date-only values as written, whatever the browser zone", () => {
     expect(new Date("2026-11-02").getTimezoneOffset()).toBeGreaterThan(0); // really west of UTC
     expect(formatDate("2026-11-02")).toBe("Nov 2, 2026");
     expect(formatDate(null)).toBe("—");

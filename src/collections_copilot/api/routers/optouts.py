@@ -57,7 +57,7 @@ async def list_opt_outs(
 async def add_opt_out(
     body: OptOutIn,
     response: Response,
-    # Analysts record a debtor's spoken request; admins own compliance settings (spec §3).
+    # Analysts record a debtor's spoken request; admins own compliance settings.
     principal: Principal = Depends(ANY_ROLE),
     repos: Repos = REPOS,
 ) -> OptOutResult:

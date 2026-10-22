@@ -1,4 +1,4 @@
-"""evalgate targets and spies (BUILD.md §11).
+"""evalgate targets and spies.
 
 - `classify_reply`: the reply graph's own decision code (STOP rule, `classify_text`,
   `promise_problems`) on one reply, with a spy provider and a spy ledger that records a write-back

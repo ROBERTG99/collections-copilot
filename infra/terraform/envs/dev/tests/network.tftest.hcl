@@ -1,4 +1,4 @@
-# Network placement (T-45). `command = apply` runs against the mock provider: nothing is created.
+# Network placement. `command = apply` runs against the mock provider: nothing is created.
 
 mock_provider "aws" {
   mock_data "aws_caller_identity" {

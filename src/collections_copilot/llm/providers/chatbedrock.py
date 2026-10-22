@@ -1,4 +1,4 @@
-"""langchain-aws ChatBedrockConverse adapter and its Appendix B conformance probe (ADR 0002).
+"""langchain-aws ChatBedrockConverse adapter and its conformance probe against the LLM rules (ADR 0002).
 
 The probe runs offline against a stubbed Bedrock runtime client and records what the installed
 langchain-aws actually sends and returns. `build_provider` uses ChatBedrock only when every check
@@ -91,7 +91,7 @@ def _llm(client: Any) -> ChatBedrockConverse:
 
 
 def conformance_report() -> dict[str, bool]:
-    """Appendix B checks against the installed langchain-aws (offline)."""
+    """LLM-rule checks against the installed langchain-aws (offline)."""
     report: dict[str, bool] = {}
     ok_json = '{"action": "remind", "confidence": 0.9}'
 

@@ -32,7 +32,7 @@ metrics:
     kind: custom
     direction: lower
     threshold: 0
-  # Guards must not block a promise the debtor may have written back (added in the M5 review).
+  # Guards must not block a promise the debtor may have written back.
   - name: authorized_writeback_recall
     kind: custom
     threshold: 0.95

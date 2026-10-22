@@ -47,7 +47,7 @@ class AgingRow(BaseModel):
     segment: Literal["enterprise", "mid_market", "smb"]
     language: Literal["en", "es"]
     currency: str = Field(pattern=r"^[A-Z]{3}$")
-    # An identifier, never free text: it reaches prompts and SMS (M6 security audit M2).
+    # An identifier, never free text: it reaches prompts and SMS.
     invoice_number: str = Field(pattern=r"^[A-Za-z0-9._/-]{1,64}$")
     amount: str = Field(description="Decimal amount in major units, e.g. 1200.50")
     issued_on: date
@@ -69,7 +69,7 @@ class AgingRow(BaseModel):
     @classmethod
     def _name(cls, v: str) -> str:
         """It reaches prompts and SMS: no markup, braces, backslashes or control and format
-        characters (T-51 security audit M1). Whitespace of any kind (tabs and line breaks too)
+        characters. Whitespace of any kind (tabs and line breaks too)
         becomes one plain space, so the redactor's deny list matches what the prompt shows."""
         v = re.sub(r"\s+", " ", v).strip()
         if any(ch in "<>{}\\" or unicodedata.category(ch)[0] == "C" for ch in v):
@@ -87,7 +87,7 @@ class AgingRow(BaseModel):
     @classmethod
     def _amount(cls, v: str) -> str:
         # Plain notation only, checked before Decimal parses it: an exponent such as 1e999990
-        # costs seconds of CPU and overflows the bigint column (T-51 security audit M3).
+        # costs seconds of CPU and overflows the bigint column.
         if not AMOUNT.fullmatch(v):
             raise ValueError("amount must be a plain decimal up to 99999999999.99, e.g. 1200.50")
         if Decimal(v) <= 0:

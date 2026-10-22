@@ -1,4 +1,4 @@
-"""T-25 / FR-13: role matrix over EVERY /api/v1 route, plus tenant isolation.
+"""FR-13: role matrix over EVERY /api/v1 route, plus tenant isolation.
 
 Adding a route without a row here fails `test_matrix_covers_every_route`.
 """
@@ -108,7 +108,7 @@ async def test_role_matrix(client: httpx.AsyncClient, auth, method: str, path: s
                 resp.status_code,
                 resp.text[:200],
             )
-            # An allowed role must never crash the route either (M3 review).
+            # An allowed role must never crash the route either.
             assert resp.status_code < 500, (role, method, path, resp.status_code, resp.text[:200])
         else:
             assert resp.status_code == 403, (role, method, path, resp.status_code)
@@ -189,7 +189,7 @@ async def test_cross_tenant_ids_are_404(
 async def test_tokens_must_say_they_are_access_tokens(
     client: httpx.AsyncClient, make_token, tenant
 ) -> None:  # type: ignore[no-untyped-def]
-    """M6 security audit L5: an ID token, or a token without token_use, is refused."""
+    """An ID token, or a token without token_use, is refused."""
     for token_use in ("id", "__drop__"):
         token = make_token(tenant, [A], token_use=token_use)
         resp = await client.get("/api/v1/me", headers={"Authorization": f"Bearer {token}"})

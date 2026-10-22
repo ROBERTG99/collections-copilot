@@ -35,7 +35,7 @@ def test_existing_rules_still_apply() -> None:
 
 
 def test_only_a_clean_promise_routes_to_the_ledger() -> None:
-    """Shared by the reply graph and the replies eval target (M5 review)."""
+    """Shared by the reply graph and the replies eval target."""
     from collections_copilot.agent.reply_graph import may_write_back, route_after_classify
 
     assert route_after_classify("promise_to_pay") == "validate_promise"

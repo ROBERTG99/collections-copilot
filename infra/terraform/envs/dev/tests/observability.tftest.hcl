@@ -1,4 +1,4 @@
-# Logs, alarms and budget (T-46).
+# Logs, alarms and budget.
 
 mock_provider "aws" {
   mock_data "aws_caller_identity" {

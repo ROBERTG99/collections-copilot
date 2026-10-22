@@ -19,7 +19,7 @@ variable "kms_key_arn" {
 }
 
 variable "log_retention_days" {
-  description = "Log retention in days (30 per §16.3)."
+  description = "Log retention in days (30 for this environment)."
   type        = number
   default     = 30
   validation {

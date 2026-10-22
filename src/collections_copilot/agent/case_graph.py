@@ -1,4 +1,4 @@
-"""Case graph (BUILD.md §4.5).
+"""Case graph.
 
 load_account → prioritize → compliance_precheck → next_best_action → route
   pause | no_action → close
@@ -428,7 +428,7 @@ def build_case_graph(services: Services, checkpointer: BaseCheckpointSaver[Any] 
             state, fresh.facts, bool(post.get("ok")), str(d["author"])
         )
         # Only a still-pending, undecided draft may be auto-approved: on a resume after a human
-        # decision (an edit is a new version) the human's record stands (T-51 review M1).
+        # decision (an edit is a new version) the human's record stands.
         undecided = fresh.approval is None and (fresh.draft or {}).get("status") == "pending"
         stored = fresh.approval or {}
         if stored.get("decision") == "auto_approve" and not fresh.case_closed:

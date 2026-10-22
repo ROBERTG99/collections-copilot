@@ -1,4 +1,4 @@
-"""T-30 / FR-10: follow-ups become work under a single scheduler leader."""
+"""FR-10: follow-ups become work under a single scheduler leader."""
 
 from __future__ import annotations
 
@@ -180,7 +180,7 @@ class BrokenNotifier(InMemoryNotifier):
 
 
 async def test_failing_row_backs_off_without_stalling_others(sessionmaker, tenant) -> None:  # type: ignore[no-untyped-def]
-    """M3 review: one follow-up that keeps failing must not block every later one."""
+    """One follow-up that keeps failing must not block every later one."""
     account = await make_account(sessionmaker, tenant)
     async with sessionmaker() as s, s.begin():
         repos = Repos(s)
@@ -216,7 +216,7 @@ async def test_failing_row_backs_off_without_stalling_others(sessionmaker, tenan
 
 
 async def test_due_write_back_retry_enqueues_the_retry_task(sessionmaker, tenant) -> None:  # type: ignore[no-untyped-def]
-    """T-51 re-review: a promise whose ledger write hit an outage is retried by the scheduler
+    """A promise whose ledger write hit an outage is retried by the scheduler
     (the reply itself is done, so the stale-reply sweep never re-enqueues it)."""
     account, promise_id = await _promise(sessionmaker, tenant, "open")
     async with sessionmaker() as s, s.begin():
@@ -241,7 +241,7 @@ async def test_due_write_back_retry_enqueues_the_retry_task(sessionmaker, tenant
 
 
 async def test_closing_a_case_keeps_its_promise_write_back_retry(sessionmaker, tenant) -> None:  # type: ignore[no-untyped-def]
-    """T-51 round 3: a STOP closes the case and cancels its follow-ups; a promise already made
+    """A STOP closes the case and cancels its follow-ups; a promise already made
     must still reach the ledger (or fail with a supervisor notice), not stay pending for good."""
     account, promise_id = await _promise(sessionmaker, tenant, "open")
     async with sessionmaker() as s, s.begin():

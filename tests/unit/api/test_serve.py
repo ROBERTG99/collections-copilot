@@ -1,4 +1,4 @@
-"""T-47 (NFR-1): the API container runs several uvicorn workers, and /metrics reports their totals."""
+"""NFR-1: the API container runs several uvicorn workers, and /metrics reports their totals."""
 
 from __future__ import annotations
 

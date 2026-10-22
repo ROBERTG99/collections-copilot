@@ -1,4 +1,4 @@
-"""T-06: compose dependencies are healthy and the API answers /healthz on 8310."""
+"""Compose dependencies are healthy and the API answers /healthz on 8310."""
 
 import json
 import subprocess

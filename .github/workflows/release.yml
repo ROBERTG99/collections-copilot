@@ -1,5 +1,5 @@
-# On a v* tag pushed by the maintainer: the five images to GHCR with an SBOM and build provenance
-# each, then a GitHub Release with the SBOMs attached (BUILD.md §17).
+# On a pushed v* tag: the five images to GHCR with an SBOM and build provenance
+# each, then a GitHub Release with the SBOMs attached.
 name: release
 
 on:

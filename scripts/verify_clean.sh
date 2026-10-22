@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# make verify-clean (BUILD.md §19.1-2): clone the committed tree into a temporary folder and, with
+# make verify-clean: clone the committed tree into a temporary folder and, with
 # no .env and no provider keys, run make bootstrap && make verify, then the stack checks
 # (up, seed, demo, e2e, test-docker) and tear the clone's stack down with its volumes.
 #

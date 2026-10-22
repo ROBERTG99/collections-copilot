@@ -10,7 +10,7 @@ async function noHorizontalScroll(page: Page): Promise<void> {
   expect(overflow, "page scrolls horizontally").toBeLessThanOrEqual(1);
 }
 
-/** WCAG 2.2 AA on every screen at the §13 breakpoints, light and dark; no horizontal scroll.
+/** WCAG 2.2 AA on every screen at 375, 768 and 1280 px, light and dark; no horizontal scroll.
  * One sign-in per persona per pass keeps the run inside the API's 120 requests/minute. */
 const PASSES = [
   { width: 375, scheme: "light" },

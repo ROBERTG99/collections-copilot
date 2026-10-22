@@ -112,7 +112,7 @@ resource "aws_iam_role" "pre_token" {
 }
 
 resource "aws_cloudwatch_log_group" "pre_token" {
-  #checkov:skip=CKV_AWS_338:§16.3 sets 30-day retention for this environment
+  #checkov:skip=CKV_AWS_338:30-day retention is the documented policy for this environment
   name              = "/aws/lambda/${var.name}-pre-token"
   retention_in_days = 30
   kms_key_id        = var.kms_key_arn

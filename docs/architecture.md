@@ -1,6 +1,6 @@
 # Architecture
 
-How collections-copilot is put together: the services and their ports, the two LangGraph graphs, the path an SMS takes and every guard on it, the data model and tenancy, queues and the worker, observability, and the AWS layout in `infra/terraform`. The specification is [docs/specs/000-build-spec.md](specs/000-build-spec.md) §4; choices made during the build are in [docs/DECISIONS.md](DECISIONS.md) and the ADRs in [docs/adr/](adr/).
+How collections-copilot is put together: the services and their ports, the two LangGraph graphs, the path an SMS takes and every guard on it, the data model and tenancy, queues and the worker, observability, and the AWS layout in `infra/terraform`. Design choices are recorded in [docs/DECISIONS.md](DECISIONS.md) and the ADRs in [docs/adr/](adr/).
 
 ## Principles
 

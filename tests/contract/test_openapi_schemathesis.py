@@ -1,4 +1,4 @@
-"""T-33 done-when: Schemathesis finds zero server errors across every /api/v1 operation.
+"""Schemathesis finds zero server errors across every /api/v1 operation.
 
 The API runs in-process on a free port with real Postgres, Redis and MinIO, and in-memory doubles
 for the queue, SMS, mail and gateway admin, so generated requests never reach the compose worker

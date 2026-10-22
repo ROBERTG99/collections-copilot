@@ -237,7 +237,7 @@ async def _nba(body: str) -> dict[str, object]:
 @pytest.mark.parametrize(
     ("body", "action"),
     [
-        # Wrong contact: the person or number no longer reaches the debtor (M5 eval analysis).
+        # Wrong contact: the person or number no longer reaches the debtor.
         ("Our former controller has moved on; this line now rings a dentist.", "pause"),
         ("Receptionist says nobody by that name works there any more.", "pause"),
         ("Our buyer quit the firm in May, per the new office manager.", "pause"),

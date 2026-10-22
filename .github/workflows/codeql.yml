@@ -1,4 +1,4 @@
-# CodeQL for the Python services and the TypeScript console (BUILD.md §17).
+# CodeQL for the Python services and the TypeScript console.
 name: codeql
 
 on:

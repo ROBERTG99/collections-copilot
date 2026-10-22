@@ -111,7 +111,7 @@ async def test_code_flow_tokens_verify_like_cognito(
     assert str(principal.tenant_id) == tenant
     assert principal.roles == frozenset({role})
     assert principal.username == username
-    # ID tokens stay in the browser session; the API accepts access tokens only (M3 review).
+    # ID tokens stay in the browser session; the API accepts access tokens only.
     with pytest.raises(jwt.InvalidTokenError, match="access token required"):
         await verifier.verify(tokens["id_token"])
 
@@ -188,7 +188,7 @@ async def test_refresh_token_rotates(oidc: str) -> None:
 
 
 async def test_security_hardening(oidc: str) -> None:
-    """M3 security review: registered redirect URIs only, no open logout redirect, direct
+    """Registered redirect URIs only, no open logout redirect, direct
     tokens off by default."""
     async with httpx.AsyncClient(base_url=oidc) as client:
         bad = await client.get(

@@ -1,4 +1,4 @@
-"""T-26 / FR-2, FR-3, FR-4: queue ordering and cursor, account detail, case creation."""
+"""FR-2, FR-3, FR-4: queue ordering and cursor, account detail, case creation."""
 
 from __future__ import annotations
 
@@ -155,7 +155,7 @@ async def test_account_detail_bounds_the_case_history(
 async def test_account_detail_bounds_promises(
     client: httpx.AsyncClient, sessionmaker: Any, tenant: uuid.UUID, auth: Any
 ) -> None:
-    """M7 review: promises grew without bound like cases did; the newest 50 are returned."""
+    """Promises grew without bound like cases did; the newest 50 are returned."""
     aid = await make_account(sessionmaker, tenant, invoices=[{"amount_cents": 5_000}])
     start = datetime(2026, 1, 1, tzinfo=UTC)
     async with sessionmaker() as s, s.begin():
@@ -224,7 +224,7 @@ async def test_create_cases_enqueues_and_dedupes(
 async def test_awaiting_approval_rows_carry_the_draft_for_batch_review(  # type: ignore[no-untyped-def]
     client: httpx.AsyncClient, sessionmaker, tenant, auth
 ) -> None:
-    """M4 review: batch approve shows each exact SMS, so the queue carries the latest draft."""
+    """Batch approve shows each exact SMS, so the queue carries the latest draft."""
     from collections_copilot.db.repositories import Repos
 
     account = await make_account(sessionmaker, tenant)

@@ -1,4 +1,4 @@
-"""T-07: api → SQS → worker → FakeLLM → interrupt, in Docker."""
+"""API → SQS → worker → FakeLLM → interrupt, in Docker."""
 
 import subprocess
 import sys

@@ -17,7 +17,7 @@ A case runs for hours or days and pauses three times: for a human approval, for 
 
 ## Alternatives considered
 
-- **A custom state machine: a `cases.state` column, a transition table and hand-written resume handlers.** Rejected per §5 (stack table: "durable resume in the main DB"). It would reimplement what the checkpointer already provides: persisted state per step, resume at the exact paused node with a value, and crash recovery from the last completed step. Each new pause would need its own persistence and resume code, and the graph structure (`src/collections_copilot/agent/case_graph.py:730-751`) would be spread over handlers instead of being one declaration.
+- **A custom state machine: a `cases.state` column, a transition table and hand-written resume handlers.** Rejected (the stack needs: durable resume in the main DB). It would reimplement what the checkpointer already provides: persisted state per step, resume at the exact paused node with a value, and crash recovery from the last completed step. Each new pause would need its own persistence and resume code, and the graph structure (`src/collections_copilot/agent/case_graph.py:730-751`) would be spread over handlers instead of being one declaration.
 - **Checkpointing the reply graph too.** Rejected. A reply has no human pause, and redelivery is already handled by database keys such as `ptp:<tenant>:<MessageSid>` (docs/DECISIONS.md, 2026-10-16).
 
 ## Consequences

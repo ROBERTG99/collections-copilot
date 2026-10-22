@@ -6,7 +6,7 @@ import { expect, type Page, test } from "@playwright/test";
 import { expectAccessible, signIn } from "./helpers";
 
 /**
- * T-49: the §3.4 main journey in the console, saved to docs/images/demo.webm when CC_RECORD_DEMO=1
+ * The main user journey in the console, saved to docs/images/demo.webm when CC_RECORD_DEMO=1
  * (the demo-capture skill), so `make e2e` leaves the committed video alone. The account comes
  * from `scripts/demo.py --prepare main` (a USD 1,200.00 balance, a note about instalments, a
  * time zone where it is midday, a debtor-sim number that promises the balance on Friday).

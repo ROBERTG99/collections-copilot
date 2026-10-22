@@ -1,4 +1,4 @@
-"""T-31 / FR-9: the gateway's approval webhook, and supervisor approval of a held promise."""
+"""FR-9: the gateway's approval webhook, and supervisor approval of a held promise."""
 
 from __future__ import annotations
 
@@ -48,7 +48,7 @@ async def wired(api_app: Any, stack: Any) -> AsyncIterator[tuple[RecordingQueue,
 def signed(
     api_app: Any, payload: dict[str, Any], secret: str | None = None, ts: int | None = None
 ) -> dict[str, Any]:
-    """The gateway signs `{timestamp}.{body}` (M6 security audit M3)."""
+    """The gateway signs `{timestamp}.{body}`."""
     body = json.dumps(payload).encode()
     key = (secret or api_app.state.settings.mcpgw_webhook_secret).encode()
     stamp = str(int(time.time()) if ts is None else ts)
@@ -118,7 +118,7 @@ async def test_supervisor_approval_enqueues_retry(
     assert (await client.post(WEBHOOK, **signed(api_app, event))).status_code == 204
 
     # A replay is recognised from the database, so it holds even while Redis is down
-    # (M6 security audit M3: the Redis check failed open).
+    # (the Redis check once failed open).
     async def redis_down(*args: Any, **kwargs: Any) -> None:
         raise RedisError("down")
 
@@ -164,7 +164,7 @@ async def test_supervisor_approval_enqueues_retry(
 async def test_forged_event_naming_an_unknown_tenant_is_403(
     client: httpx.AsyncClient, api_app, tenant, wired
 ) -> None:  # type: ignore[no-untyped-def]
-    """T-51 security audit L2: the audit row for an unknown tenant broke its foreign key (500)."""
+    """The audit row for an unknown tenant broke its foreign key (500)."""
     event = approval_event(str(uuid.uuid4()), uuid.uuid4())
     forged = await client.post(WEBHOOK, **signed(api_app, event, secret="not-the-secret"))
     assert forged.status_code == 403
@@ -173,7 +173,7 @@ async def test_forged_event_naming_an_unknown_tenant_is_403(
 async def test_approval_ids_are_plain_identifiers(
     client: httpx.AsyncClient, api_app, tenant, wired
 ) -> None:  # type: ignore[no-untyped-def]
-    """T-51 security audit L3: the id is put into gateway admin URLs."""
+    """The id is put into gateway admin URLs."""
     event = approval_event("../admin/other", tenant)
     resp = await client.post(WEBHOOK, **signed(api_app, event))
     assert resp.status_code == 422

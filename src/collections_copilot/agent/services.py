@@ -32,7 +32,7 @@ class Services:
     events: EventPublisher = field(default_factory=NullEventPublisher)
     clock: Callable[[], datetime] = _now
     pay_link_base: str = "https://pay.collections.example/p"
-    ledger: object | None = None  # LedgerTools for the reply graph (T-24)
+    ledger: object | None = None  # LedgerTools for the reply graph
     enqueue: object | None = None  # async callable(task) for follow-up work
 
     @property

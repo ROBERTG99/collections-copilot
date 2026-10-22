@@ -1,4 +1,4 @@
-"""T-39: eval datasets have the §11 counts and splits, are deterministic and match MANIFEST.json."""
+"""Eval datasets have the documented counts and splits, are deterministic and match MANIFEST.json."""
 
 from __future__ import annotations
 

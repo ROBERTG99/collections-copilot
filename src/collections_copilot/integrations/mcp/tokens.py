@@ -1,4 +1,4 @@
-"""Agent JWTs for mcp-gateway (§4.4): iss, aud=mcp-gateway, sub=cc-worker, tenant, scopes, exp ≤ 5 min.
+"""Agent JWTs for mcp-gateway: iss, aud=mcp-gateway, sub=cc-worker, tenant, scopes, exp ≤ 5 min.
 
 DevIssuerTokenProvider asks the gateway's dev issuer (local only). KmsTokenProvider signs with an
 AWS KMS RSA_2048 key (RSASSA_PKCS1_V1_5_SHA_256 = RS256); its JWKS is served by the API at

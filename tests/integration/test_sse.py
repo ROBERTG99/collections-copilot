@@ -1,4 +1,4 @@
-"""T-29 / FR-11: SSE progress from the case's Redis stream, with Last-Event-ID resume."""
+"""FR-11: SSE progress from the case's Redis stream, with Last-Event-ID resume."""
 
 from __future__ import annotations
 

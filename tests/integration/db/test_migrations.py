@@ -1,4 +1,4 @@
-"""T-08: migration 0001 upgrades, downgrades cleanly and enforces the §4.3 constraints."""
+"""Migration 0001 upgrades, downgrades cleanly and enforces the schema constraints."""
 
 from __future__ import annotations
 

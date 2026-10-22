@@ -79,11 +79,11 @@ The rubric's gate (agreement ≥ 0.8, kappa ≥ 0.6) applies to the live judge o
 
 1. prints the estimated cost per suite (3,000 input and 1,500 output tokens per model call, priced from `src/collections_copilot/llm/pricing.yaml`);
 2. runs the test splits in the order replies, tone, compliance, NBA (cheapest first), one case at a time. A case starts only if its expected cost fits what is left of `LIVE_EVAL_BUDGET_USD` (default 2), and every model call is checked first against its worst case (the prompt at 3 characters per token plus `max_tokens` of output), so one unexpectedly expensive case cannot overshoot; a call cancelled by a timeout is charged at its worst case. The case that hits the limit is dropped, not scored. Live cases time out after 120 s;
-3. gates every suite that finished: the same thresholds without the offline p95 budget (§11 sets it for offline runs), plus NBA cost per account ≤ USD 0.02 and tone agreement ≥ 0.8; a suite stopped by the budget is reported as such and not gated;
+3. gates every suite that finished: the same thresholds without the offline p95 budget, plus NBA cost per account ≤ USD 0.02 and tone agreement ≥ 0.8; a suite stopped by the budget is reported as such and not gated;
 4. writes `evals/reports/live.json` (committed, with the commit and every prompt hash); the next `make eval` puts it in the live section of `evals/REPORT.md`, labelled live, with date, models and cost, and marks it stale if the prompts changed since.
 
 `make record-fixtures` does the same and also saves every response under `tests/fixtures/llm/cassettes/`, which FakeLLM replays offline. Offline reports then name the replayed models next to `fake` and say how many model calls were replayed, so those numbers are never presented as the keyword stub's.
 
-## Needs the maintainer
+## Label review
 
-Labels by construction can encode the generator's own blind spots. Before trusting the NBA labels for anything beyond regression detection, a maintainer should review 40 NBA cases and 20 drafts by hand (BUILD.md §11).
+Labels by construction can encode the generator's own blind spots. Before trusting the NBA labels for anything beyond regression detection, 40 NBA cases and 20 drafts should be reviewed by hand.

@@ -1,4 +1,4 @@
-"""T-49: `make demo` runs the BUILD.md §3.4 journeys and every step checks the state it produced."""
+"""`make demo` runs the four user journeys and every step checks the state it produced."""
 
 from __future__ import annotations
 

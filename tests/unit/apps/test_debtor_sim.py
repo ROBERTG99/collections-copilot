@@ -1,4 +1,4 @@
-"""T-28: debtor simulator personas and replies (demo only, synthetic numbers)."""
+"""Debtor simulator personas and replies (demo only, synthetic numbers)."""
 
 from __future__ import annotations
 

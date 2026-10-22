@@ -133,7 +133,7 @@ class McpLedgerTools:
             if data.get("status") == "approval_required":
                 approval_id = data.get("approval_id")
                 if not isinstance(approval_id, str) or not APPROVAL_ID.fullmatch(approval_id):
-                    # It goes into admin URL paths later (T-51 security re-check).
+                    # It goes into admin URL paths later.
                     return LedgerResult("error", detail="approval_required without a valid id")
                 return LedgerResult(
                     "approval_required",

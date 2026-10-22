@@ -10,7 +10,7 @@ locals {
 }
 
 resource "aws_cloudwatch_log_group" "exports" {
-  #checkov:skip=CKV_AWS_338:§16.3 sets 30-day retention for this environment
+  #checkov:skip=CKV_AWS_338:30-day retention is the documented policy for this environment
   for_each          = local.log_exports
   name              = "/aws/rds/instance/${var.name}/${each.key}"
   retention_in_days = 30

@@ -1,4 +1,4 @@
-"""T-22: the case graph on Postgres with the checkpointer and interrupts (FR-3, FR-6)."""
+"""The case graph on Postgres with the checkpointer and interrupts (FR-3, FR-6)."""
 
 from __future__ import annotations
 
@@ -208,7 +208,7 @@ async def test_runner_is_idempotent_under_redelivery(sessionmaker, database_url,
 async def test_redelivered_resume_finishes_a_run_that_crashed_mid_send(
     sessionmaker, database_url, tenant
 ) -> None:  # type: ignore[no-untyped-def]
-    """T-51 review B1: a crash inside send_sms after the resume left the checkpoint at send_sms
+    """A crash inside send_sms after the resume left the checkpoint at send_sms
     with no interrupt; the redelivered resume was acknowledged as `not_paused` and the case
     stayed open for ever. It must finish the run instead."""
     from collections_copilot.integrations.queue.messages import TaskMessage
@@ -257,7 +257,7 @@ async def test_redelivered_resume_finishes_a_run_that_crashed_mid_send(
 async def test_crash_after_the_auto_approval_is_stored_still_sends_once(
     sessionmaker, database_url, tenant
 ) -> None:  # type: ignore[no-untyped-def]
-    """T-51 compliance re-check: the auto-approval row was committed, then the worker died
+    """The auto-approval row was committed, then the worker died
     before the checkpoint. The re-run found the draft no longer pending and paused for a human,
     who could not decide it (409 already_decided). The stored auto-approval is the decision."""
     from collections_copilot.integrations.queue.messages import TaskMessage

@@ -1,4 +1,4 @@
-"""T-43: the licence check denies strong copyleft and allows LGPL (dynamically linked)."""
+"""The licence check denies strong copyleft and allows LGPL (dynamically linked)."""
 
 from __future__ import annotations
 

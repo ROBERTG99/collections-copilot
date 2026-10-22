@@ -1,4 +1,4 @@
-"""T-27 / FR-6: approve, edit (diff stored, post-check on the edited text) and reject through
+"""FR-6: approve, edit (diff stored, post-check on the edited text) and reject through
 the API, then the worker resumes from the enqueued task."""
 
 from __future__ import annotations

@@ -1,5 +1,5 @@
-"""§10: line coverage ≥ 85% on scoring, compliance, agent, llm and api, ≥ 95% on compliance
-(T-14), ≥ 70% overall. scripts/coverage_gate.py reads coverage.xml and fails below any of them."""
+"""Line coverage ≥ 85% on scoring, compliance, agent, llm and api, ≥ 95% on compliance
+≥ 70% overall. scripts/coverage_gate.py reads coverage.xml and fails below any of them."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""T-51 security audit M1 (defence in depth): an account name is a name, not markup."""
+"""Defence in depth: an account name is a name, not markup."""
 
 from __future__ import annotations
 
@@ -26,6 +26,6 @@ def test_markup_and_control_characters_are_rejected(name: str) -> None:
     "raw", ["Acme\u00a0Corp", "Acme\u2009 Corp", "Acme\u3000Corp", "Acme  Corp"]
 )
 def test_unicode_spaces_become_one_plain_space(raw: str) -> None:
-    """T-51 security re-check: the note fence drops non-printable spaces, so a name with a
+    """The note fence drops non-printable spaces, so a name with a
     no-break space no longer matched the redactor's deny list."""
     assert AgingRow(**{**ROW, "name": raw}, amount="10.00").name == "Acme Corp"

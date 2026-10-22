@@ -1,4 +1,4 @@
-"""T-14: each deterministic compliance rule (FR-5)."""
+"""Each deterministic compliance rule (FR-5)."""
 
 from __future__ import annotations
 
@@ -199,7 +199,7 @@ def test_to_cents_rejects_garbage() -> None:
     assert amounts.to_cents("x,yz") is None
 
 
-# --- M1 review regressions: the amount and link checks must fail closed ---------------------------
+# --- Regressions: the amount and link checks must fail closed ---------------------------
 
 
 @pytest.mark.parametrize(

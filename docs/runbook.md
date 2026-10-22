@@ -191,7 +191,7 @@ Prometheus.
 
 RDS keeps automated backups for `backup_retention_days` (at least 7) and takes a final snapshot
 on deletion. A point-in-time restore creates a new instance: point the database URL secrets at it
-and redeploy their readers. The spec's targets (NFR-8: RTO 1 h, RPO 5 min) have not been tested.
+and redeploy their readers. The recovery targets (NFR-8: RTO 1 h, RPO 5 min) have not been tested.
 
 ## Local stack
 

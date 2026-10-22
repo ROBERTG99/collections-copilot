@@ -4,7 +4,7 @@ Revision ID: 0003
 Revises: 0002
 Create Date: 2026-10-18 16:00:00.000000
 
-A promise whose ledger write hit an outage is retried by the scheduler (T-51 reviews).
+A promise whose ledger write hit an outage is retried by the scheduler.
 """
 
 from collections.abc import Sequence

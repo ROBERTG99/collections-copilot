@@ -235,7 +235,7 @@ services:
       api: { condition: service_healthy }
       wiremock-twilio: { condition: service_healthy }
 
-  # Profile `observability` (§14): `make observability` starts it with trace export switched on.
+  # Profile `observability`: `make observability` starts it with trace export switched on.
   jaeger:
     image: jaegertracing/jaeger:2.9.0
     profiles: ["observability"]

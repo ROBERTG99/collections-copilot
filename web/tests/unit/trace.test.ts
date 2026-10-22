@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { correlationId, traceparent } from "@/lib/trace";
 
-describe("BFF trace headers (§14)", () => {
+describe("BFF trace headers", () => {
   it("starts a W3C trace context the API continues", () => {
     const value = traceparent();
     expect(value).toMatch(/^00-[0-9a-f]{32}-[0-9a-f]{16}-01$/);

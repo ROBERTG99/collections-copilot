@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# make tf-check / make tf-test (BUILD.md §16.3): everything runs offline against the local
+# make tf-check / make tf-test: everything runs offline against the local
 # provider mirror (scripts/install-tools.sh) and the mock provider. Nothing is ever applied:
 # `command = apply` appears only inside `terraform test` with mock_provider.
 set -euo pipefail

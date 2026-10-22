@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# make e2e (BUILD.md T-36): the Playwright suite (+ axe) against the running, seeded stack.
+# make e2e: the Playwright suite (+ axe) against the running, seeded stack.
 # The suite drives the console as one analyst and, on a fast host, issues more than the API's
 # default 120 requests per user per minute, so a page would show the 429 problem instead of
 # the screen under test. Like `make bench`, the API is recreated with a high per-user limit for

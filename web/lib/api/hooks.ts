@@ -83,7 +83,7 @@ export type Decision =
 /**
  * One key per distinct request: a network retry of the same decision replays the stored result,
  * while a corrected edit (different body) or a new reason is a new request. A key without the
- * body locked the edit path for 24 h after one refused edit (M4 review).
+ * body locked the edit path for 24 h after one refused edit.
  */
 export function decisionKey(caseId: string, decision: Decision): string {
   const content =

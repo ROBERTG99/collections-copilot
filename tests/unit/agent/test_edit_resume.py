@@ -1,4 +1,4 @@
-"""T-51 review M1: an analyst's edit stands when auto-approval starts to match before the resume.
+"""An analyst's edit stands when auto-approval starts to match before the resume.
 
 On resume, `human_approval` re-runs from its start. If the auto-approval policy now matches (a
 supervisor re-enabled it, or the balance fell under the ceiling), the old version must not be
