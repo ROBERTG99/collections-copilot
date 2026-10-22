@@ -105,7 +105,7 @@ services:
       retries: 30
 
   mailpit:
-    image: axllent/mailpit:v1.27
+    image: axllent/mailpit:v1.31
     ports: ["127.0.0.1:8346:1025", "127.0.0.1:8351:8025"]
     healthcheck:
       test: ["CMD", "/mailpit", "readyz"]
