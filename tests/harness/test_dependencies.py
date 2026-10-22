@@ -1,4 +1,4 @@
-"""T-02: the sibling dependencies (or their documented fallbacks) are importable and usable."""
+"""The sibling dependencies (or their documented fallbacks) are importable and usable."""
 
 import json
 import subprocess

@@ -1,4 +1,4 @@
-"""T-32 / FR-12, FR-14: ops metrics equal the seeded counts; the audit endpoint pages and verifies."""
+"""FR-12, FR-14: ops metrics equal the seeded counts; the audit endpoint pages and verifies."""
 
 from __future__ import annotations
 

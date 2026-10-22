@@ -1,4 +1,4 @@
-"""T-10: `cc audit verify` exits 0 on an intact chain and 1 with the first bad seq after tampering."""
+"""`cc audit verify` exits 0 on an intact chain and 1 with the first bad seq after tampering."""
 
 from __future__ import annotations
 

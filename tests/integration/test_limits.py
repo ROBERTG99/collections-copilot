@@ -1,4 +1,4 @@
-"""T-33 / NFR-9: size limits, rate limits and Idempotency-Key, all as problem details."""
+"""NFR-9: size limits, rate limits and Idempotency-Key, all as problem details."""
 
 from __future__ import annotations
 
@@ -123,7 +123,7 @@ async def test_nul_characters_are_422_not_500(client: httpx.AsyncClient, auth) -
 async def test_random_tokens_share_the_ip_bucket(
     client: httpx.AsyncClient, api_app: Any, low_rate_limit: int
 ) -> None:
-    """M3 security review: an unverifiable bearer token is not an identity of its own."""
+    """An unverifiable bearer token is not an identity of its own."""
     async for key in api_app.state.redis.scan_iter(match="cc:rl:ip:*"):
         await api_app.state.redis.delete(key)  # earlier unauthenticated tests share this bucket
     codes = []
@@ -153,7 +153,7 @@ async def test_unauthenticated_results_are_not_stored(client: httpx.AsyncClient,
 async def test_idempotency_fails_closed_when_redis_is_down(
     client: httpx.AsyncClient, api_app, auth
 ) -> None:  # type: ignore[no-untyped-def]
-    """M6 security audit M4: a request that asked for idempotency is never run without it."""
+    """A request that asked for idempotency is never run without it."""
     from redis.exceptions import RedisError
 
     async def down(*args: object, **kwargs: object) -> None:
@@ -174,7 +174,7 @@ async def test_idempotency_fails_closed_when_redis_is_down(
 
 
 def test_sse_streams_are_capped_per_user() -> None:
-    """M6 security audit M4: one user cannot hold every Redis connection with event streams."""
+    """One user cannot hold every Redis connection with event streams."""
     from collections_copilot.api.routers.events import StreamSlots
 
     slots = StreamSlots(per_user=2)

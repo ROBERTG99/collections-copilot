@@ -1,4 +1,4 @@
-"""T-09: repositories are tenant-scoped; a tenant-B id read with tenant A returns None."""
+"""Repositories are tenant-scoped; a tenant-B id read with tenant A returns None."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Scripted demo of the BUILD.md §3.4 journeys against the running stack (offline: FakeLLM, the
+"""Scripted demo of the four user journeys against the running stack (offline: FakeLLM, the
 WireMock Twilio double and debtor-sim). `make demo`; needs `make up` (and `make seed` for the queue).
 
 Each run imports its own synthetic accounts: unique references, +1555 numbers whose last digit
@@ -481,7 +481,7 @@ def main(argv: list[str] | None = None) -> int:
     except (DemoError, httpx.HTTPError) as exc:
         print(f"demo failed: {exc}", file=sys.stderr)
         return 1
-    print("demo: every §3.4 journey completed and checked")
+    print("demo: every journey completed and checked")
     return 0
 
 

@@ -56,7 +56,7 @@ def test_prod_refuses_dev_secrets_and_local_issuer() -> None:
 
 
 def test_dev_secrets_are_refused_whenever_the_api_is_public() -> None:
-    """M6 security audit M9: forgetting CC_ENV=prod must not accept the published dev secrets."""
+    """Forgetting CC_ENV=prod must not accept the published dev secrets."""
     import pytest
 
     from collections_copilot.config import Settings
@@ -77,7 +77,7 @@ def test_kms_agent_tokens_need_a_key() -> None:
 
 
 def test_real_numbers_only_in_production() -> None:
-    """M6 security audit M11: outside prod only +1555… and +34555… numbers are accepted."""
+    """Outside prod only +1555… and +34555… numbers are accepted."""
     import pytest
 
     from collections_copilot.config import Settings
@@ -102,7 +102,7 @@ PROD_OK = {
 
 
 def test_prod_refuses_the_default_sending_number() -> None:
-    """M8 review: a task definition without CC_TWILIO_FROM must not send from the dev number."""
+    """A task definition without CC_TWILIO_FROM must not send from the dev number."""
     import pytest
 
     with pytest.raises(ValueError, match="CC_TWILIO_FROM"):
@@ -110,7 +110,7 @@ def test_prod_refuses_the_default_sending_number() -> None:
 
 
 def test_empty_endpoint_urls_mean_the_aws_default() -> None:
-    """M7 Terraform review M3: ECS passes "" for the SQS and S3 endpoints; botocore refuses ""."""
+    """ECS passes "" for the SQS and S3 endpoints; botocore refuses ""."""
     s = Settings(sqs_endpoint_url="", s3_endpoint_url="", s3_public_endpoint_url="")
     assert (s.sqs_endpoint_url, s.s3_endpoint_url, s.s3_public_endpoint_url) == (None, None, None)
 
@@ -132,7 +132,7 @@ def test_prod_refuses_local_service_urls() -> None:
 
 
 def test_auto_approval_ceiling_is_bounded_and_finite() -> None:
-    """T-51 compliance review: NaN or a looser environment ceiling would fail open."""
+    """NaN or a looser environment ceiling would fail open."""
     import pytest
 
     for field, value in (

@@ -29,7 +29,7 @@ test.describe("approval drawer", () => {
     await expect(drawer).toBeHidden();
   });
 
-  test("a refused edit never locks the corrected one (M4 review B1)", async ({ page }) => {
+  test("a refused edit never locks the corrected one", async ({ page }) => {
     const caseId = await caseAwaitingApproval(page);
     const detail = (await (await page.request.get(`/api/cases/${caseId}`)).json()) as {
       drafts: { version: number; body: string }[];

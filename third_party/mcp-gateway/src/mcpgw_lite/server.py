@@ -1,6 +1,6 @@
 """mcp-gateway contract subset: MCP proxy (8344), admin API (8348) and dev issuer (8349).
 
-Contract (mcp-gateway v0.1.0 §4.4): tool names ``<server>.<tool>``; RS256 agent JWT; write tools
+Contract (mcp-gateway v0.1.0): tool names ``<server>.<tool>``; RS256 agent JWT; write tools
 require ``_meta.idempotency_key``; replay on same args, ``-32040`` on different args; policy
 ``require_approval`` returns ``isError`` with ``structuredContent.status = approval_required`` and
 posts a signed webhook; retries carry ``_meta.approval_id`` and the same key.

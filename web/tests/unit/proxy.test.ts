@@ -5,7 +5,7 @@ import { webConfig } from "@/lib/config";
 
 const BASE = "http://api:8310";
 
-describe("BFF proxy target (M6 security audit L1)", () => {
+describe("BFF proxy target", () => {
   it("maps console paths under /api/v1", () => {
     expect(apiTarget(BASE, ["queue"], "?limit=20")).toBe("http://api:8310/api/v1/queue?limit=20");
     expect(apiTarget(BASE, ["cases", "abc", "approval"], "")).toBe(
@@ -27,7 +27,7 @@ describe("BFF proxy target (M6 security audit L1)", () => {
   });
 });
 
-describe("BFF body cap (M6 security audit L2)", () => {
+describe("BFF body cap", () => {
   it("reads small bodies and refuses large ones without buffering them whole", async () => {
     const small = new Request("http://x", { method: "POST", body: "a".repeat(10) });
     expect((await readCapped(small, 100))?.byteLength).toBe(10);
@@ -36,7 +36,7 @@ describe("BFF body cap (M6 security audit L2)", () => {
   });
 });
 
-describe("dev session secret (M6 security audit M9)", () => {
+describe("dev session secret", () => {
   it("is refused on a public URL even with the escape hatch", () => {
     expect(() =>
       webConfig({

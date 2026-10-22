@@ -1,6 +1,6 @@
 // pnpm run lint:md (make lint). Long lines are allowed (tables, commands, URLs), duplicate headings
-// may repeat under different parents, and table pipes need not be padded. Not linted: the
-// maintainer's spec (BUILD.md, docs/specs/), prompts (their hashes are eval provenance) and the
+// may repeat under different parents, and table pipes need not be padded. Not linted:
+// prompts (their hashes are eval provenance) and the
 // harness files under .claude/ (front matter, no top heading).
 {
   "config": {
@@ -20,8 +20,6 @@
     "infra/terraform/**/.terraform/**",
     ".pytest_cache/**",
     ".evalgate/**",
-    "BUILD.md",
-    "docs/specs/**",
     "prompts/**",
     ".claude/**"
   ]

@@ -1,4 +1,4 @@
-"""M7 Terraform review M1: the Cognito trigger puts the tenant into the access token the API reads."""
+"""The Cognito trigger puts the tenant into the access token the API reads."""
 
 from __future__ import annotations
 

@@ -128,7 +128,7 @@ resource "aws_vpc_endpoint" "s3" {
 
 # VPC flow logs, encrypted, 30 days.
 resource "aws_cloudwatch_log_group" "flow" {
-  #checkov:skip=CKV_AWS_338:§16.3 sets 30-day retention for this environment (log_retention_days)
+  #checkov:skip=CKV_AWS_338:30-day retention is the documented policy for this environment (log_retention_days)
   name              = "/${var.project}/${var.environment}/vpc-flow"
   retention_in_days = var.log_retention_days
   kms_key_id        = var.kms_key_arn

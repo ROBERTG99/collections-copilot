@@ -1,5 +1,5 @@
-"""T-17: provider adapters against recorded responses (no network): request shape follows
-Appendix B and responses map to the gateway's types for the Claude API and Bedrock Mantle."""
+"""Provider adapters against recorded responses (no network): request shape follows
+the LLM rules and responses map to the gateway's types for the Claude API and Bedrock Mantle."""
 
 from __future__ import annotations
 

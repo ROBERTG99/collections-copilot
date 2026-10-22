@@ -1,4 +1,4 @@
-"""OpenTelemetry tracing (§14): API → SQS → graph nodes → LLM, MCP and Twilio calls.
+"""OpenTelemetry tracing: API → SQS → graph nodes → LLM, MCP and Twilio calls.
 
 Spans carry identifiers and step-record attributes (route, model, tokens, cost, status, prompt
 version and hash), never message text or phone numbers. LLM spans follow the OpenTelemetry GenAI

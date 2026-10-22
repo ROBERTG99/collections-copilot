@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# make up (BUILD.md T-44, NFR-6): build the images (not timed: NFR-6 is "with cached images"), then
+# make up (NFR-6): build the images (not timed: NFR-6 is "with cached images"), then
 # start the full stack, wait until every service with a healthcheck is healthy, and fail if that
 # takes longer than UP_BUDGET_S (default 300 s).
 set -euo pipefail

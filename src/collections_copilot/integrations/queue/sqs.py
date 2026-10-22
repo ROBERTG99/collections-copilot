@@ -73,7 +73,7 @@ class SqsQueueClient:
     async def send(
         self, queue: str, body: Mapping[str, Any], attributes: Mapping[str, str] | None = None
     ) -> str:
-        carrier = tracing.inject(dict(attributes or {}))  # §14: the trace crosses the queue
+        carrier = tracing.inject(dict(attributes or {}))  # the trace crosses the queue
         return await self.send_raw(queue, json.dumps(body, default=str), carrier)
 
     async def send_raw(self, queue: str, body: str, attributes: Mapping[str, str]) -> str:

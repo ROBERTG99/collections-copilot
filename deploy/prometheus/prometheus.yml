@@ -1,4 +1,4 @@
-# Profile `observability`: scrapes the API and the worker (§14).
+# Profile `observability`: scrapes the API and the worker.
 global:
   scrape_interval: 15s
   evaluation_interval: 15s

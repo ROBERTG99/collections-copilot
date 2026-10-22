@@ -76,7 +76,7 @@ async def audit_bad_signature(request: Request, tenant: uuid.UUID | None, source
     be able to flood the hash-chained log), with no attacker-supplied values."""
     if tenant is not None:
         async with request.app.state.sessionmaker() as s:
-            # An unsigned event can name any tenant: audit only one that exists (T-51 audit L2).
+            # An unsigned event can name any tenant: audit only one that exists.
             if await Repos(s).tenants.get(tenant) is None:
                 tenant = None
     if tenant is None:
@@ -265,7 +265,7 @@ mcpgw_router = APIRouter(prefix="/api/v1/webhooks/mcpgw", tags=["webhooks"])
 
 
 class GatewayApproval(BaseModel):
-    # Used in gateway admin URLs, so a plain identifier only (T-51 security audit L3).
+    # Used in gateway admin URLs, so a plain identifier only.
     approval_id: str = Field(pattern=r"^[A-Za-z0-9_-]{1,64}$")
     tenant: str
     tool: str

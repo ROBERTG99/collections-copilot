@@ -53,7 +53,7 @@ locals {
       port   = 8310
       cpu    = 512
       memory = 1024
-      # uvicorn trusts X-Forwarded-For only from the load balancer's subnets (M6 audit M5).
+      # uvicorn trusts X-Forwarded-For only from the load balancer's subnets.
       env       = merge(local.app_env, { FORWARDED_ALLOW_IPS = join(",", module.network.public_subnet_cidrs) })
       secrets   = local.app_secrets
       check     = ["CMD", "python", "-c", format(local.http_check_py, 8310)]
@@ -261,7 +261,7 @@ resource "aws_ecs_cluster" "this" {
 
 # Created first so Container Insights does not create it without a key or a retention.
 resource "aws_cloudwatch_log_group" "container_insights" {
-  #checkov:skip=CKV_AWS_338:§16.3 sets 30-day retention for this environment
+  #checkov:skip=CKV_AWS_338:30-day retention is the documented policy for this environment
   name              = "/aws/ecs/containerinsights/${local.name}/performance"
   retention_in_days = 30
   kms_key_id        = module.kms.data_key_arn

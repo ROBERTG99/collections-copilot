@@ -1,4 +1,4 @@
-"""Eval datasets, version evals.v1 (seed 4242), with labels by construction (BUILD.md §11).
+"""Eval datasets, version evals.v1 (seed 4242), with labels by construction.
 
 Every label is fixed by how a row is built, never by running a model:
 

@@ -1,4 +1,4 @@
-# SLOs (§14): availability 99.5%, queue p95 < 300 ms; DLQ messages page someone.
+# SLOs: availability 99.5%, queue p95 < 300 ms; DLQ messages page someone.
 groups:
   - name: collections-copilot
     rules:

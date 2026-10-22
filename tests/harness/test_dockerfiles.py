@@ -1,4 +1,4 @@
-"""T-44 (NFR-6): every image runs as a non-root user and reports its health; compose waits on it."""
+"""NFR-6: every image runs as a non-root user and reports its health; compose waits on it."""
 
 import re
 from pathlib import Path

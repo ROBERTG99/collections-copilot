@@ -1,4 +1,4 @@
-"""T-51 security audit M3: an amount is plain decimal notation with a bound, so one row can
+"""An amount is plain decimal notation with a bound, so one row can
 neither stall the event loop (`1e999990` took 24 s of CPU) nor overflow the bigint column."""
 
 from __future__ import annotations

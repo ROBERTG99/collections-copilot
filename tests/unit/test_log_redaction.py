@@ -1,4 +1,4 @@
-"""T-43 (NFR-10, §14): JSON logs carry identifiers, never phone numbers, tokens or message bodies."""
+"""NFR-10: JSON logs carry identifiers, never phone numbers, tokens or message bodies."""
 
 from __future__ import annotations
 
@@ -101,7 +101,7 @@ def test_configure_logging_is_idempotent() -> None:
 @pytest.mark.parametrize(
     "text",
     [
-        "GET /api/v1/queue?q=x&phone=%2B15551234567",  # URL-encoded phone (M6 audit M7)
+        "GET /api/v1/queue?q=x&phone=%2B15551234567",  # URL-encoded phone
         "callback for 555 123 4567 failed",
         "number 15551234567 bounced",
         "refresh_token=abc.def.ghi&x=1",

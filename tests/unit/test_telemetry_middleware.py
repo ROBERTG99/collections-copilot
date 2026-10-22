@@ -1,4 +1,4 @@
-"""T-42: the API's outermost middleware sets correlation ids, continues traces and times routes."""
+"""The API's outermost middleware sets correlation ids, continues traces and times routes."""
 
 from __future__ import annotations
 
@@ -62,7 +62,7 @@ def _leaks(span: object) -> list[str]:
 
 
 def test_span_errors_carry_the_exception_type_only() -> None:
-    """M6 review B1: exception messages (debtor text, phone numbers) never reach a span."""
+    """Exception messages (debtor text, phone numbers) never reach a span."""
     import pytest
 
     spans = tracing.install_test_exporter()
@@ -78,7 +78,7 @@ def test_span_errors_carry_the_exception_type_only() -> None:
 
 
 async def test_unhandled_errors_are_logged_with_ids_and_never_exported() -> None:
-    """M6 review B1 and M2: the server span hides the message; the log line keeps the ids."""
+    """The server span hides the message; the log line keeps the ids."""
     import io
     import json
     import logging

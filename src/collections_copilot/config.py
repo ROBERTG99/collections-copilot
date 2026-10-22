@@ -48,7 +48,7 @@ class Settings(BaseSettings):
     oidc_jwks_url: str | None = None
     oidc_audience: str = "cc-web"
 
-    # LLM routing (§4.6)
+    # LLM routing
     llm_provider: Literal["fake", "anthropic", "bedrock"] = "fake"
     model_fast: str = "claude-haiku-5-5"
     model_reasoning: str = "claude-opus-5-5"
@@ -80,8 +80,8 @@ class Settings(BaseSettings):
     smtp_from: str = "copilot@collections.example"
     supervisor_email: str = "supervisors@collections.example"
 
-    # policy (§3.1 FR-6)
-    # The spec's ceiling: an environment may tighten it, never loosen it, and never to NaN.
+    # policy
+    # The policy ceiling: an environment may tighten it, never loosen it, and never to NaN.
     auto_approve_max_usd: float = Field(500.0, gt=0, le=500, allow_inf_nan=False)
     auto_approve_min_confidence: float = Field(0.9, ge=0.9, le=1, allow_inf_nan=False)
     worker_concurrency: int = 8
@@ -101,7 +101,7 @@ class Settings(BaseSettings):
     @field_validator("sqs_endpoint_url", "s3_endpoint_url", "s3_public_endpoint_url", mode="before")
     @classmethod
     def _empty_means_aws_default(cls, value: object) -> object:
-        """ECS task definitions pass "" for an unset endpoint; botocore refuses "" (M7 review)."""
+        """ECS task definitions pass "" for an unset endpoint; botocore refuses ""."""
         return None if value == "" else value
 
     @model_validator(mode="after")

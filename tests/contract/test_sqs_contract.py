@@ -1,4 +1,4 @@
-"""QueueClient contract (§7.4): the SQS adapter behaves the same against ElasticMQ and moto."""
+"""QueueClient contract: the SQS adapter behaves the same against ElasticMQ and moto."""
 
 from __future__ import annotations
 

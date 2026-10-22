@@ -1,4 +1,4 @@
-"""Prometheus metrics (§14). Labels are low-cardinality: never tenant, case, phone or text.
+"""Prometheus metrics. Labels are low-cardinality: never tenant, case, phone or text.
 
 With several API worker processes (`CC_API_WORKERS`), `PROMETHEUS_MULTIPROC_DIR` is set before
 they start: each process writes its values there and `scrape_registry` sums them per scrape.

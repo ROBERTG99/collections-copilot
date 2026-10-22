@@ -1,4 +1,4 @@
-"""T-10: the audit hash chain detects tampering at the first bad sequence number."""
+"""The audit hash chain detects tampering at the first bad sequence number."""
 
 from __future__ import annotations
 

@@ -21,7 +21,7 @@ async function caseId(page: Page): Promise<string> {
   return pausedCase;
 }
 
-/** Every console screen, in the order of the user journey (BUILD.md §13). */
+/** Every console screen, in the order of the user journey. */
 export const SCREENS: Screen[] = [
   {
     name: "queue",

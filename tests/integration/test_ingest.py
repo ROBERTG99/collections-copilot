@@ -1,4 +1,4 @@
-"""T-12: ingest is idempotent by SHA-256 and rejects invalid rows with their row number (FR-1)."""
+"""Ingest is idempotent by SHA-256 and rejects invalid rows with their row number (FR-1)."""
 
 from __future__ import annotations
 

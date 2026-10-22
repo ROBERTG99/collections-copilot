@@ -1,4 +1,4 @@
-"""T-28 / FR-7: the Twilio adapter against the WireMock double, and webhook signatures against
+"""FR-7: the Twilio adapter against the WireMock double, and webhook signatures against
 the official `twilio` library (the debtor simulator signs with it)."""
 
 from __future__ import annotations

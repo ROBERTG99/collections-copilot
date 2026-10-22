@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""PreToolUse (Bash|Write|Edit): block actions forbidden by BUILD.md §0 rule 8 and §1.1.
+"""PreToolUse (Bash|Write|Edit): block actions this repository forbids (see CLAUDE.md, "Never").
 
 Exit code 2 blocks the tool call and shows the reason to Claude.
 """
@@ -23,14 +23,14 @@ BASH_RULES: list[tuple[re.Pattern[str], str]] = [
         re.compile(r"\b(cdk|sam|serverless|copilot)\s+deploy\b"),
         "deploying to a cloud account is forbidden",
     ),
-    (re.compile(CMD + r"aws\s+\S+", re.M), "the aws CLI is not used by this build"),
+    (re.compile(CMD + r"aws\s+\S+", re.M), "the aws CLI is not used in this repository"),
     (
         re.compile(r"\bgh\s+repo\s+(create|delete|edit|rename|archive)\b"),
         "repository changes are forbidden",
     ),
     (re.compile(r"\bgit\s+config\b[^\n|;&]*\buser\."), "git identity must not be changed"),
     (re.compile(r"\bgit\b[^\n|;&]*\s-c\s*['\"]?user\."), "git identity must not be changed"),
-    (re.compile(r"\bgit\b[^\n|;&]*\s--author\b"), "commits must use the maintainer identity"),
+    (re.compile(r"\bgit\b[^\n|;&]*\s--author\b"), "commits must use the configured git identity"),
     (
         re.compile(r"(^|[\s;&|(])(export\s+)?GIT_(AUTHOR|COMMITTER)_(NAME|EMAIL|DATE)="),
         "GIT_AUTHOR_*/GIT_COMMITTER_* must not be set",

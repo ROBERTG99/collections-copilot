@@ -1,4 +1,4 @@
-# make tf-check on every change; a plan-only job on main when the plan role is configured (§16, §17).
+# make tf-check on every change; a plan-only job on main when the plan role is configured.
 # Nothing is ever applied from CI: the plan role is read-only (modules/github_oidc).
 name: terraform
 

@@ -1,4 +1,4 @@
-# The full compose stack, seeded, then Playwright with axe on every screen (BUILD.md §17).
+# The full compose stack, seeded, then Playwright with axe on every screen.
 name: e2e
 
 on:

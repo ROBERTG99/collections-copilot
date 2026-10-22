@@ -1,4 +1,4 @@
-"""`make eval`: run every suite, gate it and generate `evals/REPORT.md` (BUILD.md §11).
+"""`make eval`: run every suite, gate it and generate `evals/REPORT.md`.
 
 The test split is gated by evalgate v0.1.0 (thresholds, the suite budget, run health and a
 regression of more than 1 percentage point against `evals/reports/baseline.json`) plus "no

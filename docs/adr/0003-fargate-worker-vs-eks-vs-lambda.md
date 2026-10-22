@@ -22,7 +22,7 @@ Each case run holds a per-case `pg_advisory_xact_lock` on a pooled connection fo
 
 ## Alternatives considered
 
-- **EKS.** Rejected. It adds a cluster control plane, node groups or Fargate profiles, an ingress controller and a second deployment toolchain (manifests or Helm) for five services, and none of these gives the worker a property it needs. The build container has no kubectl or Helm, and get.helm.sh and registry.k8s.io are blocked (spec Appendix A), so that setup could not be validated offline the way `make tf-check` validates the ECS configuration.
+- **EKS.** Rejected. It adds a cluster control plane, node groups or Fargate profiles, an ingress controller and a second deployment toolchain (manifests or Helm) for five services, and none of these gives the worker a property it needs. The build container has no kubectl or Helm, and get.helm.sh and registry.k8s.io are blocked, so that setup could not be validated offline the way `make tf-check` validates the ECS configuration.
 - **Lambda with an SQS event source.** Rejected. The worker depends on being a long-lived process. The scheduler's leader lock and the per-case advisory lock live on database connections held for the length of a run, and the checkpointer keeps a connection pool; short-lived execution environments would open connections per invocation, and the configuration has no RDS Proxy. The scheduler, the DLQ watcher and the metrics endpoint would each need another trigger or service. A case run includes model calls with timeouts and retries, so the function timeout and the queue visibility timeout would have to cover the worst-case run.
 
 ## Consequences

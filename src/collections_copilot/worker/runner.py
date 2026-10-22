@@ -86,7 +86,7 @@ class CaseRunner:
             if task.kind in ("resume_case", "follow_up"):
                 if not snapshot.interrupts:
                     if snapshot.next:
-                        # The resumed run crashed mid-node (T-51 review B1): this redelivery
+                        # The resumed run crashed mid-node: this redelivery
                         # finishes it, re-running the node from its own checks.
                         await self.graph.ainvoke(None, config)
                         return "recovered"

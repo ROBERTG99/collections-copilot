@@ -1,4 +1,4 @@
-"""M2 review: provider errors map to retryable only for transport failures and 408/409/429/5xx."""
+"""Provider errors map to retryable only for transport failures and 408/409/429/5xx."""
 
 from __future__ import annotations
 

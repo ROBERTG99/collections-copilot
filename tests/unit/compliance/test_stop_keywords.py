@@ -33,7 +33,7 @@ from collections_copilot.compliance.stop_keywords import is_stop
         "no más mensajes",
         "STOPALL",
         "opt out",
-        # M2 re-review probes
+        # More probes
         "STOP STOP",
         "STOP ALL",
         "Stop all",
@@ -82,7 +82,7 @@ def test_stop_variants(body: str) -> None:
         "Don't stop sending the invoices to AP",
         "The bus stop is where we receive deliveries",
         "Alto el fuego",
-        # M2 re-review probes: these must not opt anyone out
+        # Probes: these must not opt anyone out
         "No text received with the link",
         "I got no message with the payment link",
         "There was no SMS with the link",

@@ -1,4 +1,4 @@
-# Identity (T-46): code flow with PKCE for the BFF (a public client), the API's three roles as
+# Identity: code flow with PKCE for the BFF (a public client), the API's three roles as
 # groups, and an immutable tenant attribute.
 
 mock_provider "aws" {

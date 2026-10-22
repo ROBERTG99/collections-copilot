@@ -1,4 +1,4 @@
-"""T-42 (§14): one span per graph node, LLM spans with gen_ai attributes, metrics and propagation."""
+"""One span per graph node, LLM spans with gen_ai attributes, metrics and propagation."""
 
 from __future__ import annotations
 
@@ -91,7 +91,7 @@ async def test_span_per_node_with_gen_ai_attributes(spans: InMemorySpanExporter)
     parent = node_spans["next_best_action"]
     assert nba.parent is not None
     assert nba.parent.span_id == parent.context.span_id
-    # An approval pause is not a failure (M6 review M1).
+    # An approval pause is not a failure.
     paused = node_spans["human_approval"]
     assert paused.attributes["cc.status"] == "interrupted"
     assert paused.status.status_code.name != "ERROR"
@@ -134,7 +134,7 @@ async def test_queue_messages_carry_the_trace(spans: InMemorySpanExporter) -> No
 
 
 async def test_the_trace_crosses_a_real_queue(spans: InMemorySpanExporter) -> None:
-    """M6 review: SqsQueueClient.send writes the trace into message attributes, and the
+    """SqsQueueClient.send writes the trace into message attributes, and the
     Consumer continues it around the handler (ElasticMQ, a queue no worker reads)."""
     import asyncio
 

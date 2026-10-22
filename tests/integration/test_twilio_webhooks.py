@@ -1,4 +1,4 @@
-"""T-28 / FR-7, FR-8: Twilio status and inbound webhooks."""
+"""FR-7, FR-8: Twilio status and inbound webhooks."""
 
 from __future__ import annotations
 
@@ -153,7 +153,7 @@ async def test_inbound_stop_is_handled_by_rule(
             if m.direction == "inbound"
         ]
     assert [(m.classification, m.status) for m in inbound] == [("stop", "handled")]
-    # The console labels the opt-out as made by the rule, not "source not recorded" (T-49 demo).
+    # The console labels the opt-out as made by the rule, not "source not recorded".
     assert inbound[0].extracted == {"promise": None, "source": "rule"}
 
 
@@ -181,7 +181,7 @@ async def test_inbound_reply_is_queued_once_stored(
 
 
 async def test_same_number_in_two_tenants(client, api_app, sessionmaker, tenant, doubles) -> None:  # type: ignore[no-untyped-def]
-    """M3 reviews: a shared number must never route one tenant's debtor reply to another."""
+    """A shared number must never route one tenant's debtor reply to another."""
     from tests.factories import make_tenant
 
     queue, sms = doubles

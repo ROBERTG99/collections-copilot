@@ -1,4 +1,4 @@
-# Invalid inputs are rejected before anything is planned (T-46).
+# Invalid inputs are rejected before anything is planned.
 
 mock_provider "aws" {
   mock_data "aws_caller_identity" {

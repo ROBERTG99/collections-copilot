@@ -1,4 +1,4 @@
-"""T-18 / NFR-10: no seeded PII reaches a provider (spy on every provider payload)."""
+"""NFR-10: no seeded PII reaches a provider (spy on every provider payload)."""
 
 from __future__ import annotations
 
@@ -70,7 +70,7 @@ def test_long_invoice_numbers_and_dates_survive() -> None:
 
 
 def test_spanish_local_numbers_are_redacted() -> None:
-    """M2 review: Spanish numbers written without +34 never reach a provider."""
+    """Spanish numbers written without +34 never reach a provider."""
     for number in ("555 12 34 56", "555 123 456"):
         redacted, mapping = Redactor().redact(
             f"Llamar a Marta al {number} por la tarde", language="es"
@@ -86,7 +86,7 @@ def test_amounts_and_invoice_numbers_survive_es_patterns() -> None:
 
 
 async def test_names_with_escaped_characters_never_reach_the_provider() -> None:
-    """T-51 security audit M1: the prompt escapes &, <, > and quotes before redaction, so a
+    """The prompt escapes &, <, > and quotes before redaction, so a
     literal deny-list match missed names such as "Smith & Sons LLC" (and an injection hidden in
     the name reached the model inside <context>)."""
     from types import SimpleNamespace
@@ -110,7 +110,7 @@ async def test_names_with_escaped_characters_never_reach_the_provider() -> None:
 
 
 def test_phone_numbers_in_common_national_formats_are_redacted() -> None:
-    """T-51 security audit M2: digit runs and unseparated national formats were sent in clear."""
+    """Digit runs and unseparated national formats were sent in clear."""
     redactor = Redactor()
     for number in (
         "5550001234",
@@ -147,7 +147,7 @@ def test_phone_numbers_in_common_national_formats_are_redacted() -> None:
 
 
 def test_the_accounts_own_identifiers_are_never_taken_for_phone_numbers() -> None:
-    """T-51 re-review: a numeric ERP invoice number such as 9000123456 was redacted as a phone
+    """A numeric ERP invoice number such as 9000123456 was redacted as a phone
     number, and `restore` then deleted it from the draft. The account's invoice numbers and
     reference are kept; other 10-digit runs are still redacted."""
     pii = AccountPII(

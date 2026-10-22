@@ -1,6 +1,6 @@
 # Design FAQ
 
-Short answers to the design questions a reviewer usually asks, each pointing at the code that
+Short answers to common design questions, each pointing at the code that
 implements the answer. Paths are relative to the repository root; line numbers refer to the
 current tree. Gaps are tracked in [KNOWN_LIMITATIONS.md](KNOWN_LIMITATIONS.md).
 

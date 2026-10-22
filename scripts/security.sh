@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# make security (BUILD.md §12): gitleaks, bandit, pip-audit, pnpm audit, trivy, hadolint, checkov,
+# make security: gitleaks, bandit, pip-audit, pnpm audit, trivy, hadolint, checkov,
 # tflint, actionlint and the licence check. Fails on any high or critical finding that is not
 # documented in docs/security.md ("Accepted findings"); lower severities are reported only.
 # Offline-friendly: vulnerability databases come through mirror.gcr.io.
@@ -71,7 +71,7 @@ pip_audit() {
 }
 check pip-audit pip_audit
 # The dev group runs in CI and on developer machines (evalgate brings duckdb, numpy, jinja2...).
-# evalgate itself is a git requirement pip-audit cannot look up; its own code is the maintainer's.
+# evalgate itself is a git requirement pip-audit cannot look up; its own code is first-party.
 pip_audit_dev() {
   uv export --frozen --no-hashes --no-emit-workspace --only-group dev --no-emit-package evalgate \
     --format requirements-txt >"$TMP/req-dev.txt" \
@@ -114,14 +114,14 @@ if [ -d infra/terraform ]; then
     missing tflint
   fi
 else
-  absent checkov "infra/terraform does not exist yet (T-45)"
-  absent tflint "infra/terraform does not exist yet (T-45)"
+  absent checkov "infra/terraform does not exist yet"
+  absent tflint "infra/terraform does not exist yet"
 fi
 
 if compgen -G ".github/workflows/*.yml" >/dev/null; then
   if need actionlint; then check actionlint actionlint; else missing actionlint; fi
 else
-  absent actionlint ".github/workflows does not exist yet (T-48)"
+  absent actionlint ".github/workflows does not exist yet"
 fi
 
 check licences uv run --frozen python scripts/licence_check.py

@@ -1,4 +1,4 @@
-"""T-04: the Claude Code harness files are complete and well-formed."""
+"""The Claude Code harness files are complete and well-formed."""
 
 import json
 from pathlib import Path
@@ -59,7 +59,13 @@ def _frontmatter(path: Path) -> dict[str, object]:
 def test_claude_md_and_agents_md() -> None:
     claude = (ROOT / "CLAUDE.md").read_text()
     assert len(claude.splitlines()) < 200
-    for needle in ("Co-Authored-By", "PROGRESS.md", "docs/DECISIONS.md", "docs/adr", "make verify"):
+    for needle in (
+        "Co-Authored-By",
+        "docs/KNOWN_LIMITATIONS.md",
+        "docs/DECISIONS.md",
+        "docs/adr",
+        "make verify",
+    ):
         assert needle in claude
     assert "make check-fast" in (ROOT / "AGENTS.md").read_text()
 
@@ -90,7 +96,7 @@ def test_rules_exist_and_git_commits_always_loads() -> None:
     assert "Co-Authored-By" in git_rule
 
 
-def test_subagents_have_frontmatter() -> None:
+def test_agents_have_frontmatter() -> None:
     for agent in AGENTS:
         fm = _frontmatter(CLAUDE / "agents" / f"{agent}.md")
         assert fm["name"] == agent

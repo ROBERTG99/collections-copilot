@@ -1,6 +1,6 @@
 # Security
 
-Threat model, controls and scan results for collections-copilot (docs/specs/000-build-spec.md §15, NFR-10). The system only ever handles synthetic data: phone numbers in `+1555…` and `+34555…`, `example` domains, generator seed 4242. Report vulnerabilities as described in [`SECURITY.md`](../SECURITY.md).
+Threat model, controls and scan results for collections-copilot (NFR-10). The system only ever handles synthetic data: phone numbers in `+1555…` and `+34555…`, `example` domains, generator seed 4242. Report vulnerabilities as described in [`SECURITY.md`](../SECURITY.md).
 
 ## Assets and trust boundaries
 
@@ -68,7 +68,7 @@ Untrusted input crosses into the system at four points: CRM data in uploaded fil
 
 ## Scans (`make security`)
 
-`scripts/security.sh` runs every scanner from §12 and fails on any high or critical finding not listed under "Accepted findings". A check whose input does not exist yet prints `NOT RUN` with the reason, and the summary then says `PASS (N not run)`. A scanner that is not installed is `NOT RUN` locally and a failure under `CI` or `SECURITY_STRICT=1`. CI's `security` job (`.github/workflows/ci.yml`) runs gitleaks over the whole history, pip-audit and `pnpm audit` on every push and pull request; the image and Terraform scanners run in `make security`.
+`scripts/security.sh` runs every scanner below and fails on any high or critical finding not listed under "Accepted findings". A check whose input does not exist yet prints `NOT RUN` with the reason, and the summary then says `PASS (N not run)`. A scanner that is not installed is `NOT RUN` locally and a failure under `CI` or `SECURITY_STRICT=1`. CI's `security` job (`.github/workflows/ci.yml`) runs gitleaks over the whole history, pip-audit and `pnpm audit` on every push and pull request; the image and Terraform scanners run in `make security`.
 
 | Check | Gate |
 |---|---|
@@ -82,7 +82,7 @@ Untrusted input crosses into the system at four points: CRM data in uploaded fil
 | actionlint (`.github/workflows`) | any finding |
 | `scripts/licence_check.py` | GPL, AGPL, SSPL or Commons Clause in a shipped dependency (LGPL allowed) |
 
-The latest result is recorded in `PROGRESS.md` and, at the end of the build, in `docs/verification.md`.
+The latest results are summarised in the README ("Infrastructure and security checks").
 
 ## Accepted findings
 
@@ -104,7 +104,7 @@ Fixed while adding the scans: `smol-toml` and `katex` advisories (pnpm overrides
 ## Secrets
 
 - Locally: `.env` from `.env.example`, which holds only dummy values.
-- AWS: Secrets Manager entries created without values by Terraform (`infra/terraform/modules/secrets`, M7), injected into ECS tasks.
+- AWS: Secrets Manager entries created without values by Terraform (`infra/terraform/modules/secrets`), injected into ECS tasks.
 - Rotation and replay procedures: `docs/runbook.md`.
 - gitleaks scans the whole history in `make security`; a PreToolUse hook blocks edits to frozen eval datasets and destructive commands such as applying or destroying Terraform (`.claude/hooks/pre_tool_guard.py`).
 

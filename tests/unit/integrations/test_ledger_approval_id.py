@@ -1,4 +1,4 @@
-"""T-51 security re-check: the gateway's approval id goes into admin URL paths later, so a
+"""The gateway's approval id goes into admin URL paths later, so a
 malformed one is refused when the ledger response is parsed, not with a 500 at approval time."""
 
 from __future__ import annotations

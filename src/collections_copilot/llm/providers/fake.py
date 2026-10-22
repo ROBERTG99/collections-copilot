@@ -159,6 +159,23 @@ REPLY_KEYWORDS: list[tuple[str, list[str]]] = [
             r"error en (?:la|el) (?:factura|importe|monto)",
             r"no estamos de acuerdo",
             r"reclam",
+            # The goods, the delivery or the price contested in other words.
+            r"\b(?:never|didn'?t|did not|hasn'?t|has not|haven'?t) (?:arrive|arrived|came|shown up)\b",
+            r"\b(?:arrived|came|showed up|shipped) (?:\w+ )?(?:broken|damaged|incomplete|short)\b",
+            r"\bbroken\b(?! promise)",
+            r"\bfaulty\b",
+            r"\b(?:is|are|looks?|seems?) (?:not right|wrong)\b",
+            r"\bnot (?:right|correct|accurate)\b",
+            r"\b(?:doesn'?t|does not|don'?t|do not) match\b",
+            r"\bnot as (?:described|agreed|quoted|ordered)\b",
+            r"\bshort[- ]?shipped\b",
+            r"\bnunca (?:lleg|recib)",
+            r"\bno (?:ha |han )?lleg(?:ó|o|aron|ado)\b",
+            r"\bllegó (?:\w+ )?(?:rot|dañad|incomplet)",
+            r"\brot[ao]s?\b",
+            r"\bno (?:coincide|cuadra|es correct|está bien)",
+            r"\bmal (?:facturad|cobrad)",
+            r"\bcobr\w* de más\b",
         ],
     ),
     (
@@ -180,6 +197,17 @@ REPLY_KEYWORDS: list[tuple[str, list[str]]] = [
             r"pagado",
             r"ya se pag[oó]",
             r"comprobante",
+            # The money already left, in other words.
+            r"\b(?:we|i) (?:already )?(?:took care of|covered|cleared|handled) (?:it|this|that|the)\b",
+            r"\b(?:it'?s|it is|this is|that'?s|that is) (?:been |already )*(?:taken care of|settled)\b",
+            r"\b(?:transfer|wire|payment|money|funds|check|cheque) (?:went out|left|cleared)\b",
+            r"\bshould (?:have )?(?:reached|arrived|landed|cleared)\b",
+            r"\bproof of payment\b",
+            r"\bya (?:está|esta|quedó|quedo) (?:pagad|saldad|liquidad|abonad|cancelad)",
+            r"\b(?:hicimos|realizamos|enviamos|efectuamos|hice|realicé|envié) "
+            r"(?:el|la|un|una) (?:pago|transferencia|dep[oó]sito|giro)\b",
+            r"\bse (?:realizó|hizo|efectuó|envió) (?:el|la) (?:pago|transferencia)\b",
+            r"\b(?:lo|la|los|las)? ?(?:hemos|he) (?:pagado|abonado|transferido|saldado|liquidado)\b",
         ],
     ),
     (
@@ -394,13 +422,33 @@ def _promise_date(text: str, today: date) -> str | None:
     return m.group(1) if m else None
 
 
+SENTENCE = re.compile(r"[^.!?¿¡]*(?:[.!?]+|$)")
+LOCAL_NEGATION = re.compile(r"\b(?:not|never|no|nunca)\s+(?:\w+\s+){0,2}$|n'?t\s+$", re.I)
+CONDITION = re.compile(r"\b(?:if|unless|si(?!,)|salvo que|a menos que)\b", re.I)
+
+
+def _committed(text: str, patterns: list[str]) -> bool:
+    """A promise phrase in a sentence that is not asked, negated or made conditional."""
+    for sentence in SENTENCE.finditer(text):
+        body = sentence.group(0)
+        if body.rstrip().endswith("?"):
+            continue
+        for pattern in patterns:
+            for m in re.finditer(pattern, body, re.I | re.M):
+                before = body[: m.start()]
+                if not LOCAL_NEGATION.search(before) and not CONDITION.search(before):
+                    return True
+    return False
+
+
 def _classify(ctx: dict[str, Any], notes: list[tuple[str, str]]) -> dict[str, Any]:
     text = " ".join(body for _, body in notes)
     today = date.fromisoformat(ctx.get("today", date.today().isoformat()))
     for label, patterns in REPLY_KEYWORDS:
         if label == "promise_to_pay" and text.rstrip().endswith("?"):
             continue  # a question is not a commitment
-        if _match(text, patterns):
+        found = _committed(text, patterns) if label == "promise_to_pay" else _match(text, patterns)
+        if found:
             promise = None
             if label == "promise_to_pay":
                 promise = {

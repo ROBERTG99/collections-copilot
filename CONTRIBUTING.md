@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for looking at collections-copilot. This page covers setup, the workflow every change follows, the project conventions and how to add an eval case. The full specification is [docs/specs/000-build-spec.md](docs/specs/000-build-spec.md); [CLAUDE.md](CLAUDE.md) and [AGENTS.md](AGENTS.md) carry the same essentials for coding agents.
+Thanks for looking at collections-copilot. This page covers setup, the workflow every change follows, the project conventions and how to add an eval case. The architecture is described in [docs/architecture.md](docs/architecture.md); [CLAUDE.md](CLAUDE.md) and [AGENTS.md](AGENTS.md) carry the same essentials for AI coding assistants.
 
 ## Setup
 
@@ -59,7 +59,7 @@ From [CLAUDE.md](CLAUDE.md) and `.claude/rules/`:
 
 ## Adding an eval case
 
-Eval datasets are frozen once committed: `evals/datasets/*.v1.jsonl` and their existing digests in `evals/datasets/MANIFEST.json` are never edited (a new version adds its own entry), and the agent hook blocks edits to existing dataset files. The `add-eval-case` skill (`.claude/skills/add-eval-case/SKILL.md`) describes the steps:
+Eval datasets are frozen once committed: `evals/datasets/*.v1.jsonl` and their existing digests in `evals/datasets/MANIFEST.json` are never edited (a new version adds its own entry), and the Claude Code guard hook blocks edits to existing dataset files. The `add-eval-case` skill (`.claude/skills/add-eval-case/SKILL.md`) describes the steps:
 
 1. Extend `data/generator/evals.py` with the new scenario. Labels are set by construction, from how the row is built, never by a model.
 2. Write a new dataset version (`*.v2.jsonl`) instead of editing a committed `*.v1.jsonl` file, and update `evals/datasets/MANIFEST.json`.

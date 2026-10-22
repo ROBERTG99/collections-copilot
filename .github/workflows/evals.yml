@@ -1,4 +1,4 @@
-# Offline evals against the committed baseline (BUILD.md §11, §17). `make eval` runs evalgate v0.1.0
+# Offline evals against the committed baseline. `make eval` runs evalgate v0.1.0
 # through collections_copilot.evals.engine (scoped and corpus metrics, docs/DECISIONS.md) and gates
 # every suite threshold and the paired-bootstrap regression check; the published
 # ROBERTG99/evalgate/action@v0.1.0 gates one plain report and is not used.

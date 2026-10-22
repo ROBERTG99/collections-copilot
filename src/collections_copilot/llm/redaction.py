@@ -92,7 +92,7 @@ def _engine() -> AnalyzerEngine:
                 supported_language=lang,
                 patterns=[
                     Pattern("e164", r"\+\d[\d\s().-]{7,18}\d", 0.7),
-                    # National forms (T-51 security audit M2): grouped with spaces, dots, dashes,
+                    # National forms: grouped with spaces, dots, dashes,
                     # slashes or Unicode dashes, or unseparated; a trailing "." or "," ends a
                     # sentence, while a following digit means an amount or a date.
                     Pattern("nanp", _B + r"\(?\d{3}\)?" + _S + r"?\d{3}" + _S + r"\d{4}" + _A, 0.6),
@@ -128,7 +128,7 @@ class AccountPII:
     phone_e164: str = ""
     contacts: tuple[str, ...] = ()
     # The account's own identifiers (invoice numbers, reference): never redacted as phone
-    # numbers, since drafts and citations need them (T-51 re-review).
+    # numbers, since drafts and citations need them.
     keep: tuple[str, ...] = ()
 
     def deny_terms(self) -> list[tuple[str, str]]:
@@ -150,7 +150,7 @@ class AccountPII:
                 if digits.startswith(code) and len(digits) - len(code) >= 9:
                     terms.append(("PHONE_NUMBER", digits[len(code) :]))
         # The prompt is redacted after rendering, which escapes the values: match each term the
-        # way the JSON context and the note fence write it too (T-51 security audit M1).
+        # way the JSON context and the note fence write it too.
         return [(e, form) for e, term in terms for form in dict.fromkeys(_escaped_forms(term))]
 
 

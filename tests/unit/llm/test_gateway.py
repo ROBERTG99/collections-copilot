@@ -1,4 +1,4 @@
-"""T-16: the LLM gateway retries only retryable errors, handles refusal/max_tokens, validates schemas,
+"""The LLM gateway retries only retryable errors, handles refusal/max_tokens, validates schemas,
 accounts cost, records step records and trips a circuit breaker."""
 
 from __future__ import annotations

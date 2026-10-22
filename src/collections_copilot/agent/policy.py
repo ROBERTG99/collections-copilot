@@ -36,7 +36,7 @@ def effective(
     max_usd = min(env_max_usd, _number(s.get("max_usd"), env_max_usd))
     min_confidence = max(env_min_confidence, _number(s.get("min_confidence"), env_min_confidence))
     # min(nan, x) is nan and every comparison with nan is False, so a non-finite ceiling would
-    # wave everything through: fail closed instead (T-51 compliance review).
+    # wave everything through: fail closed instead.
     finite = all(
         math.isfinite(v) for v in (env_max_usd, env_min_confidence, max_usd, min_confidence)
     )

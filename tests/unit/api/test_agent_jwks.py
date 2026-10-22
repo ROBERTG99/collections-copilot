@@ -1,4 +1,4 @@
-"""M7 Terraform review: mcp-gateway verifies KMS-signed agent tokens with the key set the API
+"""mcp-gateway verifies KMS-signed agent tokens with the key set the API
 publishes at /.well-known/agent-jwks.json (configured as MCPGW_JWKS_URL)."""
 
 from __future__ import annotations

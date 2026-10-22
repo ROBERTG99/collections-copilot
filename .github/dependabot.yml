@@ -1,4 +1,4 @@
-# Weekly dependency updates, grouped per ecosystem to keep the PR count low (BUILD.md §6).
+# Weekly dependency updates, grouped per ecosystem to keep the PR count low.
 version: 2
 updates:
   - package-ecosystem: uv

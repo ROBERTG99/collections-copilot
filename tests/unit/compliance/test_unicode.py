@@ -1,4 +1,4 @@
-"""M6 security audit H1: look-alike and hidden characters never get a link or phrase past the
+"""Look-alike and hidden characters never get a link or phrase past the
 post-check. The text rules read the normalised body and fail closed on anything they cannot."""
 
 from __future__ import annotations

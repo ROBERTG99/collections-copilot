@@ -1,4 +1,4 @@
-"""T-24 / FR-9: promise write-back through mcp-gateway with ptp:<tenant>:<MessageSid>."""
+"""FR-9: promise write-back through mcp-gateway with ptp:<tenant>:<MessageSid>."""
 
 from __future__ import annotations
 
@@ -216,7 +216,7 @@ class UnavailableOnce:
 async def test_a_transient_ledger_failure_is_retried_with_back_off(
     sessionmaker, database_url, migrated_database, tenant, stack
 ) -> None:  # type: ignore[no-untyped-def]
-    """T-51 reviews: `unavailable` left the promise `failed` for good (round 1); redelivering the
+    """`unavailable` left the promise `failed` for good (round 1); redelivering the
     reply instead flooded the DLQ through the stale-reply sweep (round 2). The reply completes,
     the promise stays pending, and a backed-off follow-up retries the same key."""
     account, _ = await seeded_account(sessionmaker, stack, tenant, 120_000)

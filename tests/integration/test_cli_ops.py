@@ -1,5 +1,5 @@
 """Operations commands from the runbook and the replay-dlq skill: `cc dlq peek`, `cc replay-dlq`
-(BUILD.md §6 skills) and `cc dev-token` (`make dev-token`)."""
+and `cc dev-token` (`make dev-token`)."""
 
 from __future__ import annotations
 

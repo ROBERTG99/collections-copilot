@@ -1,4 +1,4 @@
-"""T-15: the synthetic ledger MCP server: §4.4 schemas and upstream dedup by idempotency key."""
+"""The synthetic ledger MCP server: tool schemas and upstream dedup by idempotency key."""
 
 from __future__ import annotations
 

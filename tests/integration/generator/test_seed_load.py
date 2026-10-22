@@ -1,4 +1,4 @@
-"""T-11: loading gen.v1 is complete and idempotent by digest."""
+"""Loading gen.v1 is complete and idempotent by digest."""
 
 from __future__ import annotations
 

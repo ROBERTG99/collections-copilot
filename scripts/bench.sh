@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# make bench (BUILD.md T-47): performance budgets, offline. A missed budget fails the build.
+# make bench: performance budgets, offline. A missed budget fails the build.
 #   NFR-2, NFR-4: tests/perf/test_batch_400.py (pytest, Postgres + ElasticMQ, FakeLLM)
 #   NFR-1:        tests/perf/queue.k6.js (k6, 20 VUs for 60 s against the seeded compose stack)
 # The k6 run recreates the API with a high per-user rate limit (one persona drives 20 VUs; the

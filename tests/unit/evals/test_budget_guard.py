@@ -1,4 +1,4 @@
-"""T-41: `make eval-live` prints its estimate, stops at LIVE_EVAL_BUDGET_USD and needs no key."""
+"""`make eval-live` prints its estimate, stops at LIVE_EVAL_BUDGET_USD and needs no key."""
 
 from __future__ import annotations
 
@@ -112,7 +112,7 @@ async def test_meter_and_recorder_wrap_the_provider(tmp_path: Any) -> None:
 
 
 async def test_one_expensive_case_cannot_overshoot_the_budget() -> None:
-    """M5 review: a single case may cost far more than its estimate (retries, long outputs)."""
+    """A single case may cost far more than its estimate (retries, long outputs)."""
     rows = [Case(id=f"r{i}", split="test", input={}, expected={"v": 1}) for i in range(5)]
     guard = live.BudgetGuard(limit_usd=0.05)
     meter = live.Meter(guard=guard)

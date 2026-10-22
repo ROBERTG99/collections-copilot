@@ -1,4 +1,4 @@
-"""T-13: the priority score is deterministic, bounded and monotonic (FR-2)."""
+"""The priority score is deterministic, bounded and monotonic (FR-2)."""
 
 from __future__ import annotations
 

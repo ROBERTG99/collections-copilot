@@ -1,4 +1,4 @@
-"""T-11: gen.v1 is deterministic for a seed and only emits synthetic phone numbers."""
+"""gen.v1 is deterministic for a seed and only emits synthetic phone numbers."""
 
 from __future__ import annotations
 

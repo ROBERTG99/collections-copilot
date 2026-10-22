@@ -1,4 +1,4 @@
-"""M2 review regressions (FR-5, FR-6, NFR-5): the send path re-reads the database.
+"""Regressions (FR-5, FR-6, NFR-5): the send path re-reads the database.
 
 Between an approval and the actual send (a deferred 08:00 send, or a resume hours later) the
 debtor may dispute, opt out or be flagged, the case may be closed and the draft cancelled. The

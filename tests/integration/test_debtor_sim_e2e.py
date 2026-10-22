@@ -1,4 +1,4 @@
-"""T-28 done-when: on the running stack, a simulated debtor reply arrives within 5 s of the send."""
+"""On the running stack, a simulated debtor reply arrives within 5 s of the send."""
 
 from __future__ import annotations
 

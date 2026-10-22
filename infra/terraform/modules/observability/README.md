@@ -34,7 +34,7 @@ No modules.
 | <a name="input_dlq_names"></a> [dlq\_names](#input\_dlq\_names) | Dead-letter queue names by key (DLQ alarm). | `map(string)` | n/a | yes |
 | <a name="input_environment"></a> [environment](#input\_environment) | Environment name. | `string` | n/a | yes |
 | <a name="input_kms_key_arn"></a> [kms\_key\_arn](#input\_kms\_key\_arn) | KMS key for log groups and the SNS topic. | `string` | n/a | yes |
-| <a name="input_log_retention_days"></a> [log\_retention\_days](#input\_log\_retention\_days) | Log retention in days (30 per §16.3). | `number` | `30` | no |
+| <a name="input_log_retention_days"></a> [log\_retention\_days](#input\_log\_retention\_days) | Log retention in days (30 for this environment). | `number` | `30` | no |
 | <a name="input_monthly_budget_usd"></a> [monthly\_budget\_usd](#input\_monthly\_budget\_usd) | Monthly cost budget in USD. | `number` | n/a | yes |
 | <a name="input_project"></a> [project](#input\_project) | Project name used in resource names. | `string` | n/a | yes |
 | <a name="input_queue_names"></a> [queue\_names](#input\_queue\_names) | Work queue names by key (oldest-message alarm). | `map(string)` | n/a | yes |
@@ -45,7 +45,7 @@ No modules.
 | Name | Description |
 | ---- | ----------- |
 | <a name="output_alarm_names"></a> [alarm\_names](#output\_alarm\_names) | Every alarm this module creates. |
-| <a name="output_alarm_thresholds"></a> [alarm\_thresholds](#output\_alarm\_thresholds) | Thresholds of the §16.3 alarms (for the tests). |
+| <a name="output_alarm_thresholds"></a> [alarm\_thresholds](#output\_alarm\_thresholds) | Thresholds of the SLO alarms (for the tests). |
 | <a name="output_alarm_topic_arn"></a> [alarm\_topic\_arn](#output\_alarm\_topic\_arn) | SNS topic for alarms. |
 | <a name="output_budget_usd"></a> [budget\_usd](#output\_budget\_usd) | Monthly budget limit. |
 | <a name="output_log_group_names"></a> [log\_group\_names](#output\_log\_group\_names) | Log group name per service. |

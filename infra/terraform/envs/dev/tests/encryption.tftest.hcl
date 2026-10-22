@@ -1,4 +1,4 @@
-# Encryption at rest with the customer-managed data key (T-45).
+# Encryption at rest with the customer-managed data key.
 
 mock_provider "aws" {
   mock_data "aws_caller_identity" {

@@ -1,4 +1,4 @@
-"""Reply graph (BUILD.md §4.5): stop_rule → classify_reply → route.
+"""Reply graph: stop_rule → classify_reply → route.
 
   stop (rule or model) → opt-out, cancel drafts and open cases, one confirmation SMS
   promise_to_pay → validate_promise (amount ≤ open balance, date 1–90 days) → record_promise → follow-up

@@ -1,4 +1,4 @@
-"""T-23: reply graph (FR-8). STOP is handled by rule before any model call."""
+"""Reply graph (FR-8). STOP is handled by rule before any model call."""
 
 from __future__ import annotations
 
@@ -169,7 +169,7 @@ async def test_paid_and_wrong_number_and_other(sessionmaker, database_url, tenan
 async def test_reclassify_records_correction_only(  # type: ignore[no-untyped-def]
     client, sessionmaker, database_url, tenant, auth
 ) -> None:
-    """M4 review: a correction never changes what the graph reads, and only a processed reply
+    """A correction never changes what the graph reads, and only a processed reply
     can be corrected (an unprocessed one would otherwise be routed on the analyst's label)."""
     account = await make_account(sessionmaker, tenant)
     reply = await inbound(sessionmaker, tenant, account, "Who is this?")

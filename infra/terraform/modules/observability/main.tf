@@ -1,7 +1,7 @@
-# Log groups (30 days, KMS), an SNS topic for alarms, the §14 alarms and a monthly budget.
+# Log groups (30 days, KMS), an SNS topic for alarms, the SLO alarms and a monthly budget.
 
 resource "aws_cloudwatch_log_group" "service" {
-  #checkov:skip=CKV_AWS_338:§16.3 sets 30-day retention for this environment (log_retention_days)
+  #checkov:skip=CKV_AWS_338:30-day retention is the documented policy for this environment (log_retention_days)
   for_each          = toset(var.services)
   name              = "/${var.project}/${var.environment}/${each.key}"
   retention_in_days = var.log_retention_days

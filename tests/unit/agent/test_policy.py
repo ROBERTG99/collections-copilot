@@ -49,7 +49,7 @@ def test_small_confident_clean_remind_qualifies() -> None:
         {"policy": policy.effective({"enabled": False}, ENV_MAX, ENV_MIN)},
         {"policy": policy.effective({"max_usd": 100}, ENV_MAX, ENV_MIN)},
         {"policy": policy.effective({"min_confidence": 0.99}, ENV_MAX, ENV_MIN)},
-        # M6 security audit M1: a note cannot talk the model into a reminder the house rules
+        # A note cannot talk the model into a reminder the house rules
         # would not choose for the same facts, however confident it says it is.
         {"rules_action": "escalate", "confidence": 0.99},
         {"rules_action": "pause", "confidence": 0.99},
@@ -112,7 +112,7 @@ def test_non_finite_values_fail_closed(
     balance_cents: int,
     confidence: float,
 ) -> None:
-    """T-51 compliance review: min(nan, x) is nan, which every comparison then waves through."""
+    """min(nan, x) is nan, which every comparison then waves through."""
     eff = policy.effective(setting, env_max, env_min)
     ok, _ = check(policy=eff, open_balance_cents=balance_cents, confidence=confidence)
     assert not ok
@@ -120,7 +120,7 @@ def test_non_finite_values_fail_closed(
 
 
 def test_the_ceiling_is_compared_in_exact_cents() -> None:
-    """T-51 review m1: EUR 1.75 at 1.08 is exactly USD 1.89; in floats 1.75 * 1.08 is
+    """EUR 1.75 at 1.08 is exactly USD 1.89; in floats 1.75 * 1.08 is
     1.8900000000000001, which is "above" a 1.89 ceiling. Money is compared as Decimal cents."""
     tight = policy.EffectivePolicy(enabled=True, max_usd=1.89, min_confidence=0.9)
     eur = {"currency": "EUR", "invoice_currencies": ["EUR"]}

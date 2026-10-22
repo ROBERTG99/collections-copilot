@@ -1,4 +1,4 @@
-"""T-27 / NFR-5: no SMS leaves without an approval record for the exact draft version.
+"""NFR-5: no SMS leaves without an approval record for the exact draft version.
 
 Static: only two call sites may hand text to an SMS provider (the case graph's `send_sms` and
 the STOP confirmation). Dynamic: every way of resuming or auto-approving a case without a

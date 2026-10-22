@@ -253,7 +253,7 @@ resource "aws_wafv2_web_acl_association" "this" {
 
 # WAF logs: the group name must start with aws-waf-logs-; KMS-encrypted, 30 days.
 resource "aws_cloudwatch_log_group" "waf" {
-  #checkov:skip=CKV_AWS_338:§16.3 sets 30-day retention for this environment
+  #checkov:skip=CKV_AWS_338:30-day retention is the documented policy for this environment
   name              = "aws-waf-logs-${var.name}"
   retention_in_days = 30
   kms_key_id        = var.kms_key_arn

@@ -1,4 +1,4 @@
-"""Queue message contracts: cc.task.v1 and cc.reply.v1 (BUILD.md §4.4)."""
+"""Queue message contracts: cc.task.v1 and cc.reply.v1."""
 
 from __future__ import annotations
 

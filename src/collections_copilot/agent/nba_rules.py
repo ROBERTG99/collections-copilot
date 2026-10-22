@@ -1,5 +1,5 @@
 """Deterministic next-best-action rules: used when an account has no notes, and as the fallback
-when the model is unavailable or refuses (§4.6). Labels in nba.v1 for note-less accounts are
+when the model is unavailable or refuses. Labels in nba.v1 for note-less accounts are
 produced by these rules by construction."""
 
 from __future__ import annotations

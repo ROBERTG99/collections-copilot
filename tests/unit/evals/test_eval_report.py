@@ -1,4 +1,4 @@
-"""T-40: `make eval` gates every suite against thresholds and the committed baseline."""
+"""`make eval` gates every suite against thresholds and the committed baseline."""
 
 from __future__ import annotations
 

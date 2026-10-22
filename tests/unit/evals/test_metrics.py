@@ -1,4 +1,4 @@
-"""T-40: custom eval metrics (macro-F1, STOP recall, violation and leak counters)."""
+"""Custom eval metrics (macro-F1, STOP recall, violation and leak counters)."""
 
 from __future__ import annotations
 
