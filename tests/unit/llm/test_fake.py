@@ -158,6 +158,58 @@ async def test_classify_does_not_read_a_commitment_into_a_non_commitment(body: s
     assert out["label"] == "other"
 
 
+@pytest.mark.parametrize(
+    "body",
+    [
+        # A promise phrase that is negated, conditional or asked is not a commitment.
+        "We are not going to pay this invoice.",
+        "No podemos pagar este mes.",
+        "If you waive the fee we can pay on Friday.",
+        "Si nos hacen un descuento pagaremos el lunes.",
+        "Can we pay next week? Let me know.",
+        "¿Podemos pagar el viernes? Avísenme.",
+    ],
+)
+async def test_classify_negated_conditional_or_asked_promises_are_not_commitments(
+    body: str,
+) -> None:
+    fake = FakeLLM()
+    ctx = '<context>{"today": "2026-03-10"}</context>'
+    out = json.loads((await fake.complete(req("classify_reply", ctx + notes(body)))).text)
+    assert out["label"] == "other"
+
+
+@pytest.mark.parametrize(
+    ("body", "label"),
+    [
+        # A commitment still counts when a refusal or question sits in another sentence.
+        ("We can't pay today. We will pay on Friday.", "promise_to_pay"),
+        ("Sí, pagaremos el lunes.", "promise_to_pay"),
+        # Contesting the goods, the delivery or the price, without the word "dispute".
+        ("The goods never arrived, so this bill is not right.", "dispute"),
+        ("Half the order showed up broken.", "dispute"),
+        ("That price does not match the quote we signed.", "dispute"),
+        ("La mercancía nunca llegó.", "dispute"),
+        ("El importe no coincide con el presupuesto.", "dispute"),
+        ("Llegó rota la mitad del pedido.", "dispute"),
+        # Saying the money already left, without "paid".
+        ("We took care of this last Tuesday.", "paid"),
+        ("The transfer went out on the 3rd, it should have reached you.", "paid"),
+        ("This was settled weeks ago.", "paid"),
+        ("Ya está saldado desde el mes pasado.", "paid"),
+        ("Hicimos la transferencia el viernes.", "paid"),
+        ("Lo hemos abonado esta mañana.", "paid"),
+    ],
+)
+async def test_classify_reads_commitments_disputes_and_payment_claims_in_other_words(
+    body: str, label: str
+) -> None:
+    fake = FakeLLM()
+    ctx = '<context>{"today": "2026-03-10"}</context>'
+    out = json.loads((await fake.complete(req("classify_reply", ctx + notes(body)))).text)
+    assert out["label"] == label
+
+
 async def test_amount_with_a_future_time_is_a_commitment_unless_asked_or_refused() -> None:
     fake = FakeLLM()
     ctx = '<context>{"today": "2026-03-10"}</context>'
